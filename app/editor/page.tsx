@@ -401,20 +401,20 @@ export default function ResumeEditor() {
   }, []);
 
   const [isSaving, setIsSaving] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   const importInputRef = React.useRef<HTMLInputElement>(null);
 
-  // 1. PDF 导出逻辑：高解析度离屏渲染
+  // 1. PDF 导出逻辑：独立于自动保存状态
   const exportToPdf = async () => {
-    setIsSaving(true);
+    setIsExporting(true);
     try {
       const pdf = new jsPDF("p", "mm", "a4");
       const pages = document.querySelectorAll(".group\\/page");
       
       for (let i = 0; i < pages.length; i++) {
-        // html-to-image 通过将 DOM 转换为 SVG 加 Canvas 渲染，完美支持 OKLCH/LAB 现代颜色函数
         const imgData = await toJpeg(pages[i] as HTMLElement, {
           quality: 1.0,
-          pixelRatio: 4, // 进一步提升至超清画质
+          pixelRatio: 4, 
           backgroundColor: "#ffffff",
         });
         
@@ -425,9 +425,10 @@ export default function ResumeEditor() {
       pdf.save(`青椒简历-${resumeData.name || '未命名'}.pdf`);
     } catch (err) {
       console.error("PDF 失败:", err);
-      alert("PDF 生成失败，可能由于部分资源加载受阻。请尝试刷新重试，或联系管理员。");
+      alert("PDF 生成失败，请检查浏览器是否兼容。");
+    } finally {
+      setIsExporting(false);
     }
-    setIsSaving(false);
   };
 
   // 2. JSON 配置导出与导入
@@ -519,8 +520,8 @@ export default function ResumeEditor() {
              <Button variant="outline" size="sm" className="gap-2 text-xs font-bold" onClick={exportToJson}>
                <Code size={14} /> 备份 JSON
              </Button>
-             <Button size="sm" className="gap-2 text-xs font-bold shadow-lg shadow-emerald-900/10" onClick={exportToPdf} disabled={isSaving}>
-               <DownloadCloud size={14} /> {isSaving ? "正在生成 PDF..." : "下载 PDF"}
+             <Button size="sm" className="gap-2 text-xs font-bold shadow-lg shadow-emerald-900/10" onClick={exportToPdf} disabled={isExporting}>
+               <DownloadCloud size={14} /> {isExporting ? "正在生成 PDF..." : "下载 PDF"}
              </Button>
           </div>
         </div>
