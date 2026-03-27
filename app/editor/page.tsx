@@ -220,57 +220,87 @@ export default function ResumeEditor() {
             <h3 className="text-sm font-semibold mb-3 text-zinc-900">
               模块排序
             </h3>
+            <div className="space-y-2 mb-2">
+              <Card
+                onClick={() => setActiveTab("basic")}
+                className={cn(
+                  "flex items-center gap-2 cursor-pointer transition-all",
+                  activeTab === "basic" &&
+                    "border-zinc-900 ring-1 ring-zinc-900/5",
+                )}
+              >
+                <div className="w-4 h-4 rounded-sm border border-zinc-200 flex items-center justify-center bg-zinc-50 ml-1">
+                  <div className="w-1.5 h-1.5 rounded-full bg-zinc-300" />
+                </div>
+                <span className="text-sm text-zinc-600 flex-1 ml-1">基本信息</span>
+                <div className="flex gap-1">
+                  <Badge className="bg-zinc-100 text-zinc-400 font-normal">
+                    固定
+                  </Badge>
+                </div>
+              </Card>
+            </div>
+
             <Reorder.Group
               axis="y"
-              values={modules}
-              onReorder={setModules}
+              values={modules.filter((m) => m.id !== "basic")}
+              onReorder={(newModules) => {
+                const basic = modules.find((m) => m.id === "basic")!;
+                setModules([basic, ...newModules]);
+              }}
               className="space-y-2"
             >
-              {modules.map((m) => (
-                <Reorder.Item
-                  key={m.id}
-                  value={m}
-                  onClick={() => setActiveTab(m.id)}
-                >
-                  <Card
-                    className={cn(
-                      "flex items-center gap-2 cursor-pointer transition-all",
-                      activeTab === m.id &&
-                        "border-zinc-900 ring-1 ring-zinc-900/5",
-                      !m.visible && "opacity-50",
-                    )}
+              {modules
+                .filter((m) => m.id !== "basic")
+                .map((m) => (
+                  <Reorder.Item
+                    key={m.id}
+                    value={m}
+                    onClick={() => setActiveTab(m.id)}
                   >
-                    <GripVertical
-                      size={16}
-                      className="text-zinc-400 cursor-grab active:cursor-grabbing"
-                    />
-                    <span className="text-sm text-zinc-600 flex-1">
-                      {m.title}
-                    </span>
-                    <div
-                      className="flex gap-1"
-                      onClick={(e) => e.stopPropagation()}
+                    <Card
+                      className={cn(
+                        "flex items-center gap-2 cursor-pointer transition-all",
+                        activeTab === m.id &&
+                          "border-zinc-900 ring-1 ring-zinc-900/5",
+                        !m.visible && "opacity-50",
+                      )}
                     >
-                      <button
-                        className="p-1 hover:bg-zinc-100 rounded text-zinc-400"
-                        onClick={() => toggleModuleVisibility(m.id)}
-                        title={m.visible ? "隐藏" : "显示"}
-                        aria-label={m.visible ? "隐藏模块" : "显示模块"}
+                      <GripVertical
+                        size={16}
+                        className="text-zinc-400 cursor-grab active:cursor-grabbing"
+                      />
+                      <span className="text-sm text-zinc-600 flex-1">
+                        {m.title}
+                      </span>
+                      <div
+                        className="flex gap-1"
+                        onClick={(e) => e.stopPropagation()}
                       >
-                        {m.visible ? <Eye size={14} /> : <EyeOff size={14} />}
-                      </button>
-                      <button
-                        className="p-1 hover:bg-zinc-100 rounded text-zinc-400"
-                        onClick={() => removeModule(m.id)}
-                        title="删除"
-                        aria-label="删除模块"
-                      >
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                  </Card>
-                </Reorder.Item>
-              ))}
+                        <button
+                          className="p-1 hover:bg-zinc-100 rounded text-zinc-400"
+                          onClick={() => toggleModuleVisibility(m.id)}
+                          title={m.visible ? "隐藏" : "显示"}
+                          aria-label={m.visible ? "隐藏模块" : "显示模块"}
+                        >
+                          {m.visible ? (
+                            <Eye size={14} />
+                          ) : (
+                            <EyeOff size={14} />
+                          )}
+                        </button>
+                        <button
+                          className="p-1 hover:bg-zinc-100 rounded text-zinc-400"
+                          onClick={() => removeModule(m.id)}
+                          title="删除"
+                          aria-label="删除模块"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </Card>
+                  </Reorder.Item>
+                ))}
             </Reorder.Group>
           </section>
 
