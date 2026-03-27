@@ -403,6 +403,7 @@ export default function ResumeEditor() {
     }
   };
 
+  // 删除列表项（教育、工作、项目）
   const deleteItem = (type: "edu" | "work" | "project", id: string) => {
     if (type === "edu") {
       setResumeData((prev) => ({
@@ -422,6 +423,7 @@ export default function ResumeEditor() {
     }
   };
 
+  // 更新技能列表
   const updateSkills = (value: string) => {
     setResumeData((prev) => ({
       ...prev,
@@ -429,6 +431,7 @@ export default function ResumeEditor() {
     }));
   };
 
+  // 自动适配缩放比例，使预览区刚好填满容器宽度
   const autoFit = () => {
     if (previewContainerRef.current) {
       const containerWidth = previewContainerRef.current.clientWidth - 64;
@@ -481,12 +484,13 @@ export default function ResumeEditor() {
     };
   }, []);
 
-  const [isSaving, setIsSaving] = useState(false);
-  const [isExporting, setIsExporting] = useState(false);
-  const [isPanning, setIsPanning] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // 是否正在保存
+  const [isExporting, setIsExporting] = useState(false); // 是否正在导出 PDF
+  const [isPanning, setIsPanning] = useState(false); // 预览区是否正在按下鼠标拖拽平移
+  // 移动端底部 Tab 激活状态：管理、编辑、预览
   const [activeMobileTab, setActiveMobileTab] = useState<"manage" | "edit" | "preview">("edit");
-  const scrollStart = React.useRef({ scrollLeft: 0, scrollTop: 0, x: 0, y: 0 });
-  const importInputRef = React.useRef<HTMLInputElement>(null);
+  const scrollStart = React.useRef({ scrollLeft: 0, scrollTop: 0, x: 0, y: 0 }); // 记录拖拽起始位置
+  const importInputRef = React.useRef<HTMLInputElement>(null); // JSON 导入隐藏 Input Ref
 
   // 1. PDF 导出逻辑：独立于自动保存状态
   const exportToPdf = async () => {
@@ -748,16 +752,23 @@ export default function ResumeEditor() {
                   title={c}
                 />
               ))}
-              <input
-                type="color"
-                className="w-8 h-8 rounded-lg border border-zinc-200 cursor-pointer p-1.5 bg-zinc-50"
-                value={themeColor}
-                onChange={(e) => setThemeColor(e.target.value)}
-                title="定制颜色"
-              />
-              <span className="text-[10px] text-zinc-400 font-mono tracking-tight uppercase">
-                {themeColor}
-              </span>
+              <div className="relative group/pill">
+                <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-full border border-zinc-200 bg-white hover:border-zinc-300 hover:shadow-sm transition-all cursor-pointer">
+                  <Palette size={14} className="text-zinc-500" />
+                  <span className="text-xs font-semibold text-zinc-700">自定义</span>
+                  <div
+                    className="w-4 h-4 rounded-full border border-black/10 shadow-inner"
+                    style={{ backgroundColor: themeColor }}
+                  />
+                </div>
+                <input
+                  type="color"
+                  className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  value={themeColor}
+                  onChange={(e) => setThemeColor(e.target.value)}
+                  title="自定义主题色"
+                />
+              </div>
             </div>
           </section>
 
@@ -1366,7 +1377,20 @@ export default function ResumeEditor() {
                     </div>
 
                     {!typography.skillTagUseTheme && (
-                      <div className="flex items-center gap-3 animate-in fade-in zoom-in-95">
+                      <div className="relative group/pill animate-in fade-in zoom-in-95">
+                        <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-full border border-zinc-200 bg-white hover:border-zinc-300 hover:shadow-sm transition-all cursor-pointer">
+                          <Palette size={14} className="text-zinc-500" />
+                          <span className="text-xs font-semibold text-zinc-700">
+                            自定义
+                          </span>
+                          <div
+                            className="w-4 h-4 rounded-full border border-black/10 shadow-inner"
+                            style={{
+                              backgroundColor:
+                                typography.skillTagColor || "#71717a",
+                            }}
+                          />
+                        </div>
                         <input
                           type="color"
                           value={typography.skillTagColor || "#71717a"}
@@ -1376,12 +1400,9 @@ export default function ResumeEditor() {
                               skillTagColor: e.target.value,
                             }))
                           }
-                          className="w-8 h-8 rounded-lg border border-zinc-200 cursor-pointer p-1.5 bg-zinc-50"
+                          className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                           title="自定义标签颜色"
                         />
-                        <span className="text-[10px] font-mono text-zinc-400">
-                          自定义颜色
-                        </span>
                       </div>
                     )}
                   </div>
@@ -1391,14 +1412,14 @@ export default function ResumeEditor() {
           </AnimatePresence>
         </aside>
 
-        {/* Column 3: Preview Output - Hidden on mobile unless active */}
+        {/* 第 3 列：预览区 - 在移动端根据 Tab 状态切换可见性 */}
         <section
           className={cn(
             "flex-1 bg-zinc-100 flex flex-col relative overflow-hidden group absolute inset-0 z-20 lg:relative lg:flex lg:translate-x-0 transition-transform duration-300",
             activeMobileTab === "preview" ? "translate-x-0" : "translate-x-full lg:translate-x-0",
           )}
         >
-          {/* 右侧悬浮工具栏 */}
+          {/* 右侧悬浮预览工具栏：缩放控制、自适应 */}
           <div className="absolute right-6 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2 bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-zinc-200 shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-4 group-hover:translate-x-0">
             <Button
               variant="ghost"
@@ -1706,7 +1727,7 @@ export default function ResumeEditor() {
           </div>
         </section>
 
-        {/* Mobile Bottom Navigation */}
+        {/* 移动端底部切换导航栏 */}
         <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 h-14 bg-zinc-900/90 backdrop-blur-md rounded-2xl flex items-center px-2 gap-1 border border-white/10 shadow-2xl z-[100]">
           <button
             onClick={() => setActiveMobileTab("manage")}
