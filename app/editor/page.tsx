@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
   Download,
   User,
@@ -23,14 +23,56 @@ import {
   Settings2,
   Plus,
   Minus,
+  X,
+  Check,
 } from "lucide-react";
 import Image from "next/image";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import Cropper, { Area } from "react-easy-crop";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
+}
+
+// --- Helper Functions ---
+
+const createImage = (url: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const image = new Image();
+    image.addEventListener("load", () => resolve(image));
+    image.addEventListener("error", (error) => reject(error));
+    image.setAttribute("crossOrigin", "anonymous");
+    image.src = url;
+  });
+
+async function getCroppedImg(
+  imageSrc: string,
+  pixelCrop: Area,
+): Promise<string | null> {
+  const image = await createImage(imageSrc);
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+
+  if (!ctx) return null;
+
+  canvas.width = pixelCrop.width;
+  canvas.height = pixelCrop.height;
+
+  ctx.drawImage(
+    image,
+    pixelCrop.x,
+    pixelCrop.y,
+    pixelCrop.width,
+    pixelCrop.height,
+    0,
+    0,
+    pixelCrop.width,
+    pixelCrop.height
+  );
+
+  return canvas.toDataURL("image/jpeg");
 }
 
 // --- Types ---
@@ -75,7 +117,7 @@ interface ProjectItem {
 interface TypographyConfig {
   fontFamily: string;
   lineHeight: number;
-  fontSize: number; // in pixels
+  fontSize: number; 
 }
 
 interface ModuleItem {
@@ -183,11 +225,17 @@ export default function ResumeEditor() {
   const [zoomScale, setZoomScale] = useState(0.8);
   const previewContainerRef = React.useRef<HTMLDivElement>(null);
 
+  // Avatar Crop State
+  const [tempAvatar, setTempAvatar] = useState<string | null>(null);
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+
   // Typography Settings
   const [typography, setTypography] = useState<TypographyConfig>({
     fontFamily: "Inter, sans-serif",
     lineHeight: 1.6,
-    fontSize: 14.5, // Changed to pixel value
+    fontSize: 14.5,
   });
 
   const [modules, setModules] = useState<ModuleItem[]>([
@@ -205,7 +253,7 @@ export default function ResumeEditor() {
     email: "email@example.com",
     city: "深圳",
     education: [
-      { id: "e1", school: "五邑大学", major: "五邑大学", date: "2022 - 2026" }
+      { id: "e1", school: "五邑大学", major: "软件工程", date: "2022 - 2026" }
     ],
     workExperiences: [
       { id: "w1", company: "青椒实验室", role: "高级前端开发", date: "2020 - 至今", desc: "1. 负责核心编辑器的架构设计与性能优化。\n2. 实现实时协同预览引擎。" }
@@ -217,6 +265,21 @@ export default function ResumeEditor() {
   });
 
   const presetColors = ["#10b981", "#3b82f6", "#ef4444", "#f59e0b", "#18181b"];
+
+  const onCropComplete = useCallback((_croppedArea: Area, _croppedAreaPixels: Area) => {
+    setCroppedAreaPixels(_croppedAreaPixels);
+  }, []);
+
+  const handleApplyCrop = async () => {
+    if (tempAvatar && croppedAreaPixels) {
+      const croppedImage = await getCroppedImg(tempAvatar, croppedAreaPixels);
+      if (croppedImage) {
+        setResumeData(prev => ({ ...prev, avatar: croppedImage }));
+        localStorage.setItem("resume_avatar", croppedImage);
+      }
+    }
+    setTempAvatar(null);
+  };
 
   const toggleModuleVisibility = (id: string) => {
     setModules((prev) =>
@@ -232,25 +295,15 @@ export default function ResumeEditor() {
     setResumeData((prev) => ({ ...prev, [field]: value }));
   };
 
-  // Generic List item updaters
   const updateListItem = (type: "edu" | "work" | "project", id: string, field: string, value: string) => {
     setResumeData(prev => {
       if (type === "edu") {
-        return {
-          ...prev,
-          education: prev.education.map(item => item.id === id ? { ...item, [field]: value } : item)
-        };
+        return { ...prev, education: prev.education.map(item => item.id === id ? { ...item, [field]: value } : item) };
       }
       if (type === "work") {
-        return {
-          ...prev,
-          workExperiences: prev.workExperiences.map(item => item.id === id ? { ...item, [field]: value } : item)
-        };
+        return { ...prev, workExperiences: prev.workExperiences.map(item => item.id === id ? { ...item, [field]: value } : item) };
       }
-      return {
-        ...prev,
-        projects: prev.projects.map(item => item.id === id ? { ...item, [field]: value } : item)
-      };
+      return { ...prev, projects: prev.projects.map(item => item.id === id ? { ...item, [field]: value } : item) };
     });
   };
 
@@ -266,15 +319,13 @@ export default function ResumeEditor() {
   };
 
   const deleteItem = (type: "edu" | "work" | "project", id: string) => {
-    setResumeData(prev => {
-      if (type === "edu") {
-        return { ...prev, education: prev.education.filter(i => i.id !== id) };
-      }
-      if (type === "work") {
-        return { ...prev, workExperiences: prev.workExperiences.filter(i => i.id !== id) };
-      }
-      return { ...prev, projects: prev.projects.filter(i => i.id !== id) };
-    });
+    if (type === "edu") {
+      setResumeData(prev => ({ ...prev, education: prev.education.filter(i => i.id !== id) }));
+    } else if (type === "work") {
+      setResumeData(prev => ({ ...prev, workExperiences: prev.workExperiences.filter(i => i.id !== id) }));
+    } else {
+      setResumeData(prev => ({ ...prev, projects: prev.projects.filter(i => i.id !== id) }));
+    }
   };
 
   const updateSkills = (value: string) => {
@@ -308,19 +359,19 @@ export default function ResumeEditor() {
         "--line-height": typography.lineHeight,
       } as React.CSSProperties}
     >
-      {/* 1. Header */}
+      {/* Head */}
       <header className="h-[60px] flex items-center justify-between px-6 bg-white border-b border-zinc-200 shadow-sm z-50">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center">
             <Maximize2 size={18} className="text-white" />
           </div>
           <span className="font-bold text-lg tracking-tight">青椒简历</span>
-          <Badge className="bg-emerald-50 text-emerald-600 ml-2">保存自动进行</Badge>
+          <Badge className="bg-emerald-50 text-emerald-600 ml-2">自动保存中</Badge>
         </div>
 
         <div className="flex items-center gap-4">
           <span className="text-sm font-medium text-zinc-600">QingJiao</span>
-          <Button variant="ghost" size="icon" className="rounded-full" title="切换显示模式">
+          <Button variant="ghost" size="icon" className="rounded-full" title="显示方案">
             <Sun size={18} />
           </Button>
           <Button className="gap-2">
@@ -329,22 +380,16 @@ export default function ResumeEditor() {
         </div>
       </header>
 
-      {/* 2. Main Content */}
+      {/* Main Content */}
       <main className="flex-1 flex overflow-hidden">
-        {/* Column 1: Config & Module Management (280px) */}
+        {/* Column 1: Module Manager */}
         <aside className="w-[280px] bg-white border-r border-zinc-100 p-4 overflow-y-auto flex flex-col gap-6 scrollbar-hide">
           <section>
             <h3 className="text-sm font-semibold mb-3 text-zinc-900 flex items-center gap-2">
               <Settings2 size={14} /> 模块管理
             </h3>
             <div className="space-y-2 mb-2">
-              <Card
-                onClick={() => setActiveTab("basic")}
-                className={cn(
-                  "flex items-center gap-2 cursor-pointer transition-all",
-                  activeTab === "basic" && "border-zinc-900 ring-1 ring-zinc-900/5",
-                )}
-              >
+              <Card onClick={() => setActiveTab("basic")} className={cn("flex items-center gap-2 cursor-pointer transition-all", activeTab === "basic" && "border-zinc-900 ring-1 ring-zinc-900/5")}>
                 <div className="w-4 h-4 rounded-sm border border-zinc-200 flex items-center justify-center bg-zinc-50 ml-1">
                   <div className="w-1.5 h-1.5 rounded-full bg-zinc-300" />
                 </div>
@@ -353,28 +398,15 @@ export default function ResumeEditor() {
               </Card>
             </div>
 
-            <Reorder.Group
-              axis="y"
-              values={modules.filter((m) => m.id !== "basic")}
-              onReorder={(newModules) => setModules([modules.find(m => m.id === "basic")!, ...newModules])}
-              className="space-y-2"
-            >
+            <Reorder.Group axis="y" values={modules.filter((m) => m.id !== "basic")} onReorder={(newModules) => setModules([modules[0], ...newModules])} className="space-y-2">
               {modules.filter((m) => m.id !== "basic").map((m) => (
                 <Reorder.Item key={m.id} value={m} onClick={() => setActiveTab(m.id)}>
-                  <Card className={cn(
-                    "flex items-center gap-2 cursor-pointer transition-all",
-                    activeTab === m.id && "border-zinc-900 ring-1 ring-zinc-900/5",
-                    !m.visible && "opacity-50",
-                  )}>
+                  <Card className={cn("flex items-center gap-2 cursor-pointer transition-all", activeTab === m.id && "border-zinc-900 ring-1 ring-zinc-900/5", !m.visible && "opacity-50")}>
                     <GripVertical size={16} className="text-zinc-400 cursor-grab active:cursor-grabbing" />
                     <span className="text-sm text-zinc-600 flex-1">{m.title}</span>
                     <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                      <button className="p-1 hover:bg-zinc-100 rounded text-zinc-400" onClick={() => toggleModuleVisibility(m.id)} title={m.visible ? "隐藏" : "显示"}>
-                        {m.visible ? <Eye size={14} /> : <EyeOff size={14} />}
-                      </button>
-                      <button className="p-1 hover:bg-zinc-100 rounded text-zinc-400" onClick={() => removeModule(m.id)} title="删除模块">
-                        <Trash2 size={14} />
-                      </button>
+                      <button className="p-1 hover:bg-zinc-100 rounded text-zinc-400" onClick={() => toggleModuleVisibility(m.id)} title={m.visible ? "隐藏" : "显示"}>{m.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
+                      <button className="p-1 hover:bg-zinc-100 rounded text-zinc-400" onClick={() => removeModule(m.id)} title="删除"><Trash2 size={14} /></button>
                     </div>
                   </Card>
                 </Reorder.Item>
@@ -383,115 +415,51 @@ export default function ResumeEditor() {
           </section>
 
           <section>
-            <h3 className="text-sm font-semibold mb-3 text-zinc-900 flex items-center gap-2">
-              <Palette size={14} /> 主题与颜色
-            </h3>
+            <h3 className="text-sm font-semibold mb-3 text-zinc-900 flex items-center gap-2"><Palette size={14} /> 主题色</h3>
             <div className="flex flex-wrap gap-3 px-1 items-center">
               {presetColors.map((c) => (
-                <button
-                  key={c}
-                  onClick={() => setThemeColor(c)}
-                  style={{ "--bg-color": c } as React.CSSProperties}
-                  className={cn(
-                    "w-6 h-6 rounded-full transition-all active:scale-90 bg-[var(--bg-color)] shadow-sm",
-                    themeColor === c && "ring-2 ring-zinc-900 ring-offset-2",
-                  )}
-                  title={`预设颜色 ${c}`}
-                  aria-label={`选择颜色 ${c}`}
-                />
+                <button key={c} onClick={() => setThemeColor(c)} style={{ "--bg-color": c } as React.CSSProperties} className={cn("w-6 h-6 rounded-full transition-all active:scale-90 bg-[var(--bg-color)] shadow-sm", themeColor === c && "ring-2 ring-zinc-900 ring-offset-2")} title={c} />
               ))}
-              <div className="relative group/color">
-                <input 
-                  type="color" 
-                  className="w-8 h-8 rounded-lg border border-zinc-200 cursor-pointer p-1.5 bg-zinc-50 hover:bg-zinc-100 transition-colors"
-                  value={themeColor}
-                  onChange={(e) => setThemeColor(e.target.value)}
-                  title="自定义颜色"
-                  aria-label="自定义主题色"
-                />
-              </div>
-              <span className="text-[10px] text-zinc-400 font-mono uppercase tracking-tight">{themeColor}</span>
+              <input type="color" className="w-8 h-8 rounded-lg border border-zinc-200 cursor-pointer p-1.5 bg-zinc-50" value={themeColor} onChange={(e) => setThemeColor(e.target.value)} title="定制颜色" />
+              <span className="text-[10px] text-zinc-400 font-mono tracking-tight uppercase">{themeColor}</span>
             </div>
           </section>
 
           <section className="space-y-4">
-            <h3 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
-              <Type size={14} /> 高级排版
-            </h3>
+            <h3 className="text-sm font-semibold text-zinc-900 flex items-center gap-2"><Type size={14} /> 版式调节</h3>
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-500" htmlFor="font-family">字体选择</label>
-                <select 
-                  id="font-family"
-                  className="w-full h-9 px-3 rounded-lg border border-zinc-200 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400"
-                  value={typography.fontFamily}
-                  onChange={(e) => setTypography(prev => ({ ...prev, fontFamily: e.target.value }))}
-                  title="字体设定"
-                >
+                <label className="text-xs font-medium text-zinc-500" htmlFor="font-fam">字体</label>
+                <select id="font-fam" className="w-full h-9 px-3 rounded-lg border border-zinc-200 bg-white text-sm focus:outline-none" value={typography.fontFamily} onChange={(e) => setTypography(prev => ({ ...prev, fontFamily: e.target.value }))}>
                   <option value="Inter, sans-serif">Inter (通用)</option>
                   <option value="'Roboto', sans-serif">Roboto (机械)</option>
-                  <option value="'Outfit', sans-serif">Outfit (现代)</option>
-                  <option value="'Songti SC', serif">宋体 (传统)</option>
+                  <option value="'Outfit', sans-serif">Outfit (现代精美)</option>
+                  <option value="'Songti SC', serif">宋体 (正式)</option>
                 </select>
               </div>
-
               <div className="space-y-1.5">
-                <div className="flex justify-between">
-                  <label className="text-xs font-medium text-zinc-500" htmlFor="line-height">行间距</label>
-                  <span className="text-xs text-zinc-400">{typography.lineHeight}</span>
-                </div>
-                <input 
-                  id="line-height"
-                  type="range" 
-                  min="1.0" 
-                  max="2.5" 
-                  step="0.05"
-                  className="w-full h-1.5 bg-zinc-100 rounded-lg appearance-none accent-zinc-900 cursor-pointer"
-                  value={typography.lineHeight}
-                  onChange={(e) => setTypography(prev => ({ ...prev, lineHeight: parseFloat(e.target.value) }))}
-                  title="行高调节"
-                />
+                <div className="flex justify-between"><label className="text-xs font-medium text-zinc-500" htmlFor="line-h">行距</label><span className="text-xs text-zinc-400">{typography.lineHeight}</span></div>
+                <input id="line-h" type="range" min="1.0" max="2.5" step="0.05" className="w-full h-1.5 bg-zinc-100 rounded-lg appearance-none accent-zinc-900 cursor-pointer" value={typography.lineHeight} onChange={(e) => setTypography(prev => ({ ...prev, lineHeight: parseFloat(e.target.value) }))} />
               </div>
-
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-500">正文字号 (px)</label>
+                <label className="text-xs font-medium text-zinc-500">主字号 (px)</label>
                 <div className="flex items-center gap-3">
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="w-10 h-10 p-0"
-                    onClick={() => setTypography(prev => ({ ...prev, fontSize: Math.max(10, prev.fontSize - 0.5) }))}
-                    title="减小字号"
-                  >
-                    <Minus size={14} />
-                  </Button>
-                  <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">
-                    {typography.fontSize.toFixed(1)}px
-                  </div>
-                  <Button 
-                    size="sm" 
-                    variant="outline" 
-                    className="w-10 h-10 p-0"
-                    onClick={() => setTypography(prev => ({ ...prev, fontSize: Math.min(24, prev.fontSize + 0.5) }))}
-                    title="增大字号"
-                  >
-                    <Plus size={14} />
-                  </Button>
+                  <Button size="sm" variant="outline" className="w-10 h-10 p-0" onClick={() => setTypography(prev => ({ ...prev, fontSize: Math.max(10, prev.fontSize - 0.5) }))}><Minus size={14} /></Button>
+                  <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">{typography.fontSize.toFixed(1)}</div>
+                  <Button size="sm" variant="outline" className="w-10 h-10 p-0" onClick={() => setTypography(prev => ({ ...prev, fontSize: Math.min(24, prev.fontSize + 0.5) }))}><Plus size={14} /></Button>
                 </div>
               </div>
             </div>
           </section>
         </aside>
 
-        {/* Column 2: Form Editor (380px) */}
+        {/* Column 2: Editor Pane */}
         <aside className="w-[380px] bg-zinc-50/50 border-r border-zinc-200 p-6 overflow-y-auto scrollbar-hide">
           <AnimatePresence mode="wait">
             {activeTab === "basic" && (
               <motion.div key="basic" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-8">
                 <header className="flex items-center gap-3 mb-8">
-                  <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600 shadow-sm">
-                    <User size={20} />
-                  </div>
+                  <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600 shadow-sm"><User size={20} /></div>
                   <h2 className="text-xl font-bold tracking-tight">基本信息</h2>
                 </header>
 
@@ -505,42 +473,27 @@ export default function ResumeEditor() {
                           <User size={32} className="text-zinc-300" />
                         )}
                       </div>
-                      <label 
-                        className="absolute -bottom-2 -right-2 w-8 h-8 bg-zinc-900 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white hover:scale-110 transition-transform cursor-pointer"
-                        title="点击更换图片"
-                      >
+                      <label className="absolute -bottom-2 -right-2 w-8 h-8 bg-zinc-900 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white hover:scale-110 transition-transform cursor-pointer" title="更换头像">
                         <Palette size={14} />
-                        <input 
-                          type="file" 
-                          className="hidden" 
-                          aria-label="上传头像" 
-                          accept="image/*" 
-                          title="上传文件"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onloadend = () => {
-                                const base64 = reader.result as string;
-                                setResumeData(prev => ({ ...prev, avatar: base64 }));
-                                localStorage.setItem("resume_avatar", base64);
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }} 
-                        />
+                        <input type="file" className="hidden" aria-label="头像上传" accept="image/*" onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => setTempAvatar(reader.result as string);
+                            reader.readAsDataURL(file);
+                          }
+                        }} />
                       </label>
                     </div>
                     <div className="flex-1 space-y-4">
-                      <Input placeholder="姓名" value={resumeData.name} onChange={(e) => updateBasicData("name", e.target.value)} title="您的姓名" />
-                      <Input placeholder="职位/称号" value={resumeData.title} onChange={(e) => updateBasicData("title", e.target.value)} title="职位标题" />
+                      <Input placeholder="姓名" value={resumeData.name} onChange={(e) => updateBasicData("name", e.target.value)} title="姓名" />
+                      <Input placeholder="职位/称号" value={resumeData.title} onChange={(e) => updateBasicData("title", e.target.value)} title="称号" />
                     </div>
                   </div>
-
                   <div className="grid grid-cols-1 gap-4">
-                    <Input label="联系方式" value={resumeData.phone} onChange={(e) => updateBasicData("phone", e.target.value)} placeholder="000-0000-0000" />
-                    <Input label="邮箱" value={resumeData.email} onChange={(e) => updateBasicData("email", e.target.value)} placeholder="name@domain.com" />
-                    <Input label="地点" value={resumeData.city} onChange={(e) => updateBasicData("city", e.target.value)} placeholder="City, Country" />
+                    <Input label="电话" value={resumeData.phone} onChange={(e) => updateBasicData("phone", e.target.value)} />
+                    <Input label="邮箱" value={resumeData.email} onChange={(e) => updateBasicData("email", e.target.value)} />
+                    <Input label="城市" value={resumeData.city} onChange={(e) => updateBasicData("city", e.target.value)} />
                   </div>
                 </section>
               </motion.div>
@@ -548,18 +501,13 @@ export default function ResumeEditor() {
 
             {activeTab === "edu" && (
               <motion.div key="edu" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-6">
-                <header className="flex items-center gap-3 mb-8">
-                  <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600 shadow-sm">
-                    <GraduationCap size={20} />
-                  </div>
-                  <h2 className="text-xl font-bold tracking-tight">教育背景</h2>
-                </header>
+                <header className="flex items-center gap-3 mb-8"><div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600"><GraduationCap size={20} /></div><h2 className="text-xl font-bold tracking-tight">教育背景</h2></header>
                 {resumeData.education.map(item => (
                   <Card key={item.id} className="relative group p-4 border-dashed border-zinc-200 space-y-3">
-                    <button onClick={() => deleteItem("edu", item.id)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100" title="删除记录"><Trash2 size={12} /></button>
-                    <Input placeholder="学校" value={item.school} onChange={e => updateListItem("edu", item.id, "school", e.target.value)} title="校名" />
-                    <Input placeholder="专业" value={item.major} onChange={e => updateListItem("edu", item.id, "major", e.target.value)} title="学系" />
-                    <Input placeholder="时间范围" value={item.date} onChange={e => updateListItem("edu", item.id, "date", e.target.value)} title="日期范围" />
+                    <button onClick={() => deleteItem("edu", item.id)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100 shadow-sm" title="删除"><Trash2 size={12} /></button>
+                    <Input placeholder="学校" value={item.school} onChange={e => updateListItem("edu", item.id, "school", e.target.value)} />
+                    <Input placeholder="专业" value={item.major} onChange={e => updateListItem("edu", item.id, "major", e.target.value)} />
+                    <Input placeholder="时间" value={item.date} onChange={e => updateListItem("edu", item.id, "date", e.target.value)} />
                   </Card>
                 ))}
                 <Button variant="outline" className="w-full border-dashed" onClick={() => addItem("edu")}>+ 新增教育</Button>
@@ -568,25 +516,14 @@ export default function ResumeEditor() {
 
             {activeTab === "work" && (
               <motion.div key="work" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-6">
-                <header className="flex items-center gap-3 mb-8">
-                  <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600 shadow-sm">
-                    <Briefcase size={20} />
-                  </div>
-                  <h2 className="text-xl font-bold tracking-tight">工作经历</h2>
-                </header>
+                <header className="flex items-center gap-3 mb-8"><div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600"><Briefcase size={20} /></div><h2 className="text-xl font-bold tracking-tight">工作经历</h2></header>
                 {resumeData.workExperiences.map(item => (
                   <Card key={item.id} className="relative group p-4 border-dashed border-zinc-200 space-y-3">
-                    <button onClick={() => deleteItem("work", item.id)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100" title="移除"><Trash2 size={12} /></button>
-                    <Input placeholder="公司" value={item.company} onChange={e => updateListItem("work", item.id, "company", e.target.value)} title="工作单位" />
-                    <Input placeholder="角色" value={item.role} onChange={e => updateListItem("work", item.id, "role", e.target.value)} title="主要职责" />
-                    <Input placeholder="时间段" value={item.date} onChange={e => updateListItem("work", item.id, "date", e.target.value)} title="期间" />
-                    <textarea 
-                      placeholder="工作详情描述..." 
-                      className="w-full h-32 p-3 text-sm border border-zinc-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white scrollbar-hide"
-                      value={item.desc}
-                      onChange={e => updateListItem("work", item.id, "desc", e.target.value)}
-                      title="简介"
-                    />
+                    <button onClick={() => deleteItem("work", item.id)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100 shadow-sm"><Trash2 size={12} /></button>
+                    <Input placeholder="公司" value={item.company} onChange={e => updateListItem("work", item.id, "company", e.target.value)} />
+                    <Input placeholder="职责" value={item.role} onChange={e => updateListItem("work", item.id, "role", e.target.value)} />
+                    <Input placeholder="时间起止" value={item.date} onChange={e => updateListItem("work", item.id, "date", e.target.value)} />
+                    <textarea placeholder="内容描述..." className="w-full h-32 p-3 text-sm border border-zinc-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white" value={item.desc} onChange={e => updateListItem("work", item.id, "desc", e.target.value)} title="描述" />
                   </Card>
                 ))}
                 <Button variant="outline" className="w-full border-dashed" onClick={() => addItem("work")}>+ 新增经历</Button>
@@ -595,25 +532,14 @@ export default function ResumeEditor() {
 
             {activeTab === "project" && (
               <motion.div key="project" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-6">
-                <header className="flex items-center gap-3 mb-8">
-                  <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600 shadow-sm">
-                    <Rocket size={20} />
-                  </div>
-                  <h2 className="text-xl font-bold tracking-tight">项目经验</h2>
-                </header>
+                <header className="flex items-center gap-3 mb-8"><div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600"><Rocket size={20} /></div><h2 className="text-xl font-bold tracking-tight">项目经验</h2></header>
                 {resumeData.projects.map(item => (
                   <Card key={item.id} className="relative group p-4 border-dashed border-zinc-200 space-y-3">
-                    <button onClick={() => deleteItem("project", item.id)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100" title="删除"><Trash2 size={12} /></button>
-                    <Input placeholder="项目" value={item.name} onChange={e => updateListItem("project", item.id, "name", e.target.value)} title="名称" />
-                    <Input placeholder="承担角色" value={item.role} onChange={e => updateListItem("project", item.id, "role", e.target.value)} title="具体职能" />
-                    <Input placeholder="实现日期" value={item.date} onChange={e => updateListItem("project", item.id, "date", e.target.value)} title="开发时间" />
-                    <textarea 
-                      placeholder="项目重点细节..." 
-                      className="w-full h-32 p-3 text-sm border border-zinc-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white scrollbar-hide"
-                      value={item.desc}
-                      onChange={e => updateListItem("project", item.id, "desc", e.target.value)}
-                      title="项目说明"
-                    />
+                    <button onClick={() => deleteItem("project", item.id)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100"><Trash2 size={12} /></button>
+                    <Input placeholder="项目名" value={item.name} onChange={e => updateListItem("project", item.id, "name", e.target.value)} />
+                    <Input placeholder="担任角色" value={item.role} onChange={e => updateListItem("project", item.id, "role", e.target.value)} />
+                    <Input placeholder="时间" value={item.date} onChange={e => updateListItem("project", item.id, "date", e.target.value)} />
+                    <textarea placeholder="项目亮点..." className="w-full h-32 p-3 text-sm border border-zinc-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white" value={item.desc} onChange={e => updateListItem("project", item.id, "desc", e.target.value)} title="详情" />
                   </Card>
                 ))}
                 <Button variant="outline" className="w-full border-dashed" onClick={() => addItem("project")}>+ 新增项目</Button>
@@ -622,31 +548,19 @@ export default function ResumeEditor() {
 
             {activeTab === "skill" && (
               <motion.div key="skill" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-6">
-                <header className="flex items-center gap-3 mb-8">
-                  <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600 shadow-sm">
-                    <Type size={20} />
-                  </div>
-                  <h2 className="text-xl font-bold tracking-tight">专业技能</h2>
-                </header>
+                <header className="flex items-center gap-3 mb-8"><div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600"><Type size={20} /></div><h2 className="text-xl font-bold tracking-tight">专业技能</h2></header>
                 <div className="space-y-3">
-                  <label className="text-xs font-medium text-zinc-500">输入技能清单（用逗号隔开）</label>
-                  <textarea 
-                    className="w-full h-48 p-4 text-sm border border-zinc-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white leading-relaxed font-mono"
-                    value={resumeData.skills.join(", ")}
-                    onChange={(e) => updateSkills(e.target.value)}
-                    placeholder="Java, Python, Vue..."
-                    title="技能录入"
-                  />
+                  <label className="text-xs font-medium text-zinc-500">列表 (逗号隔开)</label>
+                  <textarea className="w-full h-48 p-4 text-sm border border-zinc-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white leading-relaxed font-mono" value={resumeData.skills.join(", ")} onChange={(e) => updateSkills(e.target.value)} title="录入" />
                 </div>
               </motion.div>
             )}
           </AnimatePresence>
         </aside>
 
-        {/* Column 3: Preview Canvas */}
+        {/* Column 3: Preview Output */}
         <section className="flex-1 bg-zinc-100 flex flex-col relative overflow-hidden group">
-          {/* Zoom Control Bar */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-zinc-200 shadow-lg text-xs font-medium opacity-0 group-hover:opacity-100 transition-all duration-300">
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-zinc-200 shadow-lg text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300">
             <button onClick={() => setZoomScale(prev => Math.max(0.4, prev - 0.1))} className="w-8 h-8 hover:bg-zinc-100 rounded-full" title="缩小">-</button>
             <span className="min-w-[40px] text-center text-zinc-600">{Math.round(zoomScale * 100)}%</span>
             <button onClick={() => setZoomScale(prev => Math.min(1.5, prev + 0.1))} className="w-8 h-8 hover:bg-zinc-100 rounded-full" title="放大">+</button>
@@ -654,23 +568,8 @@ export default function ResumeEditor() {
             <button onClick={autoFit} className="px-3 py-1 hover:bg-zinc-100 rounded-md text-zinc-500">自适应</button>
           </div>
 
-          <div 
-            ref={previewContainerRef} 
-            className="flex-1 overflow-auto p-12 flex justify-center items-start scrollbar-hide scroll-smooth"
-          >
-            <motion.div
-              style={{ 
-                scale: zoomScale, 
-                transformOrigin: "top center",
-                fontFamily: "var(--font-family)",
-                lineHeight: "var(--line-height)",
-                fontSize: `${typography.fontSize}px`,
-              }}
-              className={cn(
-                "w-[820px] shadow-2xl flex flex-col p-16 shrink-0 mb-32 relative bg-white min-h-[1160px]"
-              )}
-            >
-              {/* Profile Header */}
+          <div ref={previewContainerRef} className="flex-1 overflow-auto p-12 flex justify-center items-start scrollbar-hide">
+            <motion.div style={{ scale: zoomScale, transformOrigin: "top center", fontFamily: "var(--font-family)", lineHeight: "var(--line-height)", fontSize: `${typography.fontSize}px` }} className="w-[820px] shadow-2xl flex flex-col p-16 shrink-0 mb-32 bg-white min-h-[1160px] relative transition-none">
               <div className="flex items-center gap-10 mb-12">
                 <div className="w-28 h-28 rounded-xl bg-zinc-50 flex items-center justify-center overflow-hidden relative shadow-inner ring-1 ring-zinc-100">
                   {resumeData.avatar ? (
@@ -680,17 +579,16 @@ export default function ResumeEditor() {
                   )}
                 </div>
                 <div className="space-y-2 flex-1 text-zinc-900">
-                  <h1 className="text-4xl font-black tracking-tight text-[var(--theme-color)] transition-none">{resumeData.name || "姓名"}</h1>
+                  <h1 className="text-4xl font-black tracking-tight text-[var(--theme-color)] transition-none">{resumeData.name || "您的姓名"}</h1>
                   <p className="text-lg text-zinc-500 font-semibold tracking-wide">{resumeData.title || "求职目标"}</p>
-                  <div className="text-[0.85em] text-zinc-400 flex flex-wrap gap-x-6 gap-y-2 mt-3 opacity-80">
-                    <span className="flex items-center gap-2 font-medium">{resumeData.phone}</span>
-                    <span className="flex items-center gap-2">| {resumeData.email}</span>
-                    <span className="flex items-center gap-2">| {resumeData.city}</span>
+                  <div className="text-[0.85em] text-zinc-400 flex flex-wrap gap-x-6 gap-y-2 mt-3 opacity-80 font-medium">
+                    <span>{resumeData.phone}</span>
+                    {resumeData.email && <span>| {resumeData.email}</span>}
+                    {resumeData.city && <span>| {resumeData.city}</span>}
                   </div>
                 </div>
               </div>
 
-              {/* Main Sections */}
               <div className="space-y-12">
                 {modules.filter(m => m.visible && m.id !== "basic").map(m => (
                   <section key={m.id}>
@@ -698,63 +596,33 @@ export default function ResumeEditor() {
                       <div className="w-2 h-6 rounded-sm bg-[var(--theme-color)]" />
                       <h3 className="text-xl font-bold tracking-tight text-zinc-800 uppercase">{m.title}</h3>
                     </div>
-                    
                     <div className="pl-1 space-y-6">
                       {m.id === "edu" && resumeData.education.map(item => (
                         <div key={item.id} className="flex justify-between items-baseline">
-                          <div className="space-y-0.5">
-                            <div className="font-bold text-zinc-800 flex items-center gap-2 text-[1.1em]">
-                                {item.school || "教育中心"}
-                            </div>
-                            <div className="text-zinc-500 font-medium">{item.major || "主修课程"}</div>
-                          </div>
+                          <div className="space-y-0.5"><div className="font-bold text-zinc-800 text-[1.1em]">{item.school || "教育中心"}</div><div className="text-zinc-500 font-medium">{item.major}</div></div>
                           <div className="text-[0.8em] font-bold text-zinc-400 tabular-nums">{item.date}</div>
                         </div>
                       ))}
-
                       {m.id === "work" && resumeData.workExperiences.map(item => (
                         <div key={item.id} className="space-y-2.5">
-                          <div className="flex justify-between font-bold items-center">
-                            <span className="text-zinc-800 text-[1.1em]">
-                                {item.company || "公司平台"}
-                            </span>
-                            <span className="text-[0.8em] font-bold text-zinc-400 tabular-nums">{item.date}</span>
-                          </div>
-                          <div className="text-[0.95em] text-[var(--theme-color)] font-bold">{item.role || "担任职位"}</div>
-                          <div className="text-zinc-500 whitespace-pre-wrap leading-relaxed opacity-90">
-                            {item.desc || "详细业务描述..."}
-                          </div>
+                          <div className="flex justify-between font-bold items-center"><span className="text-zinc-800 text-[1.1em]">{item.company}</span><span className="text-[0.8em] font-bold text-zinc-400 tabular-nums">{item.date}</span></div>
+                          <div className="text-[0.95em] text-[var(--theme-color)] font-bold">{item.role}</div>
+                          <div className="text-zinc-500 whitespace-pre-wrap leading-relaxed opacity-90">{item.desc}</div>
                         </div>
                       ))}
-
                       {m.id === "project" && resumeData.projects.map(item => (
                         <div key={item.id} className="space-y-2.5">
-                          <div className="flex justify-between font-bold items-center">
-                            <span className="text-zinc-800 text-[1.1em]">
-                                {item.name || "项目实战"}
-                            </span>
-                            <span className="text-[0.8em] font-bold text-zinc-400 tabular-nums">{item.date}</span>
-                          </div>
-                          <div className="text-[0.95em] text-zinc-600 font-bold">{item.role || "主要贡献者"}</div>
-                          <div className="text-zinc-500 whitespace-pre-wrap leading-relaxed opacity-90">
-                            {item.desc || "核心亮点阐述..."}
-                          </div>
+                          <div className="flex justify-between font-bold items-center"><span className="text-zinc-800 text-[1.1em]">{item.name}</span><span className="text-[0.8em] font-bold text-zinc-400 tabular-nums">{item.date}</span></div>
+                          <div className="text-[0.95em] text-zinc-600 font-bold">{item.role}</div>
+                          <div className="text-zinc-500 whitespace-pre-wrap leading-relaxed opacity-90">{item.desc}</div>
                         </div>
                       ))}
-
                       {m.id === "skill" && (
                         <div className="flex flex-wrap gap-x-6 gap-y-3 leading-relaxed">
                            {resumeData.skills.filter(s => s).map((s, idx) => (
-                             <span key={idx} className="flex items-center gap-2 text-zinc-600 font-medium">
-                               <div className="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)] opacity-40 shrink-0" />
-                               {s}
-                             </span>
+                             <span key={idx} className="flex items-center gap-2 text-zinc-600 font-medium"><div className="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)] opacity-40 shrink-0" />{s}</span>
                            ))}
                         </div>
-                      )}
-
-                      {(!["edu", "work", "project", "skill"].includes(m.id)) && (
-                        <div className="text-sm text-zinc-200 italic py-2">待填充...</div>
                       )}
                     </div>
                   </section>
@@ -762,21 +630,49 @@ export default function ResumeEditor() {
               </div>
             </motion.div>
           </div>
-
-          {/* Sidebar Tools */}
-          <div className="absolute right-6 top-1/2 -translate-y-1/2 z-40 scale-90 lg:scale-100">
-            <div className="flex flex-col gap-5 bg-white/95 backdrop-blur-md p-2.5 rounded-full shadow-2xl border border-zinc-100">
-              <Button size="icon" variant="ghost" className="rounded-full" title="样式库"><FileText size={20} /></Button>
-              <Button size="icon" variant="ghost" className="rounded-full" title="字体排布"><Type size={20} /></Button>
-              <Button size="icon" variant="ghost" className="rounded-full" title="布局大纲"><Layout size={20} /></Button>
-              <div className="w-6 h-px bg-zinc-100 mx-auto" />
-              <Button size="icon" variant="primary" className="rounded-full shadow-lg" title="下载成品"><DownloadCloud size={20} /></Button>
-              <Button size="icon" variant="ghost" className="rounded-full" title="源代码"><Code size={20} /></Button>
-              <Button size="icon" variant="ghost" className="rounded-full" title="说明书"><HelpCircle size={20} /></Button>
-            </div>
-          </div>
         </section>
       </main>
+
+      {/* Avatar Crop Modal */}
+      <AnimatePresence>
+        {tempAvatar && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+            <div className="bg-white w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl flex flex-col animate-in slide-in-from-bottom-8">
+              <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-bold text-zinc-900">裁剪头像</h3>
+                  <p className="text-sm text-zinc-500">调整图片以获得最佳显示效果</p>
+                </div>
+                <button onClick={() => setTempAvatar(null)} className="w-10 h-10 flex items-center justify-center hover:bg-zinc-50 rounded-full text-zinc-400 transition-colors"><X size={20} /></button>
+              </div>
+              <div className="h-[400px] relative bg-zinc-900">
+                <Cropper
+                  image={tempAvatar}
+                  crop={crop}
+                  zoom={zoom}
+                  aspect={1}
+                  onCropChange={setCrop}
+                  onZoomChange={setZoom}
+                  onCropComplete={onCropComplete}
+                />
+              </div>
+              <div className="p-6 bg-white border-t border-zinc-100 flex flex-col gap-4">
+                <div className="flex items-center gap-4">
+                  <Minus size={16} className="text-zinc-400" />
+                  <input type="range" value={zoom} min={1} max={3} step={0.1} aria-labelledby="Zoom" className="flex-1 h-1.5 bg-zinc-100 rounded-lg appearance-none accent-zinc-900 cursor-pointer" onChange={(e) => setZoom(Number(e.target.value))} title="缩放" />
+                  <Plus size={16} className="text-zinc-400" />
+                </div>
+                <div className="flex gap-3 mt-2">
+                  <Button variant="outline" className="flex-1" onClick={() => setTempAvatar(null)}>取消</Button>
+                  <Button variant="primary" className="flex-1 gap-2" onClick={handleApplyCrop}>
+                    <Check size={18} /> 完成裁剪
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

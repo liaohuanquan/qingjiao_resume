@@ -1,44 +1,46 @@
-# Resume Editor AI Vibecoding TODO
+# 🟢 青椒简历 编辑器开发进度 (Roadmap)
 
-## 1. Project Initialization & Dependencies
+## 1. 项目基础与核心架构
+- [x] 开发环境搭建：Next.js 15, Tailwind CSS 4, Framer Motion。
+- [x] 安装并配置关键依赖：`lucide-react`, `clsx`, `tailwind-merge`。
+- [x] **页面骨架实现 (app/editor/page.tsx)**：
+  - [x] `h-screen` 三栏式静止布局（三区联动）。
+  - [x] 处理顶部导航栏（包含 Logo 与多功能导出按钮）。
 
-- [x] Check and install missing dependencies: `framer-motion`, `lucide-react`, `clsx`, `tailwind-merge`.
-- [ ] Set up Shadcn UI components (Optional, using custom implementations for Tailwind 4 compatibility).
+## 2. 侧边栏管理系统 (Sidebar 1)
+- [x] **模块可视化卡片**：支持点击切换编辑状态。
+- [x] **动态模块管理**：支持模块排序 (Reorder)、可见性切换 (EyeIcon) 及删除。
+- [x] **主题与色彩管理**：
+  - [x] 实现预设 5 种配色，支持一键切换。
+  - [x] **新增**：原生 RGB 取色器支持，可设定任意主题色。
+- [x] **排版设置面板**：
+  - [x] 字体系统：Inter, Roboto, Outfit, 宋体。
+  - [x] **新增**：字号精确控制 (PX)，支持 +/- 按钮微调。
+  - [x] 行高 (LineHeight) 滑块控制。
 
-## 2. Core Layout (app/editor/page.tsx)
+## 3. 表单编辑器模块 (Sidebar 2)
+- [x] **基本信息**：姓名、求职意向、联系方式编辑器。
+- [x] **头像高级管理**：
+  - [x] 上传本地图片功能。
+  - [x] **新增**：`react-easy-crop` 集成，支持框选区域、缩放裁剪预览。
+  - [x] 存储至 localStorage 保证持久化。
+- [x] **教育背景 (edu)**：数组化动态编辑列表。
+- [x] **工作经历 (work)**：支持富文本描述区域编辑。
+- [x] **项目经验 (project)**：支持多项目列表管理。
+- [x] **专业技能 (skill)**：便捷的逗号分隔录入，智能转化为 Tag 布局。
 
-- [x] Create the full-screen container (`h-screen w-screen overflow-hidden flex flex-col bg-zinc-50`).
-- [x] **Header Implementation**:
-  - [x] Add "青椒简历" Logo and Emerald badge.
-  - [x] Create user profile name ("QingJiao") and theme toggle.
-  - [x] Add black "Export" button with download icon.
-- [x] **Three-Pane Grid**:
-  - [x] Left Sidebar 1 (280px, `bg-white`): Module and config management.
-  - [x] Left Sidebar 2 (380px, `bg-zinc-50/50`): Current module form editor.
-  - [x] Preview Canvas (flex-1, `bg-zinc-100`): Center-aligned A4 preview.
+## 4. 预览与渲染优化 (Preview Canvas)
+- [x] **高保真预览**：符合 A4 印刷标准的预览画布渲染。
+- [x] **缩放系统**：
+  - [x] 实现 `zoomScale` 缩放控制（浮动手控）。
+  - [x] **新增**：自适应窗口 (AutoFit) 逻辑。
+- [x] **排版微操**：
+  - [x] 给各板块增加细节点缀（图标、主题色分段等）。
+  - [x] 修正板块底部边线、间距的视觉层级。
+  - [x] 移除性能抖动动画，优化用户实时输入体验。
 
-## 3. Sidebar 1: Global Config & Module Ordering
-
-- [x] Create draggable module list cards (rounded-xl, border-zinc-200).
-- [x] Implement theme color circle selector with ring-2 active state.
-- [x] Implement Typography settings: font-family select, line-height slider, font-size preset.
-
-## 4. Sidebar 2: Form Editor (Basic Info example)
-
-- [x] Implement module header with icon.
-- [x] Implement layout alignment selector (left/center/split).
-- [x] Create avatar upload component with preview placeholder.
-- [x] Implement draggable input fields with GripVertical handle and visibility/remove icons.
-
-## 5. Preview & Floating Toolbar
-
-- [x] Design the A4 canvas (aspect-[1/1.414]) with realistic shadows and rings.
-- [x] Implement the vertical floating toolbar (right-aligned capsule with rounded-full).
-- [x] Add icons: templates, typography, layout, download, code, help.
-
-## 6. Polish & Micro-interactions
-
-- [x] Apply Framer Motion for smooth transitions between editor states.
-- [x] Ensure consistent rounded-xl/lg across all UI elements.
-- [x] Fine-tune zinc-900/500/600 text color usage.
-- [x] Local storage integration for avatar/data persistence.
+## 5. 待开发功能 (Priority Next)
+- [ ] **多端导出系统**：集成 `jspdf` 实现极速本地导出。
+- [ ] **多模版系统**：切换“左右分栏”与“单栏标准”模版结构。
+- [ ] **JSON 导入导出**：方便配置文件的分享与云端搬运。
+- [ ] **暗色模式适配**：全局支持 Dark Mode 编辑环境。
