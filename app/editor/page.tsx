@@ -462,18 +462,22 @@ export default function ResumeEditor() {
     e.target.value = "";
   };
 
-  // 3. 自动保存逻辑：监听关键状态变化
+  // 3. 自动保存逻辑：优化防抖机制，减少频繁的状态切换
   React.useEffect(() => {
-    setIsSaving(true);
-    const saveData = () => {
+    // 防抖：当用户停止输入 5 秒后再执行保存和状态提示
+    const timer = setTimeout(() => {
+      setIsSaving(true);
+      
+      // 执行保存
       localStorage.setItem("resume_v2_data", JSON.stringify(resumeData));
       localStorage.setItem("resume_v2_modules", JSON.stringify(modules));
       localStorage.setItem("resume_v2_theme", themeColor);
       localStorage.setItem("resume_v2_typography", JSON.stringify(typography));
-      setTimeout(() => setIsSaving(false), 800);
-    };
+      
+      // 模拟一个同步过程感，之后恢复正常
+      setTimeout(() => setIsSaving(false), 1000);
+    }, 5000);
 
-    const timer = setTimeout(saveData, 1000);
     return () => clearTimeout(timer);
   }, [resumeData, modules, themeColor, typography]);
 
