@@ -234,11 +234,24 @@ export default function ResumeEditor() {
 
   // Generic List item updaters
   const updateListItem = (type: "edu" | "work" | "project", id: string, field: string, value: string) => {
-    const key = type === "edu" ? "education" : type === "work" ? "workExperiences" : "projects";
-    setResumeData(prev => ({
-      ...prev,
-      [key]: (prev[key] as any[]).map(item => item.id === id ? { ...item, [field]: value } : item)
-    }));
+    setResumeData(prev => {
+      if (type === "edu") {
+        return {
+          ...prev,
+          education: prev.education.map(item => item.id === id ? { ...item, [field]: value } : item)
+        };
+      }
+      if (type === "work") {
+        return {
+          ...prev,
+          workExperiences: prev.workExperiences.map(item => item.id === id ? { ...item, [field]: value } : item)
+        };
+      }
+      return {
+        ...prev,
+        projects: prev.projects.map(item => item.id === id ? { ...item, [field]: value } : item)
+      };
+    });
   };
 
   const addItem = (type: "edu" | "work" | "project") => {
@@ -253,8 +266,15 @@ export default function ResumeEditor() {
   };
 
   const deleteItem = (type: "edu" | "work" | "project", id: string) => {
-    const key = type === "edu" ? "education" : type === "work" ? "workExperiences" : "projects";
-    setResumeData(prev => ({ ...prev, [key]: (prev[key] as any[]).filter(i => i.id !== id) }));
+    setResumeData(prev => {
+      if (type === "edu") {
+        return { ...prev, education: prev.education.filter(i => i.id !== id) };
+      }
+      if (type === "work") {
+        return { ...prev, workExperiences: prev.workExperiences.filter(i => i.id !== id) };
+      }
+      return { ...prev, projects: prev.projects.filter(i => i.id !== id) };
+    });
   };
 
   const updateSkills = (value: string) => {
