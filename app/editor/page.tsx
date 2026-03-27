@@ -404,7 +404,14 @@ export default function ResumeEditor() {
             <Maximize2 size={18} className="text-white" />
           </div>
           <span className="font-bold text-lg tracking-tight">青椒简历</span>
-          <Badge className="bg-emerald-50 text-emerald-600 ml-2">自动保存开启</Badge>
+          <Badge className="bg-emerald-50 text-emerald-600 ml-2 flex items-center gap-2">
+            <motion.div
+              animate={{ opacity: [0.4, 1, 0.4], scale: [0.9, 1.1, 0.9] }}
+              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
+              className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+            />
+            自动保存开启
+          </Badge>
         </div>
 
         <div className="flex items-center gap-4">
