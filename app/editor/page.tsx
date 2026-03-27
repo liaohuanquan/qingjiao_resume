@@ -142,6 +142,7 @@ const Input = ({ label, id, ...props }: InputProps) => (
 export default function ResumeEditor() {
   const [activeTab, setActiveTab] = useState("basic");
   const [themeColor, setThemeColor] = useState("#10b981");
+  const [zoomScale, setZoomScale] = useState(0.75);
   const [modules, setModules] = useState<ModuleItem[]>([
     { id: "basic", title: "基本信息", visible: true },
     { id: "edu", title: "教育背景", visible: true },
@@ -560,65 +561,97 @@ export default function ResumeEditor() {
         </aside>
 
         {/* Column 3: Preview Canvas (flex-1) */}
-        <section className="flex-1 bg-zinc-100 flex items-center justify-center p-8 overflow-auto relative">
-          <motion.div
-            layout
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="w-full max-w-[800px] aspect-[1/1.414] bg-white shadow-2xl ring-1 ring-zinc-900/5 origin-top scale-[0.9] lg:scale-100 transition-transform flex flex-col p-12"
-          >
-            {/* Live Content for Preview */}
-            <div className="flex items-center gap-8 mb-10">
-              <div className="w-24 h-24 rounded-lg bg-zinc-50 flex items-center justify-center overflow-hidden">
-                {resumeData.avatar ? (
-                  <img src={resumeData.avatar} alt="Resume Avatar" className="w-full h-full object-cover" />
-                ) : (
-                  <User size={40} className="text-zinc-300" />
-                )}
-              </div>
-              <div className="space-y-2">
-                <h1
-                  className="text-3xl font-bold tracking-tight"
-                  style={{ color: themeColor }}
-                >
-                  {resumeData.name || "您的姓名"}
-                </h1>
-                <p className="text-zinc-500 font-medium">
-                  {resumeData.title || "您的职称"}
-                </p>
-                <div className="flex gap-4 text-xs text-zinc-400">
-                  {resumeData.phone && <span>{resumeData.phone}</span>}
-                  {resumeData.phone && resumeData.email && <span>|</span>}
-                  {resumeData.email && <span>{resumeData.email}</span>}
-                  {resumeData.email && resumeData.city && <span>|</span>}
-                  {resumeData.city && <span>{resumeData.city}</span>}
+        <section className="flex-1 bg-zinc-100 flex flex-col relative overflow-hidden group">
+          {/* Zoom Controls Overlay */}
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-white/80 backdrop-blur-md px-3 py-1.5 rounded-full border border-zinc-200 shadow-lg text-xs font-medium text-zinc-600 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button 
+              onClick={() => setZoomScale(prev => Math.max(0.4, prev - 0.1))}
+              className="w-8 h-8 flex items-center justify-center hover:bg-zinc-100 rounded-full transition-colors"
+              aria-label="Zoom Out"
+            >
+              -
+            </button>
+            <span className="min-w-[40px] text-center">{Math.round(zoomScale * 100)}%</span>
+            <button 
+              onClick={() => setZoomScale(prev => Math.min(1.5, prev + 0.1))}
+              className="w-8 h-8 flex items-center justify-center hover:bg-zinc-100 rounded-full transition-colors"
+              aria-label="Zoom In"
+            >
+              +
+            </button>
+            <div className="w-px h-3 bg-zinc-200 mx-1" />
+            <button 
+              onClick={() => setZoomScale(0.75)}
+              className="px-2 py-1 hover:bg-zinc-100 rounded-md transition-colors"
+            >
+              重置
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-auto p-8 flex justify-center items-start scrollbar-hide">
+            <motion.div
+              layout
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{ 
+                scale: zoomScale,
+                transformOrigin: "top center"
+              }}
+              className="w-[800px] aspect-[1/1.414] bg-white shadow-2xl ring-1 ring-zinc-900/5 transition-transform flex flex-col p-12 shrink-0 mb-20"
+            >
+              {/* Live Content for Preview */}
+              <div className="flex items-center gap-8 mb-10">
+                <div className="w-24 h-24 rounded-lg bg-zinc-50 flex items-center justify-center overflow-hidden">
+                  {resumeData.avatar ? (
+                    <img src={resumeData.avatar} alt="Resume Avatar" className="w-full h-full object-cover" />
+                  ) : (
+                    <User size={40} className="text-zinc-300" />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <h1
+                    className="text-3xl font-bold tracking-tight"
+                    style={{ color: themeColor }}
+                  >
+                    {resumeData.name || "您的姓名"}
+                  </h1>
+                  <p className="text-zinc-500 font-medium">
+                    {resumeData.title || "您的职称"}
+                  </p>
+                  <div className="flex gap-4 text-xs text-zinc-400">
+                    {resumeData.phone && <span>{resumeData.phone}</span>}
+                    {resumeData.phone && resumeData.email && <span>|</span>}
+                    {resumeData.email && <span>{resumeData.email}</span>}
+                    {resumeData.email && resumeData.city && <span>|</span>}
+                    {resumeData.city && <span>{resumeData.city}</span>}
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="space-y-8">
-              {modules
-                .filter((m) => m.visible && m.id !== "basic")
-                .map((m) => (
-                  <section key={m.id}>
-                    <div className="flex items-center gap-2 mb-3">
-                      <div
-                        className="w-1 h-5 rounded-full"
-                        style={{ backgroundColor: themeColor }}
-                      />
-                      <h3 className="text-lg font-bold">{m.title}</h3>
-                    </div>
-                    <div className="text-sm border-l border-zinc-100 ml-0.5 pl-4 py-1 text-zinc-400 italic">
-                      暂无内容，请在左侧编辑...
-                    </div>
-                  </section>
-                ))}
-            </div>
-          </motion.div>
+              <div className="space-y-8">
+                {modules
+                  .filter((m) => m.visible && m.id !== "basic")
+                  .map((m) => (
+                    <section key={m.id}>
+                      <div className="flex items-center gap-2 mb-3">
+                        <div
+                          className="w-1 h-5 rounded-full"
+                          style={{ backgroundColor: themeColor }}
+                        />
+                        <h3 className="text-lg font-bold">{m.title}</h3>
+                      </div>
+                      <div className="text-sm border-l border-zinc-100 ml-0.5 pl-4 py-1 text-zinc-400 italic">
+                        暂无内容，请在左侧编辑...
+                      </div>
+                    </section>
+                  ))}
+              </div>
+            </motion.div>
+          </div>
 
-          {/* Floating Toolbar */}
-          <div className="absolute right-6 top-1/2 -translate-y-1/2">
-            <div className="flex flex-col gap-4 bg-white p-2 rounded-full shadow-lg border border-zinc-200">
+          {/* Floating Toolbar - Fixed via absolute positioning in non-scrolling parent */}
+          <div className="absolute right-6 top-1/2 -translate-y-1/2 z-40">
+            <div className="flex flex-col gap-4 bg-white/90 backdrop-blur-md p-2 rounded-full shadow-xl border border-zinc-200">
               <Button
                 size="icon"
                 variant="ghost"
@@ -643,7 +676,7 @@ export default function ResumeEditor() {
               >
                 <Layout size={20} />
               </Button>
-              <div className="w-6 h-px bg-zinc-100 mx-auto" />
+              <div className="w-6 h-px bg-zinc-200 mx-auto" />
               <Button
                 size="icon"
                 variant="ghost"
