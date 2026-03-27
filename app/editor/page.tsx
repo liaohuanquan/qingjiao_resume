@@ -7,12 +7,7 @@ import {
   GripVertical,
   Eye,
   Trash2,
-  Layout,
   Type,
-  FileText,
-  DownloadCloud,
-  Code,
-  HelpCircle,
   Sun,
   Palette,
   Maximize2,
@@ -377,7 +372,9 @@ export default function ResumeEditor() {
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const height = entry.target.scrollHeight;
-        setNumPages(Math.max(1, Math.ceil(height / 1120))); // 略小于 1160 以留出边距
+        // 有效高度 = A4高(1160) - 上边距(64) - 下边距(64) = 1032
+        const effectivePageHeight = 1160 - 128; 
+        setNumPages(Math.max(1, Math.ceil(height / effectivePageHeight)));
       }
     });
     if (resumeContentRef.current) {
@@ -588,7 +585,7 @@ export default function ResumeEditor() {
                 <header className="flex items-center gap-3 mb-8"><div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600"><Briefcase size={20} /></div><h2 className="text-xl font-bold tracking-tight">工作经历</h2></header>
                 {resumeData.workExperiences.map(item => (
                   <Card key={item.id} className="relative group p-4 border-dashed border-zinc-200 space-y-3">
-                    <button onClick={() => deleteItem("work", item.id)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100 shadow-sm"><Trash2 size={12} /></button>
+                    <button onClick={() => deleteItem("work", item.id)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100 shadow-sm" title="移除"><Trash2 size={12} /></button>
                     <Input placeholder="公司平台" value={item.company} onChange={e => updateListItem("work", item.id, "company", e.target.value)} />
                     <Input placeholder="主要角色" value={item.role} onChange={e => updateListItem("work", item.id, "role", e.target.value)} />
                     <Input placeholder="在职期间" value={item.date} onChange={e => updateListItem("work", item.id, "date", e.target.value)} />
@@ -604,7 +601,7 @@ export default function ResumeEditor() {
                 <header className="flex items-center gap-3 mb-8"><div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600"><Rocket size={20} /></div><h2 className="text-xl font-bold tracking-tight">项目经验</h2></header>
                 {resumeData.projects.map(item => (
                   <Card key={item.id} className="relative group p-4 border-dashed border-zinc-200 space-y-3">
-                    <button onClick={() => deleteItem("project", item.id)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100"><Trash2 size={12} /></button>
+                    <button onClick={() => deleteItem("project", item.id)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100" title="移除项目"><Trash2 size={12} /></button>
                     <Input placeholder="项目主题" value={item.name} onChange={e => updateListItem("project", item.id, "name", e.target.value)} />
                     <Input placeholder="职责分工" value={item.role} onChange={e => updateListItem("project", item.id, "role", e.target.value)} />
                     <Input placeholder="时间段" value={item.date} onChange={e => updateListItem("project", item.id, "date", e.target.value)} />
@@ -640,101 +637,110 @@ export default function ResumeEditor() {
           <div ref={previewContainerRef} className="flex-1 overflow-auto p-12 pb-32 flex flex-col items-center scrollbar-hide bg-zinc-200/50">
             {/* 页面容器 */}
             <div style={{ scale: zoomScale, transformOrigin: "top center" }} className="flex flex-col gap-10">
-               {Array.from({ length: numPages }).map((_, pageIdx) => (
-                 <motion.div 
-                   key={pageIdx}
-                   className="w-[820px] h-[1160px] bg-white shadow-2xl relative overflow-hidden shrink-0 group/page"
-                 >
-                   {/* 内容层：通过 translateY 实现跨页展示 */}
-                   <div 
-                     className="absolute top-0 left-0 w-full p-16"
-                     style={{ 
-                       transform: `translateY(-${pageIdx * 1160}px)`,
-                       fontFamily: "var(--font-family)", 
-                       lineHeight: "var(--line-height)", 
-                       fontSize: `${typography.fontSize}px` 
-                     }}
+               {Array.from({ length: numPages }).map((_, pageIdx) => {
+                 const PAGE_H = 1160;
+                 const PADDING = 64;
+                 const EFFECTIVE_H = PAGE_H - (PADDING * 2); // 1032px
+                 
+                 return (
+                   <motion.div 
+                     key={pageIdx}
+                     className="w-[820px] h-[1160px] bg-white shadow-2xl relative overflow-hidden shrink-0 group/page"
                    >
-                     {/* 所有页面都渲染完整内容，但通过容器的 overflow-hidden 实现视窗切分 */}
-                     {/* 仅第一页挂载 ref 以供 ResizeObserver 监听总高度 */}
-                     <div ref={pageIdx === 0 ? resumeContentRef : null} className="space-y-12 pb-16">
-                        {/* 个人基本信息 (仅在第一页展示) */}
-                        {pageIdx === 0 && (
-                          <div className="flex items-center gap-10 mb-12">
-                            <div 
-                              className="w-28 bg-zinc-50 flex items-center justify-center overflow-hidden relative shadow-inner ring-1 ring-zinc-100"
-                              style={{ 
-                                height: `${112 / (resumeData.avatarAspect || 1)}px`,
-                                borderRadius: `${resumeData.avatarBorderRadius}px`
-                              }}
-                            >
-                              {resumeData.avatar ? (
-                                <NextImage src={resumeData.avatar} alt="Avatar" fill className="object-cover" unoptimized />
-                              ) : (
-                                <User size={48} className="text-zinc-200" style={{ height: '48px' }} />
-                              )}
-                            </div>
-                            <div className="space-y-2 flex-1 text-zinc-900">
-                              <h1 className="text-4xl font-black tracking-tight text-[var(--theme-color)] transition-none">{resumeData.name || "您的姓名"}</h1>
-                              <p className="text-lg text-zinc-500 font-semibold tracking-wide">{resumeData.title || "求职目标"}</p>
-                              <div className="text-[0.85em] text-zinc-400 flex flex-wrap gap-x-6 gap-y-2 mt-3 opacity-80 font-medium">
-                                <span>{resumeData.phone}</span>
-                                {resumeData.email && <span>| {resumeData.email}</span>}
-                                {resumeData.city && <span>| {resumeData.city}</span>}
-                              </div>
-                            </div>
-                          </div>
-                        )}
-
-                        {/* 模块列表 */}
-                        <div className={cn("space-y-12", pageIdx > 0 && "pt-4")}>
-                          {modules.filter(m => m.visible && m.id !== "basic").map(m => (
-                            <section key={m.id}>
-                              <div className="flex items-center gap-3 mb-6 border-b-2 border-zinc-900/10 pb-2.5">
-                                <div className="w-2 h-6 rounded-sm bg-[var(--theme-color)]" />
-                                <h3 className="text-xl font-bold tracking-tight text-zinc-800 uppercase">{m.title}</h3>
-                              </div>
-                              <div className="pl-1 space-y-6">
-                                {m.id === "edu" && resumeData.education.map(item => (
-                                  <div key={item.id} className="flex justify-between items-baseline">
-                                    <div className="space-y-0.5"><div className="font-bold text-zinc-800 text-[1.1em]">{item.school || "教育中心"}</div><div className="text-zinc-500 font-medium">{item.major}</div></div>
-                                    <div className="text-[0.8em] font-bold text-zinc-400 tabular-nums">{item.date}</div>
-                                  </div>
-                                ))}
-                                {m.id === "work" && resumeData.workExperiences.map(item => (
-                                  <div key={item.id} className="space-y-2.5">
-                                    <div className="flex justify-between font-bold items-center"><span className="text-zinc-800 text-[1.1em]">{item.company}</span><span className="text-[0.8em] font-bold text-zinc-400 tabular-nums">{item.date}</span></div>
-                                    <div className="text-[0.95em] text-[var(--theme-color)] font-bold">{item.role}</div>
-                                    <div className="text-zinc-500 whitespace-pre-wrap leading-relaxed opacity-90">{item.desc}</div>
-                                  </div>
-                                ))}
-                                {m.id === "project" && resumeData.projects.map(item => (
-                                  <div key={item.id} className="space-y-2.5">
-                                    <div className="flex justify-between font-bold items-center"><span className="text-zinc-800 text-[1.1em]">{item.name}</span><span className="text-[0.8em] font-bold text-zinc-400 tabular-nums">{item.date}</span></div>
-                                    <div className="text-[0.95em] text-zinc-600 font-bold">{item.role}</div>
-                                    <div className="text-zinc-500 whitespace-pre-wrap leading-relaxed opacity-90">{item.desc}</div>
-                                  </div>
-                                ))}
-                                {m.id === "skill" && (
-                                  <div className="flex flex-wrap gap-x-6 gap-y-3 leading-relaxed">
-                                     {resumeData.skills.filter(s => s).map((s, idx) => (
-                                       <span key={idx} className="flex items-center gap-2 text-zinc-600 font-medium"><div className="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)] opacity-40 shrink-0" />{s}</span>
-                                     ))}
-                                  </div>
+                     {/* 内容视窗 - 精确控制裁剪区域 */}
+                     <div 
+                        className="absolute left-[64px] right-[64px] overflow-hidden pointer-events-none"
+                        style={{ 
+                          top: `${PADDING}px`, 
+                          bottom: `${PADDING}px` 
+                        }}
+                     >
+                       <div 
+                         className="w-full"
+                         style={{ 
+                           transform: `translateY(-${pageIdx * EFFECTIVE_H}px)`,
+                           fontFamily: "var(--font-family)", 
+                           lineHeight: "var(--line-height)", 
+                           fontSize: `${typography.fontSize}px` 
+                         }}
+                         ref={pageIdx === 0 ? resumeContentRef : null}
+                       >
+                          {/* 个人基本信息：在所有页面渲染以保持高度一致，但仅在第一页可见 */}
+                          <div className={cn("flex items-center gap-10 mb-12 transition-none", pageIdx > 0 && "invisible")}>
+                              <div 
+                                className="w-28 bg-zinc-50 flex items-center justify-center overflow-hidden relative shadow-inner ring-1 ring-zinc-100"
+                                style={{ 
+                                  height: `${112 / (resumeData.avatarAspect || 1)}px`,
+                                  borderRadius: `${resumeData.avatarBorderRadius}px`
+                                }}
+                              >
+                                {resumeData.avatar ? (
+                                  <NextImage src={resumeData.avatar} alt="Avatar" fill className="object-cover" unoptimized />
+                                ) : (
+                                  <User size={48} className="text-zinc-200" style={{ height: '48px' }} />
                                 )}
                               </div>
-                            </section>
-                          ))}
-                        </div>
+                              <div className="space-y-2 flex-1 text-zinc-900">
+                                <h1 className="text-4xl font-black tracking-tight text-[var(--theme-color)] transition-none">{resumeData.name || "您的姓名"}</h1>
+                                <p className="text-lg text-zinc-500 font-semibold tracking-wide">{resumeData.title || "求职目标"}</p>
+                                <div className="text-[0.85em] text-zinc-400 flex flex-wrap gap-x-6 gap-y-2 mt-3 opacity-80 font-medium">
+                                  <span>{resumeData.phone}</span>
+                                  {resumeData.email && <span>| {resumeData.email}</span>}
+                                  {resumeData.city && <span>| {resumeData.city}</span>}
+                                </div>
+                              </div>
+                          </div>
+
+                          {/* 模块列表：内容流 */}
+                          <div className="space-y-12">
+                            {modules.filter(m => m.visible && m.id !== "basic").map(m => (
+                              <section key={m.id}>
+                                <div className="flex items-center gap-3 mb-6 border-b-2 border-zinc-900/10 pb-2.5">
+                                  <div className="w-2 h-6 rounded-sm bg-[var(--theme-color)]" />
+                                  <h3 className="text-xl font-bold tracking-tight text-zinc-800 uppercase">{m.title}</h3>
+                                </div>
+                                <div className="pl-1 space-y-6">
+                                  {m.id === "edu" && resumeData.education.map(item => (
+                                    <div key={item.id} className="flex justify-between items-baseline">
+                                      <div className="space-y-0.5"><div className="font-bold text-zinc-800 text-[1.1em]">{item.school || "教育中心"}</div><div className="text-zinc-500 font-medium">{item.major}</div></div>
+                                      <div className="text-[0.8em] font-bold text-zinc-400 tabular-nums">{item.date}</div>
+                                    </div>
+                                  ))}
+                                  {m.id === "work" && resumeData.workExperiences.map(item => (
+                                    <div key={item.id} className="space-y-2.5">
+                                      <div className="flex justify-between font-bold items-center"><span className="text-zinc-800 text-[1.1em]">{item.company}</span><span className="text-[0.8em] font-bold text-zinc-400 tabular-nums">{item.date}</span></div>
+                                      <div className="text-[0.95em] text-[var(--theme-color)] font-bold">{item.role}</div>
+                                      <div className="text-zinc-500 whitespace-pre-wrap leading-relaxed opacity-90">{item.desc}</div>
+                                    </div>
+                                  ))}
+                                  {m.id === "project" && resumeData.projects.map(item => (
+                                    <div key={item.id} className="space-y-2.5">
+                                      <div className="flex justify-between font-bold items-center"><span className="text-zinc-800 text-[1.1em]">{item.name}</span><span className="text-[0.8em] font-bold text-zinc-400 tabular-nums">{item.date}</span></div>
+                                      <div className="text-[0.95em] text-zinc-600 font-bold">{item.role}</div>
+                                      <div className="text-zinc-500 whitespace-pre-wrap leading-relaxed opacity-90">{item.desc}</div>
+                                    </div>
+                                  ))}
+                                  {m.id === "skill" && (
+                                    <div className="flex flex-wrap gap-x-6 gap-y-3 leading-relaxed">
+                                       {resumeData.skills.filter(s => s).map((s, idx) => (
+                                         <span key={idx} className="flex items-center gap-2 text-zinc-600 font-medium"><div className="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)] opacity-40 shrink-0" />{s}</span>
+                                       ))}
+                                    </div>
+                                  )}
+                                </div>
+                              </section>
+                            ))}
+                          </div>
+                       </div>
                      </div>
-                   </div>
-                   
-                   {/* Visual Page Footer with page number */}
-                   <div className="absolute bottom-6 right-8 text-[10px] text-zinc-300 font-mono tracking-widest uppercase pointer-events-none">
-                     Page {pageIdx + 1} / {numPages}
-                   </div>
-                 </motion.div>
-               ))}
+                     
+                     {/* 底部页码提示 */}
+                     <div className="absolute bottom-6 right-8 text-[10px] text-zinc-300 font-mono tracking-widest uppercase pointer-events-none">
+                       Page {pageIdx + 1} / {numPages}
+                     </div>
+                   </motion.div>
+                 );
+               })}
             </div>
           </div>
         </section>
@@ -753,12 +759,12 @@ export default function ResumeEditor() {
                     <p className="text-sm text-zinc-500">选择合适的比例并调整位置</p>
                   </div>
                 </div>
-                <button onClick={() => setTempAvatar(null)} className="w-10 h-10 flex items-center justify-center hover:bg-zinc-50 rounded-full text-zinc-400 transition-colors"><X size={20} /></button>
+                <button onClick={() => setTempAvatar(null)} className="w-10 h-10 flex items-center justify-center hover:bg-zinc-50 rounded-full text-zinc-400 transition-colors" title="关闭"><X size={20} /></button>
               </div>
               
               <div className="h-[400px] relative bg-zinc-900">
                 <Cropper
-                  image={tempAvatar}
+                  image={tempAvatar || ""}
                   crop={crop}
                   zoom={zoom}
                   aspect={aspect}
