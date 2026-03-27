@@ -484,6 +484,7 @@ export default function ResumeEditor() {
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
   const [isPanning, setIsPanning] = useState(false);
+  const [activeMobileTab, setActiveMobileTab] = useState<"manage" | "edit" | "preview">("edit");
   const scrollStart = React.useRef({ scrollLeft: 0, scrollTop: 0, x: 0, y: 0 });
   const importInputRef = React.useRef<HTMLInputElement>(null);
 
@@ -611,12 +612,12 @@ export default function ResumeEditor() {
                 isSaving ? "bg-amber-500" : "bg-emerald-500",
               )}
             />
-            {isSaving ? "正在同步内容..." : "已保存至本地"}
+            {isSaving ? "正在同步..." : "已保存"}
           </Badge>
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-zinc-600">QingJiao Resume</span>
+          <span className="text-sm font-medium text-zinc-600 hidden sm:inline-block">QingJiao Resume</span>
           <Button
             variant="ghost"
             size="icon"
@@ -625,47 +626,30 @@ export default function ResumeEditor() {
           >
             <Sun size={18} />
           </Button>
-          <div className="flex items-center gap-2 border-l border-zinc-200 pl-4 ml-2">
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 text-xs font-bold"
-              onClick={() => importInputRef.current?.click()}
-            >
-              <Rocket size={14} /> 导入配置
-              <input
-                type="file"
-                ref={importInputRef}
-                className="hidden"
-                accept=".json"
-                onChange={handleImportJson}
-              />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-2 text-xs font-bold"
-              onClick={exportToJson}
-            >
-              <Code size={14} /> 备份 JSON
-            </Button>
-            <Button
-              size="sm"
-              className="gap-2 text-xs font-bold shadow-lg shadow-emerald-900/10"
-              onClick={exportToPdf}
-              disabled={isExporting}
-            >
-              <DownloadCloud size={14} />{" "}
-              {isExporting ? "正在生成 PDF..." : "下载 PDF"}
-            </Button>
+          <div className="flex items-center gap-2 border-l border-zinc-200 pl-4 ml-1">
+             <Button variant="outline" size="sm" className="gap-2 text-xs font-bold hidden md:flex" onClick={() => importInputRef.current?.click()}>
+               <Rocket size={14} /> 导入配置
+               <input type="file" ref={importInputRef} className="hidden" accept=".json" onChange={handleImportJson} />
+             </Button>
+             <Button variant="outline" size="sm" className="gap-2 text-xs font-bold hidden sm:flex" onClick={exportToJson}>
+               <Code size={14} /> 备份 JSON
+             </Button>
+             <Button size="sm" className="gap-2 text-xs font-bold shadow-lg shadow-emerald-900/10" onClick={exportToPdf} disabled={isExporting}>
+               <DownloadCloud size={14} /> 
+               <span className="hidden sm:inline">{isExporting ? "正在生成 PDF..." : "下载 PDF"}</span>
+               <span className="sm:hidden">{isExporting ? "..." : "下载"}</span>
+             </Button>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex overflow-hidden">
-        {/* Column 1: Module Manager */}
-        <aside className="w-[280px] bg-white border-r border-zinc-100 p-4 overflow-y-auto flex flex-col gap-6 scrollbar-hide">
+      <main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+        {/* Column 1: Module Manager - Mobile Toggle */}
+        <aside className={cn(
+          "w-full lg:w-[280px] bg-white border-r border-zinc-100 p-4 overflow-y-auto flex-col gap-6 scrollbar-hide absolute inset-0 z-40 lg:relative lg:flex lg:translate-x-0 transition-transform duration-300",
+          activeMobileTab === "manage" ? "translate-x-0 flex" : "-translate-x-full lg:translate-x-0"
+        )}>
           <section>
             <h3 className="text-sm font-semibold mb-3 text-zinc-900 flex items-center gap-2">
               <Settings2 size={14} /> 模块管理（拖动排序）
@@ -876,8 +860,11 @@ export default function ResumeEditor() {
           </section>
         </aside>
 
-        {/* Column 2: Editor Pane */}
-        <aside className="w-[380px] bg-zinc-50/50 border-r border-zinc-200 p-6 overflow-y-auto scrollbar-hide">
+        {/* Column 2: Editor Pane - Mobile Toggle */}
+        <aside className={cn(
+          "w-full lg:w-[380px] bg-zinc-50/50 border-r border-zinc-200 p-6 overflow-y-auto scrollbar-hide absolute inset-0 z-30 lg:relative lg:block lg:translate-x-0 transition-transform duration-300",
+          activeMobileTab === "edit" ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
+        )}>
           <AnimatePresence mode="wait">
             {activeTab === "basic" && (
               <motion.div
@@ -1359,8 +1346,13 @@ export default function ResumeEditor() {
           </AnimatePresence>
         </aside>
 
-        {/* Column 3: Preview Output */}
-        <section className="flex-1 bg-zinc-100 flex flex-col relative overflow-hidden group">
+        {/* Column 3: Preview Output - Hidden on mobile unless active */}
+        <section
+          className={cn(
+            "flex-1 bg-zinc-100 flex flex-col relative overflow-hidden group absolute inset-0 z-20 lg:relative lg:flex lg:translate-x-0 transition-transform duration-300",
+            activeMobileTab === "preview" ? "translate-x-0" : "translate-x-full lg:translate-x-0",
+          )}
+        >
           {/* 右侧悬浮工具栏 */}
           <div className="absolute right-6 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2 bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-zinc-200 shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-4 group-hover:translate-x-0">
             <Button
@@ -1668,6 +1660,40 @@ export default function ResumeEditor() {
             </div>
           </div>
         </section>
+
+        {/* Mobile Bottom Navigation */}
+        <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 h-14 bg-zinc-900/90 backdrop-blur-md rounded-2xl flex items-center px-2 gap-1 border border-white/10 shadow-2xl z-[100]">
+          <button
+            onClick={() => setActiveMobileTab("manage")}
+            className={cn(
+              "flex flex-col items-center justify-center gap-1 w-16 h-10 rounded-xl transition-all",
+              activeMobileTab === "manage" ? "text-white bg-white/10" : "text-zinc-500",
+            )}
+          >
+            <Settings2 size={16} />
+            <span className="text-[10px] font-bold">管理</span>
+          </button>
+          <button
+            onClick={() => setActiveMobileTab("edit")}
+            className={cn(
+              "flex flex-col items-center justify-center gap-1 w-16 h-10 rounded-xl transition-all",
+              activeMobileTab === "edit" ? "text-white bg-white/10" : "text-zinc-500",
+            )}
+          >
+            <User size={16} />
+            <span className="text-[10px] font-bold">编辑</span>
+          </button>
+          <button
+            onClick={() => setActiveMobileTab("preview")}
+            className={cn(
+              "flex flex-col items-center justify-center gap-1 w-20 h-10 rounded-xl transition-all",
+              activeMobileTab === "preview" ? "text-white bg-white/10" : "text-zinc-500",
+            )}
+          >
+            <Eye size={16} />
+            <span className="text-[10px] font-bold">预览</span>
+          </button>
+        </div>
       </main>
 
       {/* Avatar Crop Modal */}
