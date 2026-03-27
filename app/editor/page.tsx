@@ -793,7 +793,7 @@ export default function ResumeEditor() {
                 </select>
               </div>
               <div className="space-y-1.5">
-                <div className="flex justify-between">
+                {/* <div className="flex justify-between">
                   <label
                     className="text-xs font-medium text-zinc-500"
                     htmlFor="line-h"
@@ -803,22 +803,46 @@ export default function ResumeEditor() {
                   <span className="text-xs text-zinc-400">
                     {typography.lineHeight}
                   </span>
+                </div> */}
+                <div className="flex justify-between items-center">
+                  <label
+                    className="text-xs font-medium text-zinc-500"
+                    htmlFor="line-h"
+                  >
+                    行距
+                  </label>
                 </div>
-                <input
-                  id="line-h"
-                  type="range"
-                  min="1.0"
-                  max="2.5"
-                  step="0.05"
-                  className="w-full h-1.5 bg-zinc-100 rounded-lg appearance-none accent-zinc-900 cursor-pointer"
-                  value={typography.lineHeight}
-                  onChange={(e) =>
-                    setTypography((prev) => ({
-                      ...prev,
-                      lineHeight: parseFloat(e.target.value),
-                    }))
-                  }
-                />
+                <div className="flex items-center gap-3">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-10 h-10 p-0"
+                    onClick={() =>
+                      setTypography((prev) => ({
+                        ...prev,
+                        lineHeight: parseFloat(Math.max(1, prev.lineHeight - 0.05).toFixed(2)),
+                      }))
+                    }
+                  >
+                    <Minus size={14} />
+                  </Button>
+                  <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">
+                    {typography.lineHeight.toFixed(2)}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-10 h-10 p-0"
+                    onClick={() =>
+                      setTypography((prev) => ({
+                        ...prev,
+                        lineHeight: parseFloat(Math.min(2.5, prev.lineHeight + 0.05).toFixed(2)),
+                      }))
+                    }
+                  >
+                    <Plus size={14} />
+                  </Button>
+                </div>
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-zinc-500">
@@ -947,29 +971,37 @@ export default function ResumeEditor() {
 
                   <div className="space-y-3">
                     <div className="flex justify-between items-center text-xs font-medium text-zinc-500">
-                      <span>头像圆角</span>
-                      <span>{resumeData.avatarBorderRadius}px</span>
+                      <span>头像圆角 (px)</span>
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="48"
-                      step="1"
-                      value={resumeData.avatarBorderRadius || 12}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value);
-                        setResumeData((prev) => ({
-                          ...prev,
-                          avatarBorderRadius: val,
-                        }));
-                        localStorage.setItem(
-                          "resume_avatar_radius",
-                          val.toString(),
-                        );
-                      }}
-                      className="w-full h-1.5 bg-zinc-100 rounded-lg appearance-none accent-zinc-900 cursor-pointer"
-                      title="头像圆角"
-                    />
+                    <div className="flex items-center gap-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-10 h-10 p-0"
+                        onClick={() => {
+                          const val = Math.max(0, (resumeData.avatarBorderRadius || 12) - 2);
+                          setResumeData((prev) => ({ ...prev, avatarBorderRadius: val }));
+                          localStorage.setItem("resume_avatar_radius", val.toString());
+                        }}
+                      >
+                        <Minus size={14} />
+                      </Button>
+                      <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">
+                        {resumeData.avatarBorderRadius || 12}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-10 h-10 p-0"
+                        onClick={() => {
+                          const val = Math.min(64, (resumeData.avatarBorderRadius || 12) + 2);
+                          setResumeData((prev) => ({ ...prev, avatarBorderRadius: val }));
+                          localStorage.setItem("resume_avatar_radius", val.toString());
+                        }}
+                      >
+                        <Plus size={14} />
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-4">
@@ -1272,26 +1304,39 @@ export default function ResumeEditor() {
                 {typography.skillStyle === "tag" && (
                   <div className="space-y-4 pt-4 border-t border-zinc-100 animate-in slide-in-from-top-2">
                     <div className="flex justify-between items-center text-xs font-bold text-zinc-400 uppercase tracking-widest">
-                      <span>标签圆角</span>
-                      <span className="font-mono">
-                        {typography.skillTagRadius}px
-                      </span>
+                      <span>标签圆角 (px)</span>
                     </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max="24"
-                      step="1"
-                      value={typography.skillTagRadius || 6}
-                      onChange={(e) =>
-                        setTypography((prev) => ({
-                          ...prev,
-                          skillTagRadius: parseInt(e.target.value),
-                        }))
-                      }
-                      className="w-full h-1.5 bg-zinc-100 rounded-lg appearance-none accent-zinc-900 cursor-pointer"
-                      title="圆角调节"
-                    />
+                    <div className="flex items-center gap-3">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-10 h-10 p-0"
+                        onClick={() =>
+                          setTypography((prev) => ({
+                            ...prev,
+                            skillTagRadius: Math.max(0, (prev.skillTagRadius || 6) - 2),
+                          }))
+                        }
+                      >
+                        <Minus size={14} />
+                      </Button>
+                      <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">
+                        {typography.skillTagRadius || 6}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="w-10 h-10 p-0"
+                        onClick={() =>
+                          setTypography((prev) => ({
+                            ...prev,
+                            skillTagRadius: Math.min(32, (prev.skillTagRadius || 6) + 2),
+                          }))
+                        }
+                      >
+                        <Plus size={14} />
+                      </Button>
+                    </div>
 
                     <div className="flex items-center justify-between pt-2">
                       <span className="text-xs font-semibold text-zinc-500">
