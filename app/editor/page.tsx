@@ -205,7 +205,7 @@ export default function ResumeEditor() {
     email: "email@example.com",
     city: "深圳",
     education: [
-      { id: "e1", school: "中国科学技术大学", major: "软件工程", date: "2016 - 2020" }
+      { id: "e1", school: "五邑大学", major: "五邑大学", date: "2022 - 2026" }
     ],
     workExperiences: [
       { id: "w1", company: "青椒实验室", role: "高级前端开发", date: "2020 - 至今", desc: "1. 负责核心编辑器的架构设计与性能优化。\n2. 实现实时协同预览引擎。" }
