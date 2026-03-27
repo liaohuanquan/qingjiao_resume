@@ -21,6 +21,7 @@ import {
   Maximize2,
   EyeOff,
 } from "lucide-react";
+import Image from "next/image";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -101,18 +102,18 @@ const Button = ({
   );
 };
 
-const Card = ({
-  children,
-  className,
-}: {
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
-  className?: string;
-}) => (
+  onClick?: () => void;
+}
+
+const Card = ({ children, className, ...props }: CardProps) => (
   <div
     className={cn(
       "rounded-xl border border-zinc-200 p-3 bg-white shadow-sm",
       className,
     )}
+    {...props}
   >
     {children}
   </div>
@@ -142,7 +143,8 @@ const Input = ({ label, id, ...props }: InputProps) => (
 export default function ResumeEditor() {
   const [activeTab, setActiveTab] = useState("basic");
   const [themeColor, setThemeColor] = useState("#10b981");
-  const [zoomScale, setZoomScale] = useState(0.75);
+  const [zoomScale, setZoomScale] = useState(0.8);
+  const previewContainerRef = React.useRef<HTMLDivElement>(null);
   const [modules, setModules] = useState<ModuleItem[]>([
     { id: "basic", title: "基本信息", visible: true },
     { id: "edu", title: "教育背景", visible: true },
@@ -175,15 +177,29 @@ export default function ResumeEditor() {
     setResumeData((prev) => ({ ...prev, [field]: value }));
   };
 
+  const autoFit = () => {
+    if (previewContainerRef.current) {
+      const containerWidth = previewContainerRef.current.clientWidth - 64; // 8 padding each side
+      const scale = Math.min(1, containerWidth / 820); // 800px paper + some margin
+      setZoomScale(Number(scale.toFixed(2)));
+    }
+  };
+
   React.useEffect(() => {
     const savedAvatar = localStorage.getItem("resume_avatar");
     if (savedAvatar) {
       updateData("avatar", savedAvatar);
     }
+    autoFit();
+    window.addEventListener("resize", autoFit);
+    return () => window.removeEventListener("resize", autoFit);
   }, []);
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex flex-col bg-zinc-50 font-sans text-zinc-900">
+    <div 
+      className="h-screen w-screen overflow-hidden flex flex-col bg-zinc-50 font-sans text-zinc-900"
+      style={{ "--theme-color": themeColor } as React.CSSProperties}
+    >
       {/* 1. Header */}
       <header className="h-[60px] flex items-center justify-between px-6 bg-white border-b border-zinc-200 shadow-sm z-10">
         <div className="flex items-center gap-3">
@@ -314,11 +330,11 @@ export default function ResumeEditor() {
                 <button
                   key={c}
                   onClick={() => setThemeColor(c)}
+                  style={{ "--bg-color": c } as React.CSSProperties}
                   className={cn(
-                    "w-6 h-6 rounded-full transition-transform active:scale-95",
+                    "w-6 h-6 rounded-full transition-transform active:scale-95 bg-[var(--bg-color)]",
                     themeColor === c && "ring-2 ring-zinc-900 ring-offset-2",
                   )}
-                  style={{ backgroundColor: c }}
                   title={`Select color ${c}`}
                   aria-label={`选择颜色 ${c}`}
                 />
@@ -436,12 +452,14 @@ export default function ResumeEditor() {
                     </h4>
                     <div className="flex items-start gap-6">
                       <div className="relative group">
-                        <div className="w-24 h-24 rounded-2xl bg-white border-2 border-dashed border-zinc-200 flex items-center justify-center overflow-hidden transition-colors group-hover:border-zinc-300">
+                        <div className="w-24 h-24 rounded-2xl bg-white border-2 border-dashed border-zinc-200 flex items-center justify-center overflow-hidden transition-colors group-hover:border-zinc-300 relative">
                           {resumeData.avatar ? (
-                            <img
+                            <Image
                               src={resumeData.avatar}
                               alt="Avatar"
-                              className="w-full h-full object-cover"
+                              fill
+                              className="object-cover"
+                              unoptimized
                             />
                           ) : (
                             <User size={32} className="text-zinc-300" />
@@ -581,14 +599,17 @@ export default function ResumeEditor() {
             </button>
             <div className="w-px h-3 bg-zinc-200 mx-1" />
             <button 
-              onClick={() => setZoomScale(0.75)}
+              onClick={autoFit}
               className="px-2 py-1 hover:bg-zinc-100 rounded-md transition-colors"
             >
-              重置
+              适应
             </button>
           </div>
 
-          <div className="flex-1 overflow-auto p-8 flex justify-center items-start scrollbar-hide">
+          <div 
+            ref={previewContainerRef}
+            className="flex-1 overflow-auto p-8 flex justify-center items-start scrollbar-hide"
+          >
             <motion.div
               layout
               initial={{ opacity: 0, y: 20 }}
@@ -601,17 +622,16 @@ export default function ResumeEditor() {
             >
               {/* Live Content for Preview */}
               <div className="flex items-center gap-8 mb-10">
-                <div className="w-24 h-24 rounded-lg bg-zinc-50 flex items-center justify-center overflow-hidden">
+                <div className="w-24 h-24 rounded-lg bg-zinc-50 flex items-center justify-center overflow-hidden relative">
                   {resumeData.avatar ? (
-                    <img src={resumeData.avatar} alt="Resume Avatar" className="w-full h-full object-cover" />
+                    <Image src={resumeData.avatar} alt="Resume Avatar" fill className="object-cover" unoptimized />
                   ) : (
                     <User size={40} className="text-zinc-300" />
                   )}
                 </div>
                 <div className="space-y-2">
                   <h1
-                    className="text-3xl font-bold tracking-tight"
-                    style={{ color: themeColor }}
+                    className="text-3xl font-bold tracking-tight text-[var(--theme-color)]"
                   >
                     {resumeData.name || "您的姓名"}
                   </h1>
@@ -635,8 +655,7 @@ export default function ResumeEditor() {
                     <section key={m.id}>
                       <div className="flex items-center gap-2 mb-3">
                         <div
-                          className="w-1 h-5 rounded-full"
-                          style={{ backgroundColor: themeColor }}
+                          className="w-1 h-5 rounded-full bg-[var(--theme-color)]"
                         />
                         <h3 className="text-lg font-bold">{m.title}</h3>
                       </div>
