@@ -87,6 +87,7 @@ interface ResumeData {
   city: string;
   avatar?: string;
   avatarAspect?: number;
+  avatarBorderRadius?: number; // percentage 0-50 (50 is circle)
   education: EducationItem[];
   workExperiences: WorkItem[];
   projects: ProjectItem[];
@@ -257,6 +258,7 @@ export default function ResumeEditor() {
     email: "email@example.com",
     city: "深圳",
     avatarAspect: 1,
+    avatarBorderRadius: 12,
     education: [
       { id: "e1", school: "五邑大学", major: "软件工程", date: "2022 - 2026" }
     ],
@@ -357,11 +359,13 @@ export default function ResumeEditor() {
   React.useEffect(() => {
     const savedAvatar = localStorage.getItem("resume_avatar");
     const savedAvatarAspect = localStorage.getItem("resume_avatar_aspect");
+    const savedAvatarRadius = localStorage.getItem("resume_avatar_radius");
     if (savedAvatar) {
       setResumeData(prev => ({ 
         ...prev, 
         avatar: savedAvatar,
-        avatarAspect: savedAvatarAspect ? parseFloat(savedAvatarAspect) : 1
+        avatarAspect: savedAvatarAspect ? parseFloat(savedAvatarAspect) : 1,
+        avatarBorderRadius: savedAvatarRadius ? parseInt(savedAvatarRadius) : 12
       }));
     }
     autoFit();
@@ -486,8 +490,11 @@ export default function ResumeEditor() {
                   <div className="flex items-start gap-6">
                     <div className="relative group">
                       <div 
-                        className="w-24 rounded-2xl bg-white border-2 border-dashed border-zinc-200 flex items-center justify-center overflow-hidden transition-colors group-hover:border-zinc-300 relative"
-                        style={{ height: `${96 / (resumeData.avatarAspect || 1)}px` }}
+                        className="w-24 bg-white border-2 border-dashed border-zinc-200 flex items-center justify-center overflow-hidden transition-colors group-hover:border-zinc-300 relative"
+                        style={{ 
+                          height: `${96 / (resumeData.avatarAspect || 1)}px`,
+                          borderRadius: `${resumeData.avatarBorderRadius}px` 
+                        }}
                       >
                         {resumeData.avatar ? (
                           <NextImage src={resumeData.avatar} alt="Avatar" fill className="object-cover" unoptimized />
@@ -512,6 +519,28 @@ export default function ResumeEditor() {
                       <Input placeholder="职位/称号" value={resumeData.title} onChange={(e) => updateBasicData("title", e.target.value)} title="职位标题" />
                     </div>
                   </div>
+
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center text-xs font-medium text-zinc-500">
+                      <span>头像圆角</span>
+                      <span>{resumeData.avatarBorderRadius}px</span>
+                    </div>
+                    <input 
+                      type="range" 
+                      min="0" 
+                      max="48" 
+                      step="1" 
+                      value={resumeData.avatarBorderRadius || 12}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        setResumeData(prev => ({ ...prev, avatarBorderRadius: val }));
+                        localStorage.setItem("resume_avatar_radius", val.toString());
+                      }}
+                      className="w-full h-1.5 bg-zinc-100 rounded-lg appearance-none accent-zinc-900 cursor-pointer"
+                      title="头像圆角"
+                    />
+                  </div>
+
                   <div className="grid grid-cols-1 gap-4">
                     <Input label="主要电话" value={resumeData.phone} onChange={(e) => updateBasicData("phone", e.target.value)} />
                     <Input label="电子邮件" value={resumeData.email} onChange={(e) => updateBasicData("email", e.target.value)} />
@@ -594,8 +623,11 @@ export default function ResumeEditor() {
             <motion.div style={{ scale: zoomScale, transformOrigin: "top center", fontFamily: "var(--font-family)", lineHeight: "var(--line-height)", fontSize: `${typography.fontSize}px` }} className="w-[820px] shadow-2xl flex flex-col p-16 shrink-0 mb-32 bg-white min-h-[1160px] relative transition-none">
               <div className="flex items-center gap-10 mb-12">
                 <div 
-                  className="w-28 rounded-xl bg-zinc-50 flex items-center justify-center overflow-hidden relative shadow-inner ring-1 ring-zinc-100"
-                  style={{ height: `${112 / (resumeData.avatarAspect || 1)}px` }}
+                  className="w-28 bg-zinc-50 flex items-center justify-center overflow-hidden relative shadow-inner ring-1 ring-zinc-100"
+                  style={{ 
+                    height: `${112 / (resumeData.avatarAspect || 1)}px`,
+                    borderRadius: `${resumeData.avatarBorderRadius}px`
+                  }}
                 >
                   {resumeData.avatar ? (
                     <NextImage src={resumeData.avatar} alt="Avatar" fill className="object-cover" unoptimized />
