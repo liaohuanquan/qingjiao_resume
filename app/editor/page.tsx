@@ -69,7 +69,7 @@ async function getCroppedImg(
     0,
     0,
     pixelCrop.width,
-    pixelCrop.height
+    pixelCrop.height,
   );
 
   return canvas.toDataURL("image/jpeg");
@@ -119,7 +119,7 @@ interface ProjectItem {
 interface TypographyConfig {
   fontFamily: string;
   lineHeight: number;
-  fontSize: number; 
+  fontSize: number;
 }
 
 interface ModuleItem {
@@ -157,10 +157,14 @@ const Button = ({
   ...props
 }: ButtonProps) => {
   const variants = {
-    primary: "bg-zinc-900 text-white hover:bg-zinc-800 disabled:bg-zinc-100 disabled:text-zinc-400",
-    secondary: "bg-white border border-zinc-200 text-zinc-900 hover:bg-zinc-50 disabled:opacity-50",
-    ghost: "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 disabled:opacity-50",
-    outline: "border border-zinc-200 bg-transparent hover:bg-zinc-50 disabled:opacity-50",
+    primary:
+      "bg-zinc-900 text-white hover:bg-zinc-800 disabled:bg-zinc-100 disabled:text-zinc-400",
+    secondary:
+      "bg-white border border-zinc-200 text-zinc-900 hover:bg-zinc-50 disabled:opacity-50",
+    ghost:
+      "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 disabled:opacity-50",
+    outline:
+      "border border-zinc-200 bg-transparent hover:bg-zinc-50 disabled:opacity-50",
   };
   const sizes = {
     sm: "h-8 px-3 text-xs",
@@ -260,32 +264,54 @@ export default function ResumeEditor() {
     avatarAspect: 1,
     avatarBorderRadius: 12,
     education: [
-      { id: "e1", school: "五邑大学", major: "软件工程", date: "2022 - 2026" }
+      { id: "e1", school: "五邑大学", major: "通信工程", date: "2022 - 2026" },
     ],
     workExperiences: [
-      { id: "w1", company: "青椒实验室", role: "高级前端开发", date: "2020 - 至今", desc: "1. 负责核心编辑器的架构设计与性能优化。\n2. 实现实时协同预览引擎。" }
+      {
+        id: "w1",
+        company: "青椒实验室",
+        role: "高级前端开发",
+        date: "2020 - 至今",
+        desc: "1. 负责核心编辑器的架构设计与性能优化。\n2. 实现实时协同预览引擎。",
+      },
     ],
     projects: [
-      { id: "p1", name: "青椒简历编辑器", role: "核心开发", date: "2023.01 - 至今", desc: "基于 Next.js 15 和 Tailwind CSS 4 开发的现代化简历编辑器。" }
+      {
+        id: "p1",
+        name: "青椒简历编辑器",
+        role: "核心开发",
+        date: "2023.01 - 至今",
+        desc: "基于 Next.js 15 和 Tailwind CSS 4 开发的现代化简历编辑器。",
+      },
     ],
-    skills: ["Javascript", "TypeScript", "React", "Next.js", "Tailwind CSS", "Node.js"]
+    skills: [
+      "Javascript",
+      "TypeScript",
+      "React",
+      "Next.js",
+      "Tailwind CSS",
+      "Node.js",
+    ],
   });
 
   const presetColors = ["#10b981", "#3b82f6", "#ef4444", "#f59e0b", "#18181b"];
 
-  const onCropComplete = useCallback((_croppedArea: Area, _croppedAreaPixels: Area) => {
-    setCroppedAreaPixels(_croppedAreaPixels);
-  }, []);
+  const onCropComplete = useCallback(
+    (_croppedArea: Area, _croppedAreaPixels: Area) => {
+      setCroppedAreaPixels(_croppedAreaPixels);
+    },
+    [],
+  );
 
   const handleApplyCrop = async () => {
     if (tempAvatar && croppedAreaPixels) {
       try {
         const croppedImage = await getCroppedImg(tempAvatar, croppedAreaPixels);
         if (croppedImage) {
-          setResumeData(prev => ({ 
-            ...prev, 
+          setResumeData((prev) => ({
+            ...prev,
             avatar: croppedImage,
-            avatarAspect: aspect 
+            avatarAspect: aspect,
           }));
           localStorage.setItem("resume_avatar", croppedImage);
           localStorage.setItem("resume_avatar_aspect", aspect.toString());
@@ -311,47 +337,94 @@ export default function ResumeEditor() {
     setResumeData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const updateListItem = (type: "edu" | "work" | "project", id: string, field: string, value: string) => {
-    setResumeData(prev => {
+  const updateListItem = (
+    type: "edu" | "work" | "project",
+    id: string,
+    field: string,
+    value: string,
+  ) => {
+    setResumeData((prev) => {
       if (type === "edu") {
-        return { ...prev, education: prev.education.map(item => item.id === id ? { ...item, [field]: value } : item) };
+        return {
+          ...prev,
+          education: prev.education.map((item) =>
+            item.id === id ? { ...item, [field]: value } : item,
+          ),
+        };
       }
       if (type === "work") {
-        return { ...prev, workExperiences: prev.workExperiences.map(item => item.id === id ? { ...item, [field]: value } : item) };
+        return {
+          ...prev,
+          workExperiences: prev.workExperiences.map((item) =>
+            item.id === id ? { ...item, [field]: value } : item,
+          ),
+        };
       }
-      return { ...prev, projects: prev.projects.map(item => item.id === id ? { ...item, [field]: value } : item) };
+      return {
+        ...prev,
+        projects: prev.projects.map((item) =>
+          item.id === id ? { ...item, [field]: value } : item,
+        ),
+      };
     });
   };
 
   const addItem = (type: "edu" | "work" | "project") => {
     const id = Date.now().toString();
     if (type === "edu") {
-      setResumeData(prev => ({ ...prev, education: [...prev.education, { id, school: "", major: "", date: "" }] }));
+      setResumeData((prev) => ({
+        ...prev,
+        education: [...prev.education, { id, school: "", major: "", date: "" }],
+      }));
     } else if (type === "work") {
-      setResumeData(prev => ({ ...prev, workExperiences: [...prev.workExperiences, { id, company: "", role: "", date: "", desc: "" }] }));
+      setResumeData((prev) => ({
+        ...prev,
+        workExperiences: [
+          ...prev.workExperiences,
+          { id, company: "", role: "", date: "", desc: "" },
+        ],
+      }));
     } else {
-      setResumeData(prev => ({ ...prev, projects: [...prev.projects, { id, name: "", role: "", date: "", desc: "" }] }));
+      setResumeData((prev) => ({
+        ...prev,
+        projects: [
+          ...prev.projects,
+          { id, name: "", role: "", date: "", desc: "" },
+        ],
+      }));
     }
   };
 
   const deleteItem = (type: "edu" | "work" | "project", id: string) => {
     if (type === "edu") {
-      setResumeData(prev => ({ ...prev, education: prev.education.filter(i => i.id !== id) }));
+      setResumeData((prev) => ({
+        ...prev,
+        education: prev.education.filter((i) => i.id !== id),
+      }));
     } else if (type === "work") {
-      setResumeData(prev => ({ ...prev, workExperiences: prev.workExperiences.filter(i => i.id !== id) }));
+      setResumeData((prev) => ({
+        ...prev,
+        workExperiences: prev.workExperiences.filter((i) => i.id !== id),
+      }));
     } else {
-      setResumeData(prev => ({ ...prev, projects: prev.projects.filter(i => i.id !== id) }));
+      setResumeData((prev) => ({
+        ...prev,
+        projects: prev.projects.filter((i) => i.id !== id),
+      }));
     }
   };
 
   const updateSkills = (value: string) => {
-    setResumeData(prev => ({ ...prev, skills: value.split(",").map(s => s.trim()) }));
+    setResumeData((prev) => ({
+      ...prev,
+      skills: value.split(",").map((s) => s.trim()),
+    }));
   };
 
   const autoFit = () => {
     if (previewContainerRef.current) {
-      const containerWidth = previewContainerRef.current.clientWidth - 64; 
-      const scale = Math.min(1, containerWidth / 820); 
+      const containerWidth = previewContainerRef.current.clientWidth - 64;
+      const scale = Math.min(1, containerWidth / 820);
       setZoomScale(Number(scale.toFixed(2)));
     }
   };
@@ -368,11 +441,11 @@ export default function ResumeEditor() {
       if (savedModules) setModules(JSON.parse(savedModules));
       if (savedTheme) setThemeColor(savedTheme);
       if (savedTypo) setTypography(JSON.parse(savedTypo));
-      
+
       // 处理旧版头像数据兼容性
       const legacyAvatar = localStorage.getItem("resume_avatar");
       if (legacyAvatar && !savedData) {
-        setResumeData(prev => ({ ...prev, avatar: legacyAvatar }));
+        setResumeData((prev) => ({ ...prev, avatar: legacyAvatar }));
       }
     } catch (e) {
       console.error("加载本地数据失败:", e);
@@ -402,6 +475,8 @@ export default function ResumeEditor() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [isExporting, setIsExporting] = useState(false);
+  const [isPanning, setIsPanning] = useState(false);
+  const scrollStart = React.useRef({ scrollLeft: 0, scrollTop: 0, x: 0, y: 0 });
   const importInputRef = React.useRef<HTMLInputElement>(null);
 
   // 1. PDF 导出逻辑：独立于自动保存状态
@@ -410,19 +485,19 @@ export default function ResumeEditor() {
     try {
       const pdf = new jsPDF("p", "mm", "a4");
       const pages = document.querySelectorAll(".group\\/page");
-      
+
       for (let i = 0; i < pages.length; i++) {
         const imgData = await toJpeg(pages[i] as HTMLElement, {
           quality: 1.0,
-          pixelRatio: 4, 
+          pixelRatio: 4,
           backgroundColor: "#ffffff",
         });
-        
+
         if (i > 0) pdf.addPage();
-        pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, 'FAST');
+        pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
       }
-      
-      pdf.save(`青椒简历-${resumeData.name || '未命名'}.pdf`);
+
+      pdf.save(`青椒简历-${resumeData.name || "未命名"}.pdf`);
     } catch (err) {
       console.error("PDF 失败:", err);
       alert("PDF 生成失败，请检查浏览器是否兼容。");
@@ -434,11 +509,13 @@ export default function ResumeEditor() {
   // 2. JSON 配置导出与导入
   const exportToJson = () => {
     const config = { resumeData, modules, themeColor, typography };
-    const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify(config, null, 2)], {
+      type: "application/json",
+    });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
     link.href = url;
-    link.download = `resume-${resumeData.name || 'config'}.json`;
+    link.download = `resume-${resumeData.name || "config"}.json`;
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -467,13 +544,13 @@ export default function ResumeEditor() {
     // 防抖：当用户停止输入 5 秒后再执行保存和状态提示
     const timer = setTimeout(() => {
       setIsSaving(true);
-      
+
       // 执行保存
       localStorage.setItem("resume_v2_data", JSON.stringify(resumeData));
       localStorage.setItem("resume_v2_modules", JSON.stringify(modules));
       localStorage.setItem("resume_v2_theme", themeColor);
       localStorage.setItem("resume_v2_typography", JSON.stringify(typography));
-      
+
       // 模拟一个同步过程感，之后恢复正常
       setTimeout(() => setIsSaving(false), 1000);
     }, 5000);
@@ -482,14 +559,16 @@ export default function ResumeEditor() {
   }, [resumeData, modules, themeColor, typography]);
 
   return (
-    <div 
+    <div
       className="h-screen w-screen overflow-hidden flex flex-col bg-zinc-50 font-sans text-zinc-900"
       /* 注入全局 CSS 变量以控制动态样式 */
-      style={{ 
-        "--theme-color": themeColor,
-        "--font-family": typography.fontFamily,
-        "--line-height": typography.lineHeight,
-      } as React.CSSProperties}
+      style={
+        {
+          "--theme-color": themeColor,
+          "--font-family": typography.fontFamily,
+          "--line-height": typography.lineHeight,
+        } as React.CSSProperties
+      }
     >
       {/* Head */}
       <header className="h-[60px] flex items-center justify-between px-6 bg-white border-b border-zinc-200 shadow-sm z-50">
@@ -498,14 +577,29 @@ export default function ResumeEditor() {
             <Maximize2 size={18} className="text-white" />
           </div>
           <span className="font-bold text-lg tracking-tight">青椒简历</span>
-          <Badge className={cn(
-            "ml-2 flex items-center gap-2 transition-all duration-300",
-            isSaving ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"
-          )}>
+          <Badge
+            className={cn(
+              "ml-2 flex items-center gap-2 transition-all duration-300",
+              isSaving
+                ? "bg-amber-50 text-amber-600"
+                : "bg-emerald-50 text-emerald-600",
+            )}
+          >
             <motion.div
-              animate={isSaving ? { scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] } : { opacity: [0.4, 1, 0.4] }}
-              transition={{ duration: isSaving ? 0.6 : 2, repeat: Infinity, ease: "easeInOut" }}
-              className={cn("w-2 h-2 rounded-full", isSaving ? "bg-amber-500" : "bg-emerald-500")}
+              animate={
+                isSaving
+                  ? { scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }
+                  : { opacity: [0.4, 1, 0.4] }
+              }
+              transition={{
+                duration: isSaving ? 0.6 : 2,
+                repeat: Infinity,
+                ease: "easeInOut",
+              }}
+              className={cn(
+                "w-2 h-2 rounded-full",
+                isSaving ? "bg-amber-500" : "bg-emerald-500",
+              )}
             />
             {isSaving ? "正在同步内容..." : "已保存至本地"}
           </Badge>
@@ -513,20 +607,47 @@ export default function ResumeEditor() {
 
         <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-zinc-600">QingJiao</span>
-          <Button variant="ghost" size="icon" className="rounded-full" title="源视图暂未开启">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="rounded-full"
+            title="源视图暂未开启"
+          >
             <Sun size={18} />
           </Button>
           <div className="flex items-center gap-2 border-l border-zinc-200 pl-4 ml-2">
-             <Button variant="outline" size="sm" className="gap-2 text-xs font-bold" onClick={() => importInputRef.current?.click()}>
-               <Rocket size={14} /> 导入配置
-               <input type="file" ref={importInputRef} className="hidden" accept=".json" onChange={handleImportJson} />
-             </Button>
-             <Button variant="outline" size="sm" className="gap-2 text-xs font-bold" onClick={exportToJson}>
-               <Code size={14} /> 备份 JSON
-             </Button>
-             <Button size="sm" className="gap-2 text-xs font-bold shadow-lg shadow-emerald-900/10" onClick={exportToPdf} disabled={isExporting}>
-               <DownloadCloud size={14} /> {isExporting ? "正在生成 PDF..." : "下载 PDF"}
-             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-xs font-bold"
+              onClick={() => importInputRef.current?.click()}
+            >
+              <Rocket size={14} /> 导入配置
+              <input
+                type="file"
+                ref={importInputRef}
+                className="hidden"
+                accept=".json"
+                onChange={handleImportJson}
+              />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-xs font-bold"
+              onClick={exportToJson}
+            >
+              <Code size={14} /> 备份 JSON
+            </Button>
+            <Button
+              size="sm"
+              className="gap-2 text-xs font-bold shadow-lg shadow-emerald-900/10"
+              onClick={exportToPdf}
+              disabled={isExporting}
+            >
+              <DownloadCloud size={14} />{" "}
+              {isExporting ? "正在生成 PDF..." : "下载 PDF"}
+            </Button>
           </div>
         </div>
       </header>
@@ -540,64 +661,205 @@ export default function ResumeEditor() {
               <Settings2 size={14} /> 模块管理
             </h3>
             <div className="space-y-2 mb-2">
-              <Card onClick={() => setActiveTab("basic")} className={cn("flex items-center gap-2 cursor-pointer transition-all", activeTab === "basic" && "border-zinc-900 ring-1 ring-zinc-900/5")}>
+              <Card
+                onClick={() => setActiveTab("basic")}
+                className={cn(
+                  "flex items-center gap-2 cursor-pointer transition-all",
+                  activeTab === "basic" &&
+                    "border-zinc-900 ring-1 ring-zinc-900/5",
+                )}
+              >
                 <div className="w-4 h-4 rounded-sm border border-zinc-200 flex items-center justify-center bg-zinc-50 ml-1">
                   <div className="w-1.5 h-1.5 rounded-full bg-zinc-300" />
                 </div>
-                <span className="text-sm text-zinc-600 flex-1 ml-1">基本信息</span>
-                <Badge className="bg-zinc-100 text-zinc-400 font-normal ml-auto">固定</Badge>
+                <span className="text-sm text-zinc-600 flex-1 ml-1">
+                  基本信息
+                </span>
+                <Badge className="bg-zinc-100 text-zinc-400 font-normal ml-auto">
+                  固定
+                </Badge>
               </Card>
             </div>
 
-            <Reorder.Group axis="y" values={modules.filter((m) => m.id !== "basic")} onReorder={(newModules) => setModules([modules[0], ...newModules])} className="space-y-2">
-              {modules.filter((m) => m.id !== "basic").map((m) => (
-                <Reorder.Item key={m.id} value={m} onClick={() => setActiveTab(m.id)}>
-                  <Card className={cn("flex items-center gap-2 cursor-pointer transition-all", activeTab === m.id && "border-zinc-900 ring-1 ring-zinc-900/5", !m.visible && "opacity-50")}>
-                    <GripVertical size={16} className="text-zinc-400 cursor-grab active:cursor-grabbing" />
-                    <span className="text-sm text-zinc-600 flex-1">{m.title}</span>
-                    <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
-                      <button className="p-1 hover:bg-zinc-100 rounded text-zinc-400" onClick={() => toggleModuleVisibility(m.id)} title={m.visible ? "隐藏" : "显示"}>{m.visible ? <Eye size={14} /> : <EyeOff size={14} />}</button>
-                      <button className="p-1 hover:bg-zinc-100 rounded text-zinc-400" onClick={() => removeModule(m.id)} title="删除"><Trash2 size={14} /></button>
-                    </div>
-                  </Card>
-                </Reorder.Item>
-              ))}
+            <Reorder.Group
+              axis="y"
+              values={modules.filter((m) => m.id !== "basic")}
+              onReorder={(newModules) =>
+                setModules([modules[0], ...newModules])
+              }
+              className="space-y-2"
+            >
+              {modules
+                .filter((m) => m.id !== "basic")
+                .map((m) => (
+                  <Reorder.Item
+                    key={m.id}
+                    value={m}
+                    onClick={() => setActiveTab(m.id)}
+                  >
+                    <Card
+                      className={cn(
+                        "flex items-center gap-2 cursor-pointer transition-all",
+                        activeTab === m.id &&
+                          "border-zinc-900 ring-1 ring-zinc-900/5",
+                        !m.visible && "opacity-50",
+                      )}
+                    >
+                      <GripVertical
+                        size={16}
+                        className="text-zinc-400 cursor-grab active:cursor-grabbing"
+                      />
+                      <span className="text-sm text-zinc-600 flex-1">
+                        {m.title}
+                      </span>
+                      <div
+                        className="flex gap-1"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <button
+                          className="p-1 hover:bg-zinc-100 rounded text-zinc-400"
+                          onClick={() => toggleModuleVisibility(m.id)}
+                          title={m.visible ? "隐藏" : "显示"}
+                        >
+                          {m.visible ? <Eye size={14} /> : <EyeOff size={14} />}
+                        </button>
+                        <button
+                          className="p-1 hover:bg-zinc-100 rounded text-zinc-400"
+                          onClick={() => removeModule(m.id)}
+                          title="删除"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </Card>
+                  </Reorder.Item>
+                ))}
             </Reorder.Group>
           </section>
 
           <section>
-            <h3 className="text-sm font-semibold mb-3 text-zinc-900 flex items-center gap-2"><Palette size={14} /> 主题色</h3>
+            <h3 className="text-sm font-semibold mb-3 text-zinc-900 flex items-center gap-2">
+              <Palette size={14} /> 主题色
+            </h3>
             <div className="flex flex-wrap gap-3 px-1 items-center">
               {presetColors.map((c) => (
-                <button key={c} onClick={() => setThemeColor(c)} style={{ "--bg-color": c } as React.CSSProperties} className={cn("w-6 h-6 rounded-full transition-all active:scale-90 bg-[var(--bg-color)] shadow-sm", themeColor === c && "ring-2 ring-zinc-900 ring-offset-2")} title={c} />
+                <button
+                  key={c}
+                  onClick={() => setThemeColor(c)}
+                  style={{ "--bg-color": c } as React.CSSProperties}
+                  className={cn(
+                    "w-6 h-6 rounded-full transition-all active:scale-90 bg-[var(--bg-color)] shadow-sm",
+                    themeColor === c && "ring-2 ring-zinc-900 ring-offset-2",
+                  )}
+                  title={c}
+                />
               ))}
-              <input type="color" className="w-8 h-8 rounded-lg border border-zinc-200 cursor-pointer p-1.5 bg-zinc-50" value={themeColor} onChange={(e) => setThemeColor(e.target.value)} title="定制颜色" />
-              <span className="text-[10px] text-zinc-400 font-mono tracking-tight uppercase">{themeColor}</span>
+              <input
+                type="color"
+                className="w-8 h-8 rounded-lg border border-zinc-200 cursor-pointer p-1.5 bg-zinc-50"
+                value={themeColor}
+                onChange={(e) => setThemeColor(e.target.value)}
+                title="定制颜色"
+              />
+              <span className="text-[10px] text-zinc-400 font-mono tracking-tight uppercase">
+                {themeColor}
+              </span>
             </div>
           </section>
 
           <section className="space-y-4">
-            <h3 className="text-sm font-semibold text-zinc-900 flex items-center gap-2"><Type size={14} /> 版式调节</h3>
+            <h3 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
+              <Type size={14} /> 版式调节
+            </h3>
             <div className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-500" htmlFor="font-fam">字体</label>
-                <select id="font-fam" className="w-full h-9 px-3 rounded-lg border border-zinc-200 bg-white text-sm focus:outline-none" value={typography.fontFamily} onChange={(e) => setTypography(prev => ({ ...prev, fontFamily: e.target.value }))}>
+                <label
+                  className="text-xs font-medium text-zinc-500"
+                  htmlFor="font-fam"
+                >
+                  字体
+                </label>
+                <select
+                  id="font-fam"
+                  className="w-full h-9 px-3 rounded-lg border border-zinc-200 bg-white text-sm focus:outline-none"
+                  value={typography.fontFamily}
+                  onChange={(e) =>
+                    setTypography((prev) => ({
+                      ...prev,
+                      fontFamily: e.target.value,
+                    }))
+                  }
+                >
                   <option value="Inter, sans-serif">Inter (通用)</option>
                   <option value="'Roboto', sans-serif">Roboto (机械)</option>
-                  <option value="'Outfit', sans-serif">Outfit (现代精美)</option>
+                  <option value="'Outfit', sans-serif">
+                    Outfit (现代精美)
+                  </option>
                   <option value="'Songti SC', serif">宋体 (正式)</option>
                 </select>
               </div>
               <div className="space-y-1.5">
-                <div className="flex justify-between"><label className="text-xs font-medium text-zinc-500" htmlFor="line-h">行距</label><span className="text-xs text-zinc-400">{typography.lineHeight}</span></div>
-                <input id="line-h" type="range" min="1.0" max="2.5" step="0.05" className="w-full h-1.5 bg-zinc-100 rounded-lg appearance-none accent-zinc-900 cursor-pointer" value={typography.lineHeight} onChange={(e) => setTypography(prev => ({ ...prev, lineHeight: parseFloat(e.target.value) }))} />
+                <div className="flex justify-between">
+                  <label
+                    className="text-xs font-medium text-zinc-500"
+                    htmlFor="line-h"
+                  >
+                    行距
+                  </label>
+                  <span className="text-xs text-zinc-400">
+                    {typography.lineHeight}
+                  </span>
+                </div>
+                <input
+                  id="line-h"
+                  type="range"
+                  min="1.0"
+                  max="2.5"
+                  step="0.05"
+                  className="w-full h-1.5 bg-zinc-100 rounded-lg appearance-none accent-zinc-900 cursor-pointer"
+                  value={typography.lineHeight}
+                  onChange={(e) =>
+                    setTypography((prev) => ({
+                      ...prev,
+                      lineHeight: parseFloat(e.target.value),
+                    }))
+                  }
+                />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-500">主字号 (px)</label>
+                <label className="text-xs font-medium text-zinc-500">
+                  主字号 (px)
+                </label>
                 <div className="flex items-center gap-3">
-                  <Button size="sm" variant="outline" className="w-10 h-10 p-0" onClick={() => setTypography(prev => ({ ...prev, fontSize: Math.max(10, prev.fontSize - 0.5) }))}><Minus size={14} /></Button>
-                  <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">{typography.fontSize.toFixed(1)}</div>
-                  <Button size="sm" variant="outline" className="w-10 h-10 p-0" onClick={() => setTypography(prev => ({ ...prev, fontSize: Math.min(24, prev.fontSize + 0.5) }))}><Plus size={14} /></Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-10 h-10 p-0"
+                    onClick={() =>
+                      setTypography((prev) => ({
+                        ...prev,
+                        fontSize: Math.max(10, prev.fontSize - 0.5),
+                      }))
+                    }
+                  >
+                    <Minus size={14} />
+                  </Button>
+                  <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">
+                    {typography.fontSize.toFixed(1)}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="w-10 h-10 p-0"
+                    onClick={() =>
+                      setTypography((prev) => ({
+                        ...prev,
+                        fontSize: Math.min(24, prev.fontSize + 0.5),
+                      }))
+                    }
+                  >
+                    <Plus size={14} />
+                  </Button>
                 </div>
               </div>
             </div>
@@ -608,43 +870,81 @@ export default function ResumeEditor() {
         <aside className="w-[380px] bg-zinc-50/50 border-r border-zinc-200 p-6 overflow-y-auto scrollbar-hide">
           <AnimatePresence mode="wait">
             {activeTab === "basic" && (
-              <motion.div key="basic" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-8">
+              <motion.div
+                key="basic"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="space-y-8"
+              >
                 <header className="flex items-center gap-3 mb-8">
-                  <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600 shadow-sm"><User size={20} /></div>
+                  <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600 shadow-sm">
+                    <User size={20} />
+                  </div>
                   <h2 className="text-xl font-bold tracking-tight">基本信息</h2>
                 </header>
 
                 <section className="space-y-6">
                   <div className="flex items-start gap-6">
                     <div className="relative group">
-                      <div 
+                      <div
                         className="w-24 bg-white border-2 border-dashed border-zinc-200 flex items-center justify-center overflow-hidden transition-colors group-hover:border-zinc-300 relative"
-                        style={{ 
+                        style={{
                           height: `${96 / (resumeData.avatarAspect || 1)}px`,
-                          borderRadius: `${resumeData.avatarBorderRadius}px` 
+                          borderRadius: `${resumeData.avatarBorderRadius}px`,
                         }}
                       >
                         {resumeData.avatar ? (
-                          <NextImage src={resumeData.avatar} alt="Avatar" fill className="object-cover" unoptimized />
+                          <NextImage
+                            src={resumeData.avatar}
+                            alt="Avatar"
+                            fill
+                            className="object-cover"
+                            unoptimized
+                          />
                         ) : (
                           <User size={32} className="text-zinc-300" />
                         )}
                       </div>
-                      <label className="absolute -bottom-2 -right-2 w-8 h-8 bg-zinc-900 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white hover:scale-110 transition-transform cursor-pointer" title="上传头像">
+                      <label
+                        className="absolute -bottom-2 -right-2 w-8 h-8 bg-zinc-900 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white hover:scale-110 transition-transform cursor-pointer"
+                        title="上传头像"
+                      >
                         <Palette size={14} />
-                        <input type="file" className="hidden" aria-label="头像上传" accept="image/*" onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            const reader = new FileReader();
-                            reader.onloadend = () => setTempAvatar(reader.result as string);
-                            reader.readAsDataURL(file);
-                          }
-                        }} />
+                        <input
+                          type="file"
+                          className="hidden"
+                          aria-label="头像上传"
+                          accept="image/*"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              const reader = new FileReader();
+                              reader.onloadend = () =>
+                                setTempAvatar(reader.result as string);
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
                       </label>
                     </div>
                     <div className="flex-1 space-y-4">
-                      <Input placeholder="姓名" value={resumeData.name} onChange={(e) => updateBasicData("name", e.target.value)} title="姓名" />
-                      <Input placeholder="职位/称号" value={resumeData.title} onChange={(e) => updateBasicData("title", e.target.value)} title="职位标题" />
+                      <Input
+                        placeholder="姓名"
+                        value={resumeData.name}
+                        onChange={(e) =>
+                          updateBasicData("name", e.target.value)
+                        }
+                        title="姓名"
+                      />
+                      <Input
+                        placeholder="职位/称号"
+                        value={resumeData.title}
+                        onChange={(e) =>
+                          updateBasicData("title", e.target.value)
+                        }
+                        title="职位标题"
+                      />
                     </div>
                   </div>
 
@@ -653,16 +953,22 @@ export default function ResumeEditor() {
                       <span>头像圆角</span>
                       <span>{resumeData.avatarBorderRadius}px</span>
                     </div>
-                    <input 
-                      type="range" 
-                      min="0" 
-                      max="48" 
-                      step="1" 
+                    <input
+                      type="range"
+                      min="0"
+                      max="48"
+                      step="1"
                       value={resumeData.avatarBorderRadius || 12}
                       onChange={(e) => {
                         const val = parseInt(e.target.value);
-                        setResumeData(prev => ({ ...prev, avatarBorderRadius: val }));
-                        localStorage.setItem("resume_avatar_radius", val.toString());
+                        setResumeData((prev) => ({
+                          ...prev,
+                          avatarBorderRadius: val,
+                        }));
+                        localStorage.setItem(
+                          "resume_avatar_radius",
+                          val.toString(),
+                        );
                       }}
                       className="w-full h-1.5 bg-zinc-100 rounded-lg appearance-none accent-zinc-900 cursor-pointer"
                       title="头像圆角"
@@ -670,67 +976,270 @@ export default function ResumeEditor() {
                   </div>
 
                   <div className="grid grid-cols-1 gap-4">
-                    <Input label="主要电话" value={resumeData.phone} onChange={(e) => updateBasicData("phone", e.target.value)} />
-                    <Input label="电子邮件" value={resumeData.email} onChange={(e) => updateBasicData("email", e.target.value)} />
-                    <Input label="所在地" value={resumeData.city} onChange={(e) => updateBasicData("city", e.target.value)} />
+                    <Input
+                      label="主要电话"
+                      value={resumeData.phone}
+                      onChange={(e) => updateBasicData("phone", e.target.value)}
+                    />
+                    <Input
+                      label="电子邮件"
+                      value={resumeData.email}
+                      onChange={(e) => updateBasicData("email", e.target.value)}
+                    />
+                    <Input
+                      label="所在地"
+                      value={resumeData.city}
+                      onChange={(e) => updateBasicData("city", e.target.value)}
+                    />
                   </div>
                 </section>
               </motion.div>
             )}
 
             {activeTab === "edu" && (
-              <motion.div key="edu" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-6">
-                <header className="flex items-center gap-3 mb-8"><div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600"><GraduationCap size={20} /></div><h2 className="text-xl font-bold tracking-tight">教育背景</h2></header>
-                {resumeData.education.map(item => (
-                  <Card key={item.id} className="relative group p-4 border-dashed border-zinc-200 space-y-3">
-                    <button onClick={() => deleteItem("edu", item.id)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100 shadow-sm" title="移除"><Trash2 size={12} /></button>
-                    <Input placeholder="学校名称" value={item.school} onChange={e => updateListItem("edu", item.id, "school", e.target.value)} />
-                    <Input placeholder="专业科目" value={item.major} onChange={e => updateListItem("edu", item.id, "major", e.target.value)} />
-                    <Input placeholder="入学起止日期" value={item.date} onChange={e => updateListItem("edu", item.id, "date", e.target.value)} />
+              <motion.div
+                key="edu"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="space-y-6"
+              >
+                <header className="flex items-center gap-3 mb-8">
+                  <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600">
+                    <GraduationCap size={20} />
+                  </div>
+                  <h2 className="text-xl font-bold tracking-tight">教育背景</h2>
+                </header>
+                {resumeData.education.map((item) => (
+                  <Card
+                    key={item.id}
+                    className="relative group p-4 border-dashed border-zinc-200 space-y-3"
+                  >
+                    <button
+                      onClick={() => deleteItem("edu", item.id)}
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100 shadow-sm"
+                      title="移除"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                    <Input
+                      placeholder="学校名称"
+                      value={item.school}
+                      onChange={(e) =>
+                        updateListItem("edu", item.id, "school", e.target.value)
+                      }
+                    />
+                    <Input
+                      placeholder="专业科目"
+                      value={item.major}
+                      onChange={(e) =>
+                        updateListItem("edu", item.id, "major", e.target.value)
+                      }
+                    />
+                    <Input
+                      placeholder="入学起止日期"
+                      value={item.date}
+                      onChange={(e) =>
+                        updateListItem("edu", item.id, "date", e.target.value)
+                      }
+                    />
                   </Card>
                 ))}
-                <Button variant="outline" className="w-full border-dashed" onClick={() => addItem("edu")}>+ 新增教育</Button>
+                <Button
+                  variant="outline"
+                  className="w-full border-dashed"
+                  onClick={() => addItem("edu")}
+                >
+                  + 新增教育
+                </Button>
               </motion.div>
             )}
 
             {activeTab === "work" && (
-              <motion.div key="work" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-6">
-                <header className="flex items-center gap-3 mb-8"><div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600"><Briefcase size={20} /></div><h2 className="text-xl font-bold tracking-tight">工作经历</h2></header>
-                {resumeData.workExperiences.map(item => (
-                  <Card key={item.id} className="relative group p-4 border-dashed border-zinc-200 space-y-3">
-                    <button onClick={() => deleteItem("work", item.id)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100 shadow-sm" title="移除"><Trash2 size={12} /></button>
-                    <Input placeholder="公司平台" value={item.company} onChange={e => updateListItem("work", item.id, "company", e.target.value)} />
-                    <Input placeholder="主要角色" value={item.role} onChange={e => updateListItem("work", item.id, "role", e.target.value)} />
-                    <Input placeholder="在职期间" value={item.date} onChange={e => updateListItem("work", item.id, "date", e.target.value)} />
-                    <textarea placeholder="关键成果描述..." className="w-full h-32 p-3 text-sm border border-zinc-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white" value={item.desc} onChange={e => updateListItem("work", item.id, "desc", e.target.value)} title="内容说明" />
+              <motion.div
+                key="work"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="space-y-6"
+              >
+                <header className="flex items-center gap-3 mb-8">
+                  <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600">
+                    <Briefcase size={20} />
+                  </div>
+                  <h2 className="text-xl font-bold tracking-tight">工作经历</h2>
+                </header>
+                {resumeData.workExperiences.map((item) => (
+                  <Card
+                    key={item.id}
+                    className="relative group p-4 border-dashed border-zinc-200 space-y-3"
+                  >
+                    <button
+                      onClick={() => deleteItem("work", item.id)}
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100 shadow-sm"
+                      title="移除"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                    <Input
+                      placeholder="公司平台"
+                      value={item.company}
+                      onChange={(e) =>
+                        updateListItem(
+                          "work",
+                          item.id,
+                          "company",
+                          e.target.value,
+                        )
+                      }
+                    />
+                    <Input
+                      placeholder="主要角色"
+                      value={item.role}
+                      onChange={(e) =>
+                        updateListItem("work", item.id, "role", e.target.value)
+                      }
+                    />
+                    <Input
+                      placeholder="在职期间"
+                      value={item.date}
+                      onChange={(e) =>
+                        updateListItem("work", item.id, "date", e.target.value)
+                      }
+                    />
+                    <textarea
+                      placeholder="关键成果描述..."
+                      className="w-full h-32 p-3 text-sm border border-zinc-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
+                      value={item.desc}
+                      onChange={(e) =>
+                        updateListItem("work", item.id, "desc", e.target.value)
+                      }
+                      title="内容说明"
+                    />
                   </Card>
                 ))}
-                <Button variant="outline" className="w-full border-dashed" onClick={() => addItem("work")}>+ 新增经历</Button>
+                <Button
+                  variant="outline"
+                  className="w-full border-dashed"
+                  onClick={() => addItem("work")}
+                >
+                  + 新增经历
+                </Button>
               </motion.div>
             )}
 
             {activeTab === "project" && (
-              <motion.div key="project" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-6">
-                <header className="flex items-center gap-3 mb-8"><div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600"><Rocket size={20} /></div><h2 className="text-xl font-bold tracking-tight">项目经验</h2></header>
-                {resumeData.projects.map(item => (
-                  <Card key={item.id} className="relative group p-4 border-dashed border-zinc-200 space-y-3">
-                    <button onClick={() => deleteItem("project", item.id)} className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100" title="移除项目"><Trash2 size={12} /></button>
-                    <Input placeholder="项目主题" value={item.name} onChange={e => updateListItem("project", item.id, "name", e.target.value)} />
-                    <Input placeholder="职责分工" value={item.role} onChange={e => updateListItem("project", item.id, "role", e.target.value)} />
-                    <Input placeholder="时间段" value={item.date} onChange={e => updateListItem("project", item.id, "date", e.target.value)} />
-                    <textarea placeholder="项目核心亮点..." className="w-full h-32 p-3 text-sm border border-zinc-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white" value={item.desc} onChange={e => updateListItem("project", item.id, "desc", e.target.value)} title="技术细节" />
+              <motion.div
+                key="project"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="space-y-6"
+              >
+                <header className="flex items-center gap-3 mb-8">
+                  <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600">
+                    <Rocket size={20} />
+                  </div>
+                  <h2 className="text-xl font-bold tracking-tight">项目经验</h2>
+                </header>
+                {resumeData.projects.map((item) => (
+                  <Card
+                    key={item.id}
+                    className="relative group p-4 border-dashed border-zinc-200 space-y-3"
+                  >
+                    <button
+                      onClick={() => deleteItem("project", item.id)}
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100"
+                      title="移除项目"
+                    >
+                      <Trash2 size={12} />
+                    </button>
+                    <Input
+                      placeholder="项目主题"
+                      value={item.name}
+                      onChange={(e) =>
+                        updateListItem(
+                          "project",
+                          item.id,
+                          "name",
+                          e.target.value,
+                        )
+                      }
+                    />
+                    <Input
+                      placeholder="职责分工"
+                      value={item.role}
+                      onChange={(e) =>
+                        updateListItem(
+                          "project",
+                          item.id,
+                          "role",
+                          e.target.value,
+                        )
+                      }
+                    />
+                    <Input
+                      placeholder="时间段"
+                      value={item.date}
+                      onChange={(e) =>
+                        updateListItem(
+                          "project",
+                          item.id,
+                          "date",
+                          e.target.value,
+                        )
+                      }
+                    />
+                    <textarea
+                      placeholder="项目核心亮点..."
+                      className="w-full h-32 p-3 text-sm border border-zinc-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
+                      value={item.desc}
+                      onChange={(e) =>
+                        updateListItem(
+                          "project",
+                          item.id,
+                          "desc",
+                          e.target.value,
+                        )
+                      }
+                      title="技术细节"
+                    />
                   </Card>
                 ))}
-                <Button variant="outline" className="w-full border-dashed" onClick={() => addItem("project")}>+ 新增项目</Button>
+                <Button
+                  variant="outline"
+                  className="w-full border-dashed"
+                  onClick={() => addItem("project")}
+                >
+                  + 新增项目
+                </Button>
               </motion.div>
             )}
 
             {activeTab === "skill" && (
-              <motion.div key="skill" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 10 }} className="space-y-6">
-                <header className="flex items-center gap-3 mb-8"><div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600"><Type size={20} /></div><h2 className="text-xl font-bold tracking-tight">专业技能</h2></header>
+              <motion.div
+                key="skill"
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="space-y-6"
+              >
+                <header className="flex items-center gap-3 mb-8">
+                  <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600">
+                    <Type size={20} />
+                  </div>
+                  <h2 className="text-xl font-bold tracking-tight">专业技能</h2>
+                </header>
                 <div className="space-y-3">
-                  <label className="text-xs font-medium text-zinc-500">技能清单 (逗号分隔)</label>
-                  <textarea className="w-full h-48 p-4 text-sm border border-zinc-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white leading-relaxed font-mono" value={resumeData.skills.join(", ")} onChange={(e) => updateSkills(e.target.value)} title="列表键入" />
+                  <label className="text-xs font-medium text-zinc-500">
+                    技能清单 (逗号分隔)
+                  </label>
+                  <textarea
+                    className="w-full h-48 p-4 text-sm border border-zinc-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white leading-relaxed font-mono"
+                    value={resumeData.skills.join(", ")}
+                    onChange={(e) => updateSkills(e.target.value)}
+                    title="列表键入"
+                  />
                 </div>
               </motion.div>
             )}
@@ -739,121 +1248,273 @@ export default function ResumeEditor() {
 
         {/* Column 3: Preview Output */}
         <section className="flex-1 bg-zinc-100 flex flex-col relative overflow-hidden group">
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 flex items-center gap-2 bg-white/90 backdrop-blur-md px-3 py-1.5 rounded-full border border-zinc-200 shadow-lg text-xs font-medium opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <button onClick={() => setZoomScale(prev => Math.max(0.4, prev - 0.1))} className="w-8 h-8 hover:bg-zinc-100 rounded-full" title="缩小">-</button>
-            <span className="min-w-[40px] text-center text-zinc-600">{Math.round(zoomScale * 100)}%</span>
-            <button onClick={() => setZoomScale(prev => Math.min(1.5, prev + 0.1))} className="w-8 h-8 hover:bg-zinc-100 rounded-full" title="放大">+</button>
-            <div className="w-px h-3 bg-zinc-200 mx-1" />
-            <button onClick={autoFit} className="px-3 py-1 hover:bg-zinc-100 rounded-md text-zinc-500">自适应</button>
+          {/* 右侧悬浮工具栏 */}
+          <div className="absolute right-6 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2 bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-zinc-200 shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-4 group-hover:translate-x-0">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setZoomScale((prev) => Math.min(1.5, prev + 0.1))}
+              className="w-10 h-10 hover:bg-zinc-100 rounded-xl"
+              title="放大"
+            >
+              <Plus size={18} />
+            </Button>
+            <div className="h-10 flex items-center justify-center text-[10px] font-bold text-zinc-500 border-y border-zinc-100">
+              {Math.round(zoomScale * 100)}%
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setZoomScale((prev) => Math.max(0.4, prev - 0.1))}
+              className="w-10 h-10 hover:bg-zinc-100 rounded-xl"
+              title="缩小"
+            >
+              <Minus size={18} />
+            </Button>
+            <div className="w-full h-px bg-zinc-100 my-1" />
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={autoFit}
+              className="w-10 h-10 hover:bg-zinc-100 rounded-xl text-zinc-500"
+              title="自适应宽度"
+            >
+              <Maximize2 size={18} />
+            </Button>
           </div>
 
-          <div ref={previewContainerRef} className="flex-1 overflow-auto p-12 pb-32 flex flex-col items-center scrollbar-hide bg-zinc-200/50">
-            {/* 页面容器 */}
-            <div style={{ scale: zoomScale, transformOrigin: "top center" }} className="flex flex-col gap-10">
-               {Array.from({ length: numPages }).map((_, pageIdx) => {
-                 const PAGE_H = 1160;
-                 const PADDING = 64;
-                 const EFFECTIVE_H = PAGE_H - (PADDING * 2); // 1032px
-                 
-                 return (
-                   <motion.div 
-                     key={pageIdx}
-                     className="w-[820px] h-[1160px] bg-white shadow-2xl relative overflow-hidden shrink-0 group/page"
-                   >
-                     {/* 内容视窗 - 精确控制裁剪区域 */}
-                     <div 
-                        className="absolute left-[64px] right-[64px] overflow-hidden pointer-events-none"
-                        style={{ 
-                          top: `${PADDING}px`, 
-                          bottom: `${PADDING}px` 
-                        }}
-                     >
-                       <div 
-                         className="w-full"
-                         style={{ 
-                           transform: `translateY(-${pageIdx * EFFECTIVE_H}px)`,
-                           fontFamily: "var(--font-family)", 
-                           lineHeight: "var(--line-height)", 
-                           fontSize: `${typography.fontSize}px` 
-                         }}
-                         ref={pageIdx === 0 ? resumeContentRef : null}
-                       >
-                          {/* 个人基本信息：在所有页面渲染以保持高度一致，但仅在第一页可见 */}
-                          <div className={cn("flex items-center gap-10 mb-12 transition-none", pageIdx > 0 && "invisible")}>
-                              <div 
+          <div
+            ref={previewContainerRef}
+            className={cn(
+              "flex-1 overflow-auto p-12 pb-32 scrollbar-hide bg-zinc-200/50 select-none transition-colors",
+              isPanning ? "cursor-grabbing bg-zinc-300/30" : "cursor-grab",
+            )}
+            onMouseDown={(e) => {
+              if (previewContainerRef.current) {
+                setIsPanning(true);
+                scrollStart.current = {
+                  scrollLeft: previewContainerRef.current.scrollLeft,
+                  scrollTop: previewContainerRef.current.scrollTop,
+                  x: e.clientX,
+                  y: e.clientY,
+                };
+              }
+            }}
+            onMouseMove={(e) => {
+              if (isPanning && previewContainerRef.current) {
+                e.preventDefault();
+                const x = e.clientX - scrollStart.current.x;
+                const y = e.clientY - scrollStart.current.y;
+                previewContainerRef.current.scrollLeft =
+                  scrollStart.current.scrollLeft - x;
+                previewContainerRef.current.scrollTop =
+                  scrollStart.current.scrollTop - y;
+              }
+            }}
+            onMouseUp={() => setIsPanning(false)}
+            onMouseLeave={() => setIsPanning(false)}
+          >
+            {/* 居中固定容器：确保内容在缩放小时居中，在放大于溢出时从左侧开始显示 */}
+            <div className="min-w-full min-h-full flex justify-center">
+              {/* 动态计算宽高的缩放容器，确保滚动条准确 */}
+              <div
+                className="relative"
+                style={{
+                  width: `${820 * zoomScale}px`,
+                  minHeight: `${(1160 * numPages + (numPages - 1) * 40) * zoomScale}px`,
+                  transition: "width 0.2s ease-out, min-height 0.2s ease-out",
+                }}
+              >
+                <div
+                  style={{
+                    transform: `scale(${zoomScale})`,
+                    transformOrigin: "top left",
+                    width: "820px",
+                  }}
+                  className="flex flex-col gap-10"
+                >
+                  {Array.from({ length: numPages }).map((_, pageIdx) => {
+                    const PAGE_H = 1160;
+                    const PADDING = 64;
+                    const EFFECTIVE_H = PAGE_H - PADDING * 2;
+
+                    return (
+                      <motion.div
+                        key={pageIdx}
+                        className="w-[820px] h-[1160px] bg-white shadow-2xl relative overflow-hidden shrink-0 group/page"
+                      >
+                        <div
+                          className="absolute left-[64px] right-[64px] overflow-hidden pointer-events-none"
+                          style={{
+                            top: `${PADDING}px`,
+                            bottom: `${PADDING}px`,
+                          }}
+                        >
+                          <div
+                            className="w-full"
+                            style={{
+                              transform: `translateY(-${pageIdx * EFFECTIVE_H}px)`,
+                              fontFamily: "var(--font-family)",
+                              lineHeight: "var(--line-height)",
+                              fontSize: `${typography.fontSize}px`,
+                            }}
+                            ref={pageIdx === 0 ? resumeContentRef : null}
+                          >
+                            <div
+                              className={cn(
+                                "flex items-center gap-10 mb-12 transition-none",
+                                pageIdx > 0 && "invisible",
+                              )}
+                            >
+                              <div
                                 className="w-28 bg-zinc-50 flex items-center justify-center overflow-hidden relative shadow-inner ring-1 ring-zinc-100"
-                                style={{ 
+                                style={{
                                   height: `${112 / (resumeData.avatarAspect || 1)}px`,
-                                  borderRadius: `${resumeData.avatarBorderRadius}px`
+                                  borderRadius: `${resumeData.avatarBorderRadius}px`,
                                 }}
                               >
                                 {resumeData.avatar ? (
-                                  <NextImage src={resumeData.avatar} alt="Avatar" fill className="object-cover" unoptimized />
+                                  <NextImage
+                                    src={resumeData.avatar}
+                                    alt="Avatar"
+                                    fill
+                                    className="object-cover"
+                                    unoptimized
+                                  />
                                 ) : (
-                                  <User size={48} className="text-zinc-200" style={{ height: '48px' }} />
+                                  <User
+                                    size={48}
+                                    className="text-zinc-200"
+                                    style={{ height: "48px" }}
+                                  />
                                 )}
                               </div>
                               <div className="space-y-2 flex-1 text-zinc-900">
-                                <h1 className="text-4xl font-black tracking-tight text-[var(--theme-color)] transition-none">{resumeData.name || "您的姓名"}</h1>
-                                <p className="text-lg text-zinc-500 font-semibold tracking-wide">{resumeData.title || "求职目标"}</p>
+                                <h1 className="text-4xl font-black tracking-tight text-[var(--theme-color)] transition-none">
+                                  {resumeData.name || "您的姓名"}
+                                </h1>
+                                <p className="text-lg text-zinc-500 font-semibold tracking-wide">
+                                  {resumeData.title || "求职目标"}
+                                </p>
                                 <div className="text-[0.85em] text-zinc-400 flex flex-wrap gap-x-6 gap-y-2 mt-3 opacity-80 font-medium">
                                   <span>{resumeData.phone}</span>
-                                  {resumeData.email && <span>| {resumeData.email}</span>}
-                                  {resumeData.city && <span>| {resumeData.city}</span>}
-                                </div>
-                              </div>
-                          </div>
-
-                          {/* 模块列表：内容流 */}
-                          <div className="space-y-12">
-                            {modules.filter(m => m.visible && m.id !== "basic").map(m => (
-                              <section key={m.id}>
-                                <div className="flex items-center gap-3 mb-6 border-b-2 border-zinc-900/10 pb-2.5">
-                                  <div className="w-2 h-6 rounded-sm bg-[var(--theme-color)]" />
-                                  <h3 className="text-xl font-bold tracking-tight text-zinc-800 uppercase">{m.title}</h3>
-                                </div>
-                                <div className="pl-1 space-y-6">
-                                  {m.id === "edu" && resumeData.education.map(item => (
-                                    <div key={item.id} className="flex justify-between items-baseline">
-                                      <div className="space-y-0.5"><div className="font-bold text-zinc-800 text-[1.1em]">{item.school || "教育中心"}</div><div className="text-zinc-500 font-medium">{item.major}</div></div>
-                                      <div className="text-[0.8em] font-bold text-zinc-400 tabular-nums">{item.date}</div>
-                                    </div>
-                                  ))}
-                                  {m.id === "work" && resumeData.workExperiences.map(item => (
-                                    <div key={item.id} className="space-y-2.5">
-                                      <div className="flex justify-between font-bold items-center"><span className="text-zinc-800 text-[1.1em]">{item.company}</span><span className="text-[0.8em] font-bold text-zinc-400 tabular-nums">{item.date}</span></div>
-                                      <div className="text-[0.95em] text-[var(--theme-color)] font-bold">{item.role}</div>
-                                      <div className="text-zinc-500 whitespace-pre-wrap leading-relaxed opacity-90">{item.desc}</div>
-                                    </div>
-                                  ))}
-                                  {m.id === "project" && resumeData.projects.map(item => (
-                                    <div key={item.id} className="space-y-2.5">
-                                      <div className="flex justify-between font-bold items-center"><span className="text-zinc-800 text-[1.1em]">{item.name}</span><span className="text-[0.8em] font-bold text-zinc-400 tabular-nums">{item.date}</span></div>
-                                      <div className="text-[0.95em] text-zinc-600 font-bold">{item.role}</div>
-                                      <div className="text-zinc-500 whitespace-pre-wrap leading-relaxed opacity-90">{item.desc}</div>
-                                    </div>
-                                  ))}
-                                  {m.id === "skill" && (
-                                    <div className="flex flex-wrap gap-x-6 gap-y-3 leading-relaxed">
-                                       {resumeData.skills.filter(s => s).map((s, idx) => (
-                                         <span key={idx} className="flex items-center gap-2 text-zinc-600 font-medium"><div className="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)] opacity-40 shrink-0" />{s}</span>
-                                       ))}
-                                    </div>
+                                  {resumeData.email && (
+                                    <span>| {resumeData.email}</span>
+                                  )}
+                                  {resumeData.city && (
+                                    <span>| {resumeData.city}</span>
                                   )}
                                 </div>
-                              </section>
-                            ))}
+                              </div>
+                            </div>
+
+                            <div className="space-y-12">
+                              {modules
+                                .filter((m) => m.visible && m.id !== "basic")
+                                .map((m) => (
+                                  <section key={m.id}>
+                                    <div className="flex items-center gap-3 mb-6 border-b-2 border-zinc-900/10 pb-2.5">
+                                      <div className="w-2 h-6 rounded-sm bg-[var(--theme-color)]" />
+                                      <h3 className="text-xl font-bold tracking-tight text-zinc-800 uppercase">
+                                        {m.title}
+                                      </h3>
+                                    </div>
+                                    <div className="pl-1 space-y-6">
+                                      {m.id === "edu" &&
+                                        resumeData.education.map((item) => (
+                                          <div
+                                            key={item.id}
+                                            className="flex justify-between items-baseline"
+                                          >
+                                            <div className="space-y-0.5">
+                                              <div className="font-bold text-zinc-800 text-[1.1em]">
+                                                {item.school || "教育中心"}
+                                              </div>
+                                              <div className="text-zinc-500 font-medium">
+                                                {item.major}
+                                              </div>
+                                            </div>
+                                            <div className="text-[0.8em] font-bold text-zinc-400 tabular-nums">
+                                              {item.date}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      {m.id === "work" &&
+                                        resumeData.workExperiences.map(
+                                          (item) => (
+                                            <div
+                                              key={item.id}
+                                              className="space-y-2.5"
+                                            >
+                                              <div className="flex justify-between font-bold items-center">
+                                                <span className="text-zinc-800 text-[1.1em]">
+                                                  {item.company}
+                                                </span>
+                                                <span className="text-[0.8em] font-bold text-zinc-400 tabular-nums">
+                                                  {item.date}
+                                                </span>
+                                              </div>
+                                              <div className="text-[0.95em] text-[var(--theme-color)] font-bold">
+                                                {item.role}
+                                              </div>
+                                              <div className="text-zinc-500 whitespace-pre-wrap leading-relaxed opacity-90">
+                                                {item.desc}
+                                              </div>
+                                            </div>
+                                          ),
+                                        )}
+                                      {m.id === "project" &&
+                                        resumeData.projects.map((item) => (
+                                          <div
+                                            key={item.id}
+                                            className="space-y-2.5"
+                                          >
+                                            <div className="flex justify-between font-bold items-center">
+                                              <span className="text-zinc-800 text-[1.1em]">
+                                                {item.name}
+                                              </span>
+                                              <span className="text-[0.8em] font-bold text-zinc-400 tabular-nums">
+                                                {item.date}
+                                              </span>
+                                            </div>
+                                            <div className="text-[0.95em] text-zinc-600 font-bold">
+                                              {item.role}
+                                            </div>
+                                            <div className="text-zinc-500 whitespace-pre-wrap leading-relaxed opacity-90">
+                                              {item.desc}
+                                            </div>
+                                          </div>
+                                        ))}
+                                      {m.id === "skill" && (
+                                        <div className="flex flex-wrap gap-x-6 gap-y-3 leading-relaxed">
+                                          {resumeData.skills
+                                            .filter((s) => s)
+                                            .map((s, idx) => (
+                                              <span
+                                                key={idx}
+                                                className="flex items-center gap-2 text-zinc-600 font-medium"
+                                              >
+                                                <div className="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)] opacity-40 shrink-0" />
+                                                {s}
+                                              </span>
+                                            ))}
+                                        </div>
+                                      )}
+                                    </div>
+                                  </section>
+                                ))}
+                            </div>
                           </div>
-                       </div>
-                     </div>
-                     
-                     {/* 底部页码提示 */}
-                     <div className="absolute bottom-6 right-8 text-[10px] text-zinc-300 font-mono tracking-widest uppercase pointer-events-none">
-                       Page {pageIdx + 1} / {numPages}
-                     </div>
-                   </motion.div>
-                 );
-               })}
+                        </div>
+
+                        <div className="absolute bottom-6 right-8 text-[10px] text-zinc-300 font-mono tracking-widest uppercase pointer-events-none">
+                          Page {pageIdx + 1} / {numPages}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           </div>
         </section>
@@ -862,19 +1523,36 @@ export default function ResumeEditor() {
       {/* Avatar Crop Modal */}
       <AnimatePresence>
         {tempAvatar && (
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+          >
             <div className="bg-white w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl flex flex-col animate-in slide-in-from-bottom-8">
               <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-zinc-50 rounded-xl flex items-center justify-center text-zinc-600"><Palette size={24} /></div>
+                  <div className="w-12 h-12 bg-zinc-50 rounded-xl flex items-center justify-center text-zinc-600">
+                    <Palette size={24} />
+                  </div>
                   <div>
-                    <h3 className="text-xl font-bold text-zinc-900">裁剪设定</h3>
-                    <p className="text-sm text-zinc-500">选择合适的比例并调整位置</p>
+                    <h3 className="text-xl font-bold text-zinc-900">
+                      裁剪设定
+                    </h3>
+                    <p className="text-sm text-zinc-500">
+                      选择合适的比例并调整位置
+                    </p>
                   </div>
                 </div>
-                <button onClick={() => setTempAvatar(null)} className="w-10 h-10 flex items-center justify-center hover:bg-zinc-50 rounded-full text-zinc-400 transition-colors" title="关闭"><X size={20} /></button>
+                <button
+                  onClick={() => setTempAvatar(null)}
+                  className="w-10 h-10 flex items-center justify-center hover:bg-zinc-50 rounded-full text-zinc-400 transition-colors"
+                  title="关闭"
+                >
+                  <X size={20} />
+                </button>
               </div>
-              
+
               <div className="h-[400px] relative bg-zinc-900">
                 <Cropper
                   image={tempAvatar || ""}
@@ -890,21 +1568,23 @@ export default function ResumeEditor() {
               <div className="p-6 bg-white border-t border-zinc-100 flex flex-col gap-6">
                 {/* 比例选择 */}
                 <div className="space-y-3">
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">比例预设</label>
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                    比例预设
+                  </label>
                   <div className="grid grid-cols-3 gap-3">
                     {[
                       { label: "1:1 正方形", value: 1 },
-                      { label: "3:4 证件照", value: 3/4 },
-                      { label: "4:3 宽屏", value: 4/3 },
+                      { label: "3:4 证件照", value: 3 / 4 },
+                      { label: "4:3 宽屏", value: 4 / 3 },
                     ].map((r) => (
                       <button
                         key={r.value}
                         onClick={() => setAspect(r.value)}
                         className={cn(
                           "py-2 px-3 rounded-lg border text-sm font-medium transition-all",
-                          aspect === r.value 
-                            ? "bg-zinc-900 text-white border-zinc-900 shadow-lg" 
-                            : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300"
+                          aspect === r.value
+                            ? "bg-zinc-900 text-white border-zinc-900 shadow-lg"
+                            : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300",
                         )}
                       >
                         {r.label}
@@ -914,20 +1594,40 @@ export default function ResumeEditor() {
                 </div>
 
                 <div className="flex flex-col gap-2">
-                   <div className="flex items-center justify-between text-xs font-bold text-zinc-400 uppercase tracking-widest">
-                     <span>缩放控制</span>
-                     <span>{Math.round(zoom * 100)}%</span>
-                   </div>
-                   <div className="flex items-center gap-4">
+                  <div className="flex items-center justify-between text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                    <span>缩放控制</span>
+                    <span>{Math.round(zoom * 100)}%</span>
+                  </div>
+                  <div className="flex items-center gap-4">
                     <Minus size={16} className="text-zinc-400" />
-                    <input type="range" value={zoom} min={1} max={3} step={0.1} aria-labelledby="Zoom" className="flex-1 h-1.5 bg-zinc-100 rounded-lg appearance-none accent-zinc-900 cursor-pointer" onChange={(e) => setZoom(Number(e.target.value))} title="调节大小" />
+                    <input
+                      type="range"
+                      value={zoom}
+                      min={1}
+                      max={3}
+                      step={0.1}
+                      aria-labelledby="Zoom"
+                      className="flex-1 h-1.5 bg-zinc-100 rounded-lg appearance-none accent-zinc-900 cursor-pointer"
+                      onChange={(e) => setZoom(Number(e.target.value))}
+                      title="调节大小"
+                    />
                     <Plus size={16} className="text-zinc-400" />
                   </div>
                 </div>
 
                 <div className="flex gap-3 pt-2">
-                  <Button variant="outline" className="flex-1 h-12" onClick={() => setTempAvatar(null)}>返回编辑</Button>
-                  <Button variant="primary" className="flex-2 h-12 gap-2 shadow-lg shadow-zinc-900/10" onClick={handleApplyCrop}>
+                  <Button
+                    variant="outline"
+                    className="flex-1 h-12"
+                    onClick={() => setTempAvatar(null)}
+                  >
+                    返回编辑
+                  </Button>
+                  <Button
+                    variant="primary"
+                    className="flex-2 h-12 gap-2 shadow-lg shadow-zinc-900/10"
+                    onClick={handleApplyCrop}
+                  >
                     <Check size={18} /> 确认并应用
                   </Button>
                 </div>
