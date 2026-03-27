@@ -2,7 +2,8 @@
 
 import React, { useState, useCallback } from "react";
 import {
-  Download,
+  DownloadCloud,
+  Code,
   User,
   GripVertical,
   Eye,
@@ -27,6 +28,8 @@ import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import Cropper, { Area } from "react-easy-crop";
+import jsPDF from "jspdf";
+import { toJpeg } from "html-to-image";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -398,6 +401,65 @@ export default function ResumeEditor() {
   }, []);
 
   const [isSaving, setIsSaving] = useState(false);
+  const importInputRef = React.useRef<HTMLInputElement>(null);
+
+  // 1. PDF 导出逻辑：高解析度离屏渲染
+  const exportToPdf = async () => {
+    setIsSaving(true);
+    try {
+      const pdf = new jsPDF("p", "mm", "a4");
+      const pages = document.querySelectorAll(".group\\/page");
+      
+      for (let i = 0; i < pages.length; i++) {
+        // html-to-image 通过将 DOM 转换为 SVG 加 Canvas 渲染，完美支持 OKLCH/LAB 现代颜色函数
+        const imgData = await toJpeg(pages[i] as HTMLElement, {
+          quality: 1.0,
+          pixelRatio: 4, // 进一步提升至超清画质
+          backgroundColor: "#ffffff",
+        });
+        
+        if (i > 0) pdf.addPage();
+        pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, 'FAST');
+      }
+      
+      pdf.save(`青椒简历-${resumeData.name || '未命名'}.pdf`);
+    } catch (err) {
+      console.error("PDF 失败:", err);
+      alert("PDF 生成失败，可能由于部分资源加载受阻。请尝试刷新重试，或联系管理员。");
+    }
+    setIsSaving(false);
+  };
+
+  // 2. JSON 配置导出与导入
+  const exportToJson = () => {
+    const config = { resumeData, modules, themeColor, typography };
+    const blob = new Blob([JSON.stringify(config, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `resume-${resumeData.name || 'config'}.json`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const config = JSON.parse(event.target?.result as string);
+        if (config.resumeData) setResumeData(config.resumeData);
+        if (config.modules) setModules(config.modules);
+        if (config.themeColor) setThemeColor(config.themeColor);
+        if (config.typography) setTypography(config.typography);
+      } catch {
+        alert("导入失败：JSON 格式不正确");
+      }
+    };
+    reader.readAsText(file);
+    e.target.value = "";
+  };
 
   // 3. 自动保存逻辑：监听关键状态变化
   React.useEffect(() => {
@@ -444,14 +506,23 @@ export default function ResumeEditor() {
           </Badge>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <span className="text-sm font-medium text-zinc-600">QingJiao</span>
-          <Button variant="ghost" size="icon" className="rounded-full" title="显示源">
+          <Button variant="ghost" size="icon" className="rounded-full" title="源视图暂未开启">
             <Sun size={18} />
           </Button>
-          <Button className="gap-2">
-            <Download size={16} /> 导出
-          </Button>
+          <div className="flex items-center gap-2 border-l border-zinc-200 pl-4 ml-2">
+             <Button variant="outline" size="sm" className="gap-2 text-xs font-bold" onClick={() => importInputRef.current?.click()}>
+               <Rocket size={14} /> 导入配置
+               <input type="file" ref={importInputRef} className="hidden" accept=".json" onChange={handleImportJson} />
+             </Button>
+             <Button variant="outline" size="sm" className="gap-2 text-xs font-bold" onClick={exportToJson}>
+               <Code size={14} /> 备份 JSON
+             </Button>
+             <Button size="sm" className="gap-2 text-xs font-bold shadow-lg shadow-emerald-900/10" onClick={exportToPdf} disabled={isSaving}>
+               <DownloadCloud size={14} /> {isSaving ? "正在生成 PDF..." : "下载 PDF"}
+             </Button>
+          </div>
         </div>
       </header>
 
