@@ -354,29 +354,39 @@ export default function ResumeEditor() {
   };
 
   React.useEffect(() => {
-    const savedAvatar = localStorage.getItem("resume_avatar");
-    const savedAvatarAspect = localStorage.getItem("resume_avatar_aspect");
-    const savedAvatarRadius = localStorage.getItem("resume_avatar_radius");
-    if (savedAvatar) {
-      setResumeData(prev => ({ 
-        ...prev, 
-        avatar: savedAvatar,
-        avatarAspect: savedAvatarAspect ? parseFloat(savedAvatarAspect) : 1,
-        avatarBorderRadius: savedAvatarRadius ? parseInt(savedAvatarRadius) : 12
-      }));
+    // 1. 初始化加载本地存储
+    try {
+      const savedData = localStorage.getItem("resume_v2_data");
+      const savedModules = localStorage.getItem("resume_v2_modules");
+      const savedTheme = localStorage.getItem("resume_v2_theme");
+      const savedTypo = localStorage.getItem("resume_v2_typography");
+
+      if (savedData) setResumeData(JSON.parse(savedData));
+      if (savedModules) setModules(JSON.parse(savedModules));
+      if (savedTheme) setThemeColor(savedTheme);
+      if (savedTypo) setTypography(JSON.parse(savedTypo));
+      
+      // 处理旧版头像数据兼容性
+      const legacyAvatar = localStorage.getItem("resume_avatar");
+      if (legacyAvatar && !savedData) {
+        setResumeData(prev => ({ ...prev, avatar: legacyAvatar }));
+      }
+    } catch (e) {
+      console.error("加载本地数据失败:", e);
     }
+
     autoFit();
     window.addEventListener("resize", autoFit);
 
-    // 分页逻辑
+    // 2. 分页观察逻辑
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const height = entry.target.scrollHeight;
-        // 有效高度 = A4高(1160) - 上边距(64) - 下边距(64) = 1032
-        const effectivePageHeight = 1160 - 128; 
-        setNumPages(Math.max(1, Math.ceil(height / effectivePageHeight)));
+        const EFFECTIVE_H = 1160 - 128; // 常量对齐
+        setNumPages(Math.max(1, Math.ceil(height / EFFECTIVE_H)));
       }
     });
+
     if (resumeContentRef.current) {
       observer.observe(resumeContentRef.current);
     }
@@ -386,6 +396,23 @@ export default function ResumeEditor() {
       observer.disconnect();
     };
   }, []);
+
+  const [isSaving, setIsSaving] = useState(false);
+
+  // 3. 自动保存逻辑：监听关键状态变化
+  React.useEffect(() => {
+    setIsSaving(true);
+    const saveData = () => {
+      localStorage.setItem("resume_v2_data", JSON.stringify(resumeData));
+      localStorage.setItem("resume_v2_modules", JSON.stringify(modules));
+      localStorage.setItem("resume_v2_theme", themeColor);
+      localStorage.setItem("resume_v2_typography", JSON.stringify(typography));
+      setTimeout(() => setIsSaving(false), 800);
+    };
+
+    const timer = setTimeout(saveData, 1000);
+    return () => clearTimeout(timer);
+  }, [resumeData, modules, themeColor, typography]);
 
   return (
     <div 
@@ -404,13 +431,16 @@ export default function ResumeEditor() {
             <Maximize2 size={18} className="text-white" />
           </div>
           <span className="font-bold text-lg tracking-tight">青椒简历</span>
-          <Badge className="bg-emerald-50 text-emerald-600 ml-2 flex items-center gap-2">
+          <Badge className={cn(
+            "ml-2 flex items-center gap-2 transition-all duration-300",
+            isSaving ? "bg-amber-50 text-amber-600" : "bg-emerald-50 text-emerald-600"
+          )}>
             <motion.div
-              animate={{ opacity: [0.4, 1, 0.4], scale: [0.9, 1.1, 0.9] }}
-              transition={{ duration: 2, repeat: Infinity, ease: "easeInOut" }}
-              className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]"
+              animate={isSaving ? { scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] } : { opacity: [0.4, 1, 0.4] }}
+              transition={{ duration: isSaving ? 0.6 : 2, repeat: Infinity, ease: "easeInOut" }}
+              className={cn("w-2 h-2 rounded-full", isSaving ? "bg-amber-500" : "bg-emerald-500")}
             />
-            自动保存开启
+            {isSaving ? "正在同步内容..." : "已保存至本地"}
           </Badge>
         </div>
 
