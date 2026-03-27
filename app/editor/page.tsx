@@ -120,6 +120,10 @@ interface TypographyConfig {
   fontFamily: string;
   lineHeight: number;
   fontSize: number;
+  skillStyle?: "dot" | "tag";
+  skillTagRadius?: number;
+  skillTagColor?: string;
+  skillTagUseTheme?: boolean;
 }
 
 interface ModuleItem {
@@ -245,6 +249,10 @@ export default function ResumeEditor() {
     fontFamily: "Inter, sans-serif",
     lineHeight: 1.6,
     fontSize: 14.5,
+    skillStyle: "dot",
+    skillTagRadius: 6,
+    skillTagColor: "#71717a",
+    skillTagUseTheme: true,
   });
 
   const [modules, setModules] = useState<ModuleItem[]>([
@@ -565,6 +573,8 @@ export default function ResumeEditor() {
       style={
         {
           "--theme-color": themeColor,
+          "--theme-color-5": `${themeColor}0d`, // 5% opacity in hex
+          "--theme-color-20": `${themeColor}33`, // 20% opacity in hex
           "--font-family": typography.fontFamily,
           "--line-height": typography.lineHeight,
         } as React.CSSProperties
@@ -606,7 +616,7 @@ export default function ResumeEditor() {
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-zinc-600">QingJiao</span>
+          <span className="text-sm font-medium text-zinc-600">QingJiao Resume</span>
           <Button
             variant="ghost"
             size="icon"
@@ -658,7 +668,7 @@ export default function ResumeEditor() {
         <aside className="w-[280px] bg-white border-r border-zinc-100 p-4 overflow-y-auto flex flex-col gap-6 scrollbar-hide">
           <section>
             <h3 className="text-sm font-semibold mb-3 text-zinc-900 flex items-center gap-2">
-              <Settings2 size={14} /> 模块管理
+              <Settings2 size={14} /> 模块管理（拖动排序）
             </h3>
             <div className="space-y-2 mb-2">
               <Card
@@ -739,7 +749,7 @@ export default function ResumeEditor() {
 
           <section>
             <h3 className="text-sm font-semibold mb-3 text-zinc-900 flex items-center gap-2">
-              <Palette size={14} /> 主题色
+              <Palette size={14} /> 主题色（可自定义切换）
             </h3>
             <div className="flex flex-wrap gap-3 px-1 items-center">
               {presetColors.map((c) => (
@@ -1241,6 +1251,109 @@ export default function ResumeEditor() {
                     title="列表键入"
                   />
                 </div>
+
+                <div className="space-y-3 pt-4 border-t border-zinc-100">
+                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                    样式调节
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { id: "dot", label: "标准圆点" },
+                      { id: "tag", label: "标签模式" },
+                    ].map((style) => (
+                      <button
+                        key={style.id}
+                        onClick={() =>
+                          setTypography((prev) => ({
+                            ...prev,
+                            skillStyle: style.id as "dot" | "tag",
+                          }))
+                        }
+                        className={cn(
+                          "py-2 px-3 rounded-lg border text-sm font-medium transition-all",
+                          (typography.skillStyle || "dot") === style.id
+                            ? "bg-zinc-900 text-white border-zinc-900 shadow-sm"
+                            : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300",
+                        )}
+                      >
+                        {style.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {typography.skillStyle === "tag" && (
+                  <div className="space-y-4 pt-4 border-t border-zinc-100 animate-in slide-in-from-top-2">
+                    <div className="flex justify-between items-center text-xs font-bold text-zinc-400 uppercase tracking-widest">
+                      <span>标签圆角</span>
+                      <span className="font-mono">
+                        {typography.skillTagRadius}px
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="24"
+                      step="1"
+                      value={typography.skillTagRadius || 6}
+                      onChange={(e) =>
+                        setTypography((prev) => ({
+                          ...prev,
+                          skillTagRadius: parseInt(e.target.value),
+                        }))
+                      }
+                      className="w-full h-1.5 bg-zinc-100 rounded-lg appearance-none accent-zinc-900 cursor-pointer"
+                      title="圆角调节"
+                    />
+
+                    <div className="flex items-center justify-between pt-2">
+                      <span className="text-xs font-semibold text-zinc-500">
+                        跟随主题色
+                      </span>
+                      <button
+                        onClick={() =>
+                          setTypography((prev) => ({
+                            ...prev,
+                            skillTagUseTheme: !prev.skillTagUseTheme,
+                          }))
+                        }
+                        className={cn(
+                          "w-10 h-6 rounded-full transition-colors relative",
+                          typography.skillTagUseTheme
+                            ? "bg-zinc-900"
+                            : "bg-zinc-200",
+                        )}
+                      >
+                        <div
+                          className={cn(
+                            "absolute top-1 w-4 h-4 bg-white rounded-full transition-all",
+                            typography.skillTagUseTheme ? "left-5" : "left-1",
+                          )}
+                        />
+                      </button>
+                    </div>
+
+                    {!typography.skillTagUseTheme && (
+                      <div className="flex items-center gap-3 animate-in fade-in zoom-in-95">
+                        <input
+                          type="color"
+                          value={typography.skillTagColor || "#71717a"}
+                          onChange={(e) =>
+                            setTypography((prev) => ({
+                              ...prev,
+                              skillTagColor: e.target.value,
+                            }))
+                          }
+                          className="w-8 h-8 rounded-lg border border-zinc-200 cursor-pointer p-1.5 bg-zinc-50"
+                          title="自定义标签颜色"
+                        />
+                        <span className="text-[10px] font-mono text-zinc-400">
+                          自定义颜色
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                )}
               </motion.div>
             )}
           </AnimatePresence>
@@ -1486,15 +1599,52 @@ export default function ResumeEditor() {
                                           </div>
                                         ))}
                                       {m.id === "skill" && (
-                                        <div className="flex flex-wrap gap-x-6 gap-y-3 leading-relaxed">
+                                        <div
+                                          className={cn(
+                                            "flex flex-wrap leading-relaxed",
+                                            typography.skillStyle === "tag"
+                                              ? "gap-2"
+                                              : "gap-x-6 gap-y-3",
+                                          )}
+                                        >
                                           {resumeData.skills
                                             .filter((s) => s)
                                             .map((s, idx) => (
                                               <span
                                                 key={idx}
-                                                className="flex items-center gap-2 text-zinc-600 font-medium"
+                                                className={cn(
+                                                  "flex items-center font-medium transition-all",
+                                                  typography.skillStyle ===
+                                                    "tag"
+                                                    ? ""
+                                                    : "gap-2 text-zinc-600",
+                                                )}
+                                                style={
+                                                  typography.skillStyle ===
+                                                  "tag"
+                                                    ? {
+                                                        borderRadius: `${typography.skillTagRadius}px`,
+                                                        backgroundColor: typography.skillTagUseTheme
+                                                          ? "var(--theme-color-5)"
+                                                          : `${typography.skillTagColor}10`,
+                                                        border: `1px solid ${
+                                                          typography.skillTagUseTheme
+                                                            ? "var(--theme-color-20)"
+                                                            : `${typography.skillTagColor}33`
+                                                        }`,
+                                                        color: typography.skillTagUseTheme
+                                                          ? "var(--theme-color)"
+                                                          : typography.skillTagColor,
+                                                        padding: "4px 12px",
+                                                        fontSize: "0.9em",
+                                                      }
+                                                    : {}
+                                                }
                                               >
-                                                <div className="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)] opacity-40 shrink-0" />
+                                                {typography.skillStyle !==
+                                                  "tag" && (
+                                                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)] opacity-40 shrink-0" />
+                                                )}
                                                 {s}
                                               </span>
                                             ))}
