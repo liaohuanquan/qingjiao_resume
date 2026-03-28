@@ -75,7 +75,7 @@ export default function DashboardLayout({
             <Maximize2 size={20} className="text-white" />
           </div>
           {isSidebarOpen && (
-            <span className="font-bold text-lg tracking-tight text-zinc-900 animate-in fade-in duration-500">
+            <span className="font-bold text-lg tracking-tight text-zinc-900">
               青椒简历
             </span>
           )}

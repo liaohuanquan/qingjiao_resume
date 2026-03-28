@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useCallback } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   DownloadCloud,
   Code,
@@ -83,6 +84,14 @@ interface ResumeData {
   phone: string;
   email: string;
   city: string;
+  // --- 深度自定义字段 ---
+  birthday?: string; // 出生日期
+  experience?: string; // 工作年限
+  hometown?: string; // 籍贯
+  politics?: string; // 政治面貌
+  github?: string; // Github
+  blog?: string; // 个人博客
+  // -------------------
   avatar?: string;
   avatarAspect?: number;
   avatarBorderRadius?: number; // 圆角百分比 0-50
@@ -124,12 +133,28 @@ interface TypographyConfig {
   skillTagRadius?: number;
   skillTagColor?: string;
   skillTagUseTheme?: boolean;
+  // --- 版块独立样式 ---
+  sectionStyles?: {
+    [key: string]: {
+      fontSize?: number;
+      spacing?: number;
+    };
+  };
 }
 
 interface ModuleItem {
   id: string;
   title: string;
   visible: boolean;
+  type?: "standard" | "custom";
+  content?: string;
+}
+
+interface ResumeMetadata {
+  id: string;
+  title: string;
+  lastModified: string;
+  theme: string;
 }
 
 // --- 基础 UI 组件 ---
@@ -230,6 +255,10 @@ const Input = ({ label, id, ...props }: InputProps) => (
 // --- 主页面组件 ---
 
 export default function ResumeEditor() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const resumeId = searchParams.get("id") || "default-1";
+
   const [activeTab, setActiveTab] = useState("basic");
   const [themeColor, setThemeColor] = useState("#10b981");
   const [zoomScale, setZoomScale] = useState(0.8);
@@ -443,19 +472,32 @@ export default function ResumeEditor() {
   React.useEffect(() => {
     // 1. 初始化加载本地存储
     try {
-      const savedData = localStorage.getItem("resume_v2_data");
-      const savedModules = localStorage.getItem("resume_v2_modules");
-      const savedTheme = localStorage.getItem("resume_v2_theme");
-      const savedTypo = localStorage.getItem("resume_v2_typography");
+      const dataKey = `resume_data_${resumeId}`;
+      const savedFullData = localStorage.getItem(dataKey);
+      
+      if (savedFullData) {
+        const config = JSON.parse(savedFullData);
+        if (config.resumeData) setResumeData(config.resumeData);
+        if (config.modules) setModules(config.modules);
+        if (config.themeColor) setThemeColor(config.themeColor);
+        if (config.typography) setTypography(config.typography);
+      } else {
+        // 兼容旧版本数据或加载默认值
+        const savedData = localStorage.getItem("resume_v2_data");
+        if (savedData && resumeId === "default-1") {
+           setResumeData(JSON.parse(savedData));
+           const savedModules = localStorage.getItem("resume_v2_modules");
+           const savedTheme = localStorage.getItem("resume_v2_theme");
+           const savedTypo = localStorage.getItem("resume_v2_typography");
+           if (savedModules) setModules(JSON.parse(savedModules));
+           if (savedTheme) setThemeColor(savedTheme);
+           if (savedTypo) setTypography(JSON.parse(savedTypo));
+        }
+      }
 
-      if (savedData) setResumeData(JSON.parse(savedData));
-      if (savedModules) setModules(JSON.parse(savedModules));
-      if (savedTheme) setThemeColor(savedTheme);
-      if (savedTypo) setTypography(JSON.parse(savedTypo));
-
-      // 处理旧版头像数据兼容性
+      // 处理头像
       const legacyAvatar = localStorage.getItem("resume_avatar");
-      if (legacyAvatar && !savedData) {
+      if (legacyAvatar && resumeId === "default-1") {
         setResumeData((prev) => ({ ...prev, avatar: legacyAvatar }));
       }
     } catch (e) {
@@ -482,7 +524,7 @@ export default function ResumeEditor() {
       window.removeEventListener("resize", autoFit);
       observer.disconnect();
     };
-  }, []);
+  }, [resumeId]);
 
   const [isSaving, setIsSaving] = useState(false); // 是否正在保存
   const [isExporting, setIsExporting] = useState(false); // 是否正在导出 PDF
@@ -567,24 +609,40 @@ export default function ResumeEditor() {
     e.target.value = "";
   };
 
-  // 3. 自动保存逻辑：优化防抖机制，减少频繁的状态切换
+  // 3. 自动保存逻辑：优化防抖机制
   React.useEffect(() => {
-    // 防抖：当用户停止输入 5 秒后再执行保存和状态提示
     const timer = setTimeout(() => {
       setIsSaving(true);
 
-      // 执行保存
-      localStorage.setItem("resume_v2_data", JSON.stringify(resumeData));
-      localStorage.setItem("resume_v2_modules", JSON.stringify(modules));
-      localStorage.setItem("resume_v2_theme", themeColor);
-      localStorage.setItem("resume_v2_typography", JSON.stringify(typography));
+      // 1. 保存详细数据
+      const config = { resumeData, modules, themeColor, typography };
+      localStorage.setItem(`resume_data_${resumeId}`, JSON.stringify(config));
 
-      // 模拟一个同步过程感，之后恢复正常
-      setTimeout(() => setIsSaving(false), 1000);
-    }, 5000);
+      // 2. 同步更新 Dashboard 列表元数据
+      const savedList = localStorage.getItem("resume_list");
+      if (savedList) {
+        try {
+          const list = JSON.parse(savedList);
+          const index = list.findIndex((item: ResumeMetadata) => item.id === resumeId);
+          if (index !== -1) {
+            list[index] = {
+              ...list[index],
+              title: resumeData.name ? `${resumeData.name}的简历` : list[index].title,
+              theme: themeColor,
+              lastModified: new Date().toLocaleDateString(),
+            };
+            localStorage.setItem("resume_list", JSON.stringify(list));
+          }
+        } catch (e) {
+          console.error("同步列表失败:", e);
+        }
+      }
+
+      setTimeout(() => setIsSaving(false), 800);
+    }, 2000);
 
     return () => clearTimeout(timer);
-  }, [resumeData, modules, themeColor, typography]);
+  }, [resumeData, modules, themeColor, typography, resumeId]);
 
   return (
     <div
@@ -603,10 +661,16 @@ export default function ResumeEditor() {
       {/* Head */}
       <header className="h-[60px] flex items-center justify-between px-6 bg-white border-b border-zinc-200 shadow-sm z-50">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center">
+          <button 
+            onClick={() => router.push("/dashboard")}
+            className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center hover:bg-zinc-800 transition-colors"
+          >
             <Maximize2 size={18} className="text-white" />
+          </button>
+          <div className="flex flex-col">
+            <span className="font-bold text-sm tracking-tight leading-none mb-0.5">青椒简历</span>
+            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Editor Mode</span>
           </div>
-          <span className="font-bold text-lg tracking-tight">青椒简历</span>
           <Badge
             className={cn(
               "ml-2 flex items-center gap-2 transition-all duration-300",
@@ -643,7 +707,7 @@ export default function ResumeEditor() {
               />
             )}
             <span className="font-mono text-[10px] font-bold tracking-wider uppercase">
-              {isExporting ? exportProgress : isSaving ? "同步中..." : "已保存"}
+              {isExporting ? exportProgress : isSaving ? "保存中" : "已保存"}
             </span>
           </Badge>
         </div>
@@ -761,6 +825,21 @@ export default function ResumeEditor() {
                   </Reorder.Item>
                 ))}
             </Reorder.Group>
+            
+            <Button
+              variant="outline"
+              className="w-full mt-4 border-dashed border-zinc-300 bg-white hover:bg-zinc-50 flex items-center gap-2"
+              onClick={() => {
+                const id = `custom-${Date.now()}`;
+                setModules((prev) => [
+                  ...prev,
+                  { id, title: "自定义板块", visible: true, type: "custom", content: "" }
+                ]);
+                setActiveTab(id);
+              }}
+            >
+              <Plus size={14} /> 添加自定义板块
+            </Button>
           </section>
 
           <section>
@@ -1046,19 +1125,66 @@ export default function ResumeEditor() {
                   <div className="grid grid-cols-1 gap-4">
                     <Input
                       label="主要电话"
+                      placeholder="例如：138-0000-0000"
                       value={resumeData.phone}
                       onChange={(e) => updateBasicData("phone", e.target.value)}
                     />
                     <Input
                       label="电子邮件"
+                      placeholder="例如：example@qingjiao.com"
                       value={resumeData.email}
                       onChange={(e) => updateBasicData("email", e.target.value)}
                     />
                     <Input
                       label="所在地"
+                      placeholder="例如：广东·江门"
                       value={resumeData.city}
                       onChange={(e) => updateBasicData("city", e.target.value)}
                     />
+                  </div>
+
+                  <div className="pt-6 border-t border-zinc-200 space-y-4">
+                    <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">更多个人详情</h4>
+                    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+                      <Input
+                        label="出生日期"
+                        placeholder="例如：1998.05"
+                        value={resumeData.birthday}
+                        onChange={(e) => updateBasicData("birthday", e.target.value)}
+                      />
+                      <Input
+                        label="工作经验"
+                        placeholder="例如：3年经验"
+                        value={resumeData.experience}
+                        onChange={(e) => updateBasicData("experience", e.target.value)}
+                      />
+                      <Input
+                        label="籍贯"
+                        placeholder="例如：广东江门"
+                        value={resumeData.hometown}
+                        onChange={(e) => updateBasicData("hometown", e.target.value)}
+                      />
+                      <Input
+                        label="政治面貌"
+                        placeholder="例如：中共党员"
+                        value={resumeData.politics}
+                        onChange={(e) => updateBasicData("politics", e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-3">
+                      <Input
+                        label="GitHub"
+                        placeholder="github.com/yourid"
+                        value={resumeData.github}
+                        onChange={(e) => updateBasicData("github", e.target.value)}
+                      />
+                      <Input
+                        label="个人博客"
+                        placeholder="blog.com"
+                        value={resumeData.blog}
+                        onChange={(e) => updateBasicData("blog", e.target.value)}
+                      />
+                    </div>
                   </div>
                 </section>
               </motion.div>
@@ -1454,6 +1580,56 @@ export default function ResumeEditor() {
                 )}
               </motion.div>
             )}
+
+            {/* 自定义板块编辑器 */}
+            {modules.find((m) => m.id === activeTab && m.type === "custom") && (
+              <motion.div
+                key={activeTab}
+                initial={{ opacity: 0, x: -10 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: 10 }}
+                className="space-y-6"
+              >
+                <header className="flex items-center gap-3 mb-8">
+                  <div className="w-10 h-10 bg-white rounded-xl border border-zinc-300 flex items-center justify-center text-zinc-600">
+                    <Settings2 size={20} />
+                  </div>
+                  <h2 className="text-xl font-bold tracking-tight">自定义内容</h2>
+                </header>
+                
+                <div className="space-y-4">
+                  <Input
+                    label="板块标题"
+                    value={modules.find((m) => m.id === activeTab)?.title}
+                    onChange={(e) => {
+                      const newTitle = e.target.value;
+                      setModules((prev) =>
+                        prev.map((mod) =>
+                          mod.id === activeTab ? { ...mod, title: newTitle } : mod,
+                        ),
+                      );
+                    }}
+                  />
+                  
+                  <div className="space-y-1.5">
+                    <label className="text-xs font-medium text-zinc-500">板块内容 (支持换行)</label>
+                    <textarea
+                      className="w-full h-96 p-4 text-sm border border-zinc-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white leading-relaxed font-mono"
+                      placeholder="在这里输入内容..."
+                      value={modules.find((m) => m.id === activeTab)?.content || ""}
+                      onChange={(e) => {
+                        const newContent = e.target.value;
+                        setModules((prev) =>
+                          prev.map((mod) =>
+                            mod.id === activeTab ? { ...mod, content: newContent } : mod,
+                          ),
+                        );
+                      }}
+                    />
+                  </div>
+                </div>
+              </motion.div>
+            )}
           </AnimatePresence>
         </aside>
 
@@ -1612,15 +1788,21 @@ export default function ResumeEditor() {
                                 <p className="text-lg text-zinc-500 font-semibold tracking-wide">
                                   {resumeData.title || "求职目标"}
                                 </p>
-                                <div className="text-[0.85em] text-zinc-400 flex flex-wrap gap-x-6 gap-y-2 mt-3 opacity-80 font-medium">
-                                  <span>{resumeData.phone}</span>
-                                  {resumeData.email && (
-                                    <span>| {resumeData.email}</span>
-                                  )}
-                                  {resumeData.city && (
-                                    <span>| {resumeData.city}</span>
-                                  )}
+                                <div className="text-[0.84em] text-zinc-400 flex flex-wrap gap-x-5 gap-y-1.5 mt-3.5 font-medium leading-tight">
+                                  <span className="text-zinc-600">{resumeData.phone}</span>
+                                  <span className="text-zinc-600 underline underline-offset-4 decoration-zinc-100">{resumeData.email}</span>
+                                  <span className="text-zinc-600">{resumeData.city}</span>
+                                  {resumeData.birthday && <span>| {resumeData.birthday}</span>}
+                                  {resumeData.experience && <span>| {resumeData.experience}</span>}
+                                  {resumeData.hometown && <span>| {resumeData.hometown}</span>}
+                                  {resumeData.politics && <span>| {resumeData.politics}</span>}
                                 </div>
+                                {(resumeData.github || resumeData.blog) && (
+                                  <div className="flex gap-4 mt-2 text-[0.75em] text-zinc-300 font-mono italic">
+                                    {resumeData.github && <span>GitHub: {resumeData.github}</span>}
+                                    {resumeData.blog && <span>Blog: {resumeData.blog}</span>}
+                                  </div>
+                                )}
                               </div>
                             </div>
 
@@ -1636,6 +1818,11 @@ export default function ResumeEditor() {
                                       </h3>
                                     </div>
                                     <div className="pl-1 space-y-6">
+                                      {m.type === "custom" && (
+                                        <div className="text-zinc-600 whitespace-pre-wrap leading-relaxed text-[0.95em]">
+                                          {m.content?.toString() || "暂无内容"}
+                                        </div>
+                                      )}
                                       {m.id === "edu" &&
                                         resumeData.education.map((item) => (
                                           <div
