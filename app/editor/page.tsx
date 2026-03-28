@@ -168,7 +168,7 @@ const Button = ({
     ghost:
       "text-zinc-500 hover:text-zinc-900 hover:bg-zinc-100 disabled:opacity-50",
     outline:
-      "border border-zinc-200 bg-transparent hover:bg-zinc-50 disabled:opacity-50",
+      "border border-zinc-300 bg-transparent hover:bg-zinc-50 disabled:opacity-50",
   };
   const sizes = {
     sm: "h-8 px-3 text-xs",
@@ -199,7 +199,7 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 const Card = ({ children, className, ...props }: CardProps) => (
   <div
     className={cn(
-      "rounded-xl border border-zinc-200 p-3 bg-white shadow-sm",
+      "rounded-xl border border-zinc-300 p-3 bg-white shadow-sm",
       className,
     )}
     {...props}
@@ -221,7 +221,7 @@ const Input = ({ label, id, ...props }: InputProps) => (
     )}
     <input
       id={id}
-      className="w-full h-9 px-3 rounded-lg border border-zinc-100 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 transition-all placeholder:text-zinc-400"
+      className="w-full h-9 px-3 rounded-lg border border-zinc-300 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 transition-all placeholder:text-zinc-400"
       {...props}
     />
   </div>
@@ -814,7 +814,7 @@ export default function ResumeEditor() {
                 </label>
                 <select
                   id="font-fam"
-                  className="w-full h-9 px-3 rounded-lg border border-zinc-200 bg-white text-sm focus:outline-none"
+                  className="w-full h-9 px-3 rounded-lg border border-zinc-300 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 transition-all font-medium"
                   value={typography.fontFamily}
                   onChange={(e) =>
                     setTypography((prev) => ({
@@ -1187,7 +1187,7 @@ export default function ResumeEditor() {
                       </label>
                       <textarea
                         placeholder="请详细描述您的关键成果..."
-                        className="w-full h-32 p-3 text-sm border border-zinc-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
+                        className="w-full h-32 p-3 text-sm border border-zinc-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
                         value={item.desc}
                         onChange={(e) =>
                           updateListItem("work", item.id, "desc", e.target.value)
@@ -1277,7 +1277,7 @@ export default function ResumeEditor() {
                       </label>
                       <textarea
                         placeholder="请描述该项目的核心技术亮点..."
-                        className="w-full h-32 p-3 text-sm border border-zinc-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
+                        className="w-full h-32 p-3 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
                         value={item.desc}
                         onChange={(e) =>
                           updateListItem(
@@ -1310,7 +1310,7 @@ export default function ResumeEditor() {
                 className="space-y-6"
               >
                 <header className="flex items-center gap-3 mb-8">
-                  <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600">
+                  <div className="w-10 h-10 bg-white rounded-xl border border-zinc-300 flex items-center justify-center text-zinc-600">
                     <Type size={20} />
                   </div>
                   <h2 className="text-xl font-bold tracking-tight">专业技能</h2>
@@ -1320,7 +1320,7 @@ export default function ResumeEditor() {
                     技能清单 (逗号分隔)
                   </label>
                   <textarea
-                    className="w-full h-48 p-4 text-sm border border-zinc-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white leading-relaxed font-mono"
+                    className="w-full h-48 p-4 text-sm border border-zinc-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white leading-relaxed font-mono transition-colors"
                     value={resumeData.skills.join(", ")}
                     onChange={(e) => updateSkills(e.target.value)}
                     title="列表键入"
