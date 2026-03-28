@@ -22,7 +22,31 @@ import {
   Minus,
   X,
   Check,
+  Mail,
+  Phone,
+  MapPin,
+  UserCheck,
+  Globe,
+  School,
 } from "lucide-react";
+
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  verticalListSortingStrategy,
+  useSortable,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 // 重命名为 NextImage 以避免遮蔽全局 Image 构造函数
 import NextImage from "next/image";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
@@ -78,19 +102,34 @@ async function getCroppedImg(
 
 // --- 类型定义 ---
 
+interface ContactItem {
+  id: string;
+  type: string; // e.g., 'email', 'phone', 'city', 'custom'
+  iconName: string; // Lucide 图标名
+  label: string;
+  value: string;
+  isVisible: boolean;
+  isCustom: boolean;
+  showLabel?: boolean;
+}
+
 interface ResumeData {
   name: string;
+  nameVisible: boolean;
   title: string;
-  phone: string;
-  email: string;
-  city: string;
-  // --- 深度自定义字段 ---
-  birthday?: string; // 出生日期
-  experience?: string; // 工作年限
-  hometown?: string; // 籍贯
-  politics?: string; // 政治面貌
-  github?: string; // Github
-  blog?: string; // 个人博客
+  titleVisible: boolean;
+  // --- 旧字段保留用于兼容性，初始化后将迁移至 contacts ---
+  phone?: string;
+  email?: string;
+  city?: string;
+  birthday?: string;
+  experience?: string;
+  hometown?: string;
+  politics?: string;
+  github?: string;
+  blog?: string;
+  // --- 动态字段 ---
+  contacts: ContactItem[];
   // -------------------
   avatar?: string;
   avatarAspect?: number;
@@ -238,9 +277,9 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
 }
 
 const Input = ({ label, id, ...props }: InputProps) => (
-  <div className="space-y-1.5 w-full">
+  <div className="space-y-1.5 w-full text-left">
     {label && (
-      <label htmlFor={id} className="text-xs font-medium text-zinc-500">
+      <label htmlFor={id} className="text-xs font-medium text-zinc-500 pl-1">
         {label}
       </label>
     )}
@@ -251,6 +290,129 @@ const Input = ({ label, id, ...props }: InputProps) => (
     />
   </div>
 );
+
+// --- 增强型基础字段组件 ---
+
+const ICON_MAP: Record<string, React.ElementType> = {
+  phone: Phone,
+  email: Mail,
+  city: MapPin,
+  birthday: UserCheck,
+  experience: Briefcase,
+  hometown: MapPin,
+  politics: UserCheck,
+  github: Code,
+  blog: Globe,
+  school: School,
+  custom: User,
+};
+
+const Switch = ({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label?: string }) => (
+  <div className="flex items-center gap-2">
+    <button
+      onClick={() => onChange(!checked)}
+      className={cn(
+        "w-9 h-5 rounded-full relative transition-colors duration-200 outline-none flex items-center shrink-0",
+        checked ? "bg-zinc-900" : "bg-zinc-200"
+      )}
+    >
+      <div className={cn(
+        "absolute w-3 h-3 bg-white rounded-full transition-all duration-200",
+        checked ? "left-[20px]" : "left-[4px]"
+      )} />
+    </button>
+    {label && <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-tighter whitespace-nowrap">{label}</span>}
+  </div>
+);
+
+function SortableContactItem({ 
+  item, 
+  onUpdate, 
+  onDelete, 
+  onToggleVisibility,
+  onToggleShowLabel
+}: { 
+  item: ContactItem; 
+  onUpdate: (val: string, label?: string) => void;
+  onDelete: () => void;
+  onToggleVisibility: () => void;
+  onToggleShowLabel?: () => void;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: item.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 50 : undefined,
+  };
+
+  const IconComp = ICON_MAP[item.type as keyof typeof ICON_MAP] || User;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        "group flex items-center gap-2 p-1.5 rounded-xl transition-all duration-300 select-none",
+        isDragging ? "bg-white shadow-2xl ring-1 ring-zinc-200 opacity-80" : "hover:bg-zinc-50/50",
+        item.isCustom && "bg-zinc-50/10 border border-dashed border-zinc-200"
+      )}
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="cursor-grab active:cursor-grabbing p-1.5 text-zinc-300 hover:text-zinc-600 transition-colors shrink-0"
+      >
+        <GripVertical size={16} />
+      </button>
+
+      <div className="flex items-center gap-2 min-w-[70px] shrink-0">
+        <IconComp size={16} className="text-zinc-400" />
+        {item.isCustom ? (
+          <input
+            className="w-14 bg-transparent text-xs font-bold text-zinc-500 outline-none border-b border-transparent hover:border-zinc-200 focus:border-zinc-400 transition-colors"
+            value={item.label}
+            onChange={(e) => onUpdate(item.value, e.target.value)}
+          />
+        ) : (
+          <span className="text-xs font-bold text-zinc-500 uppercase tracking-tight">{item.label}</span>
+        )}
+      </div>
+
+      <input
+        className="flex-1 min-w-0 bg-white border border-zinc-300 rounded-lg h-9 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 transition-all font-medium"
+        value={item.value}
+        onChange={(e) => onUpdate(e.target.value)}
+        placeholder={`请输入${item.label}...`}
+      />
+
+      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pl-1 shrink-0">
+        {item.isCustom && (
+          <Switch checked={item.showLabel || false} onChange={onToggleShowLabel || (() => {})} label="标签" />
+        )}
+        <button
+          onClick={onToggleVisibility}
+          className={cn("p-1.5 rounded-lg transition-colors", item.isVisible ? "text-zinc-400 hover:bg-zinc-100" : "text-zinc-200 opacity-40")}
+        >
+          {item.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
+        </button>
+        <button
+          onClick={onDelete}
+          className="p-1.5 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+        >
+          <Trash2 size={16} />
+        </button>
+      </div>
+    </div>
+  );
+}
 
 // --- 主页面组件 ---
 
@@ -273,7 +435,7 @@ export default function ResumeEditor() {
   const [aspect, setAspect] = useState(1); // 默认 1:1
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
 
-  // 排版设置
+  // 排版控制
   const [typography, setTypography] = useState<TypographyConfig>({
     fontFamily: "Inter, sans-serif",
     lineHeight: 1.6,
@@ -284,6 +446,27 @@ export default function ResumeEditor() {
     skillTagUseTheme: true,
   });
 
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      setResumeData((prev) => {
+        const oldIndex = prev.contacts.findIndex((i) => i.id === active.id);
+        const newIndex = prev.contacts.findIndex((i) => i.id === over.id);
+        return {
+          ...prev,
+          contacts: arrayMove(prev.contacts, oldIndex, newIndex),
+        };
+      });
+    }
+  };
+
   const [modules, setModules] = useState<ModuleItem[]>([
     { id: "basic", title: "基本信息", visible: true },
     { id: "edu", title: "教育背景", visible: true },
@@ -293,29 +476,33 @@ export default function ResumeEditor() {
   ]);
 
   const [resumeData, setResumeData] = useState<ResumeData>({
-    name: "QingJiao",
-    title: "高级前端开发工程师",
-    phone: "138-0000-0000",
-    email: "email@example.com",
-    city: "深圳",
+    name: "廖欢全",
+    nameVisible: true,
+    title: "AI全栈工程师 / 青椒简历核心开发",
+    titleVisible: true,
+    contacts: [
+      { id: 'c1', type: 'phone', iconName: 'phone', label: '电话', value: '13417531009', isVisible: true, isCustom: false },
+      { id: 'c2', type: 'email', iconName: 'email', label: '邮箱', value: 'qingjiao730@gmail.com', isVisible: true, isCustom: false },
+      { id: 'c3', type: 'city', iconName: 'city', label: '城市', value: '广东·江门', isVisible: true, isCustom: false },
+    ],
     avatarAspect: 1,
     avatarBorderRadius: 12,
     education: [
-      { id: "e1", school: "五邑大学", major: "通信工程", date: "2022 - 2026" },
+      { id: "e1", school: "五邑大学", major: "通信工程 (本科)", date: "2022 - 2026" },
     ],
     workExperiences: [
       {
         id: "w1",
-        company: "青椒实验室",
-        role: "高级前端开发",
-        date: "2020 - 至今",
-        desc: "1. 负责核心编辑器的架构设计与性能优化。\n2. 实现实时协同预览引擎。",
+        company: "青椒简历实验室",
+        role: "核心作者 / 开发者",
+        date: "2024 - 至今",
+        desc: "1. 负责核心编辑器的架构设计与性能优化。\n2. 实现极速本地 PDF 预览与导出引擎。",
       },
     ],
     projects: [
       {
         id: "p1",
-        name: "青椒简历编辑器",
+        name: "青椒简历 (QingJiao Resume)",
         role: "核心开发",
         date: "2023.01 - 至今",
         desc: "基于 Next.js 15 和 Tailwind CSS 4 开发的现代化简历编辑器。",
@@ -460,6 +647,51 @@ export default function ResumeEditor() {
     }));
   };
 
+  // 数据规格化：将旧版本的扁平化字段迁移到 contacts 数组
+  const normalizeResumeData = useCallback((data: any): ResumeData => {
+    if (!data) return data;
+    // 如果没有 contacts 数组，说明是旧版本数据或刚初始化的数据
+    if (!data.contacts || data.contacts.length === 0) {
+      const contacts: ContactItem[] = [];
+      const legacyMap = [
+        { key: 'phone', label: '电话', type: 'phone' },
+        { key: 'email', label: '邮箱', type: 'email' },
+        { key: 'city', label: '地址', type: 'city' },
+        { key: 'birthday', label: '状态', type: 'birthday' },
+        { key: 'experience', label: '经验', type: 'experience' },
+        { key: 'hometown', label: '籍贯', type: 'hometown' },
+        { key: 'politics', label: '面貌', type: 'politics' },
+        { key: 'github', label: 'GitHub', type: 'github' },
+        { key: 'blog', label: '博客', type: 'blog' },
+      ];
+
+      legacyMap.forEach((item, idx) => {
+        if (data[item.key]) {
+          contacts.push({
+            id: `legacy-${idx}-${Date.now()}`,
+            type: item.type,
+            iconName: item.type,
+            label: item.label,
+            value: data[item.key],
+            isVisible: true,
+            isCustom: false,
+          });
+        }
+      });
+
+      return {
+        ...data,
+        nameVisible: data.nameVisible ?? true,
+        titleVisible: data.titleVisible ?? true,
+        contacts: contacts.length > 0 ? contacts : [
+          { id: 'c1', type: 'phone', iconName: 'phone', label: '电话', value: '13417531009', isVisible: true, isCustom: false },
+          { id: 'c2', type: 'email', iconName: 'email', label: '邮箱', value: 'qingjiao@gmail.com', isVisible: true, isCustom: false },
+        ]
+      };
+    }
+    return data;
+  }, []);
+
   // 自动适配缩放比例，使预览区刚好填满容器宽度
   const autoFit = () => {
     if (previewContainerRef.current) {
@@ -477,7 +709,7 @@ export default function ResumeEditor() {
       
       if (savedFullData) {
         const config = JSON.parse(savedFullData);
-        if (config.resumeData) setResumeData(config.resumeData);
+        if (config.resumeData) setResumeData(normalizeResumeData(config.resumeData));
         if (config.modules) setModules(config.modules);
         if (config.themeColor) setThemeColor(config.themeColor);
         if (config.typography) setTypography(config.typography);
@@ -485,7 +717,7 @@ export default function ResumeEditor() {
         // 兼容旧版本数据或加载默认值
         const savedData = localStorage.getItem("resume_v2_data");
         if (savedData && resumeId === "default-1") {
-           setResumeData(JSON.parse(savedData));
+           setResumeData(normalizeResumeData(JSON.parse(savedData)));
            const savedModules = localStorage.getItem("resume_v2_modules");
            const savedTheme = localStorage.getItem("resume_v2_theme");
            const savedTypo = localStorage.getItem("resume_v2_typography");
@@ -1067,128 +1299,143 @@ export default function ResumeEditor() {
                         />
                       </label>
                     </div>
-                    <div className="flex-1 space-y-4">
-                      <Input
-                        placeholder="姓名"
-                        value={resumeData.name}
-                        onChange={(e) =>
-                          updateBasicData("name", e.target.value)
-                        }
-                        title="姓名"
-                      />
-                      <Input
-                        placeholder="职位/称号"
-                        value={resumeData.title}
-                        onChange={(e) =>
-                          updateBasicData("title", e.target.value)
-                        }
-                        title="职位标题"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="flex justify-between items-center text-xs font-medium text-zinc-500">
-                      <span>头像圆角 (px)</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-10 h-10 p-0"
-                        onClick={() => {
-                          const val = Math.max(0, (resumeData.avatarBorderRadius || 12) - 2);
-                          setResumeData((prev) => ({ ...prev, avatarBorderRadius: val }));
-                          localStorage.setItem("resume_avatar_radius", val.toString());
-                        }}
-                      >
-                        <Minus size={14} />
-                      </Button>
-                      <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">
-                        {resumeData.avatarBorderRadius || 12}
+                    <div className="flex-1 space-y-5">
+                      <div className="flex items-center gap-3">
+                        <Input
+                          placeholder="姓名"
+                          value={resumeData.name}
+                          onChange={(e) => updateBasicData("name", e.target.value)}
+                        />
+                        <button
+                          onClick={() => updateBasicData("nameVisible", !resumeData.nameVisible)}
+                          className={cn("mt-6 p-2 rounded-lg transition-colors", resumeData.nameVisible ? "text-zinc-400 hover:bg-zinc-100" : "text-zinc-200")}
+                        >
+                          {resumeData.nameVisible ? <Eye size={18} /> : <EyeOff size={18} />}
+                        </button>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="w-10 h-10 p-0"
-                        onClick={() => {
-                          const val = Math.min(64, (resumeData.avatarBorderRadius || 12) + 2);
-                          setResumeData((prev) => ({ ...prev, avatarBorderRadius: val }));
-                          localStorage.setItem("resume_avatar_radius", val.toString());
-                        }}
+                      <div className="flex items-center gap-3">
+                        <Input
+                          placeholder="职位/称号"
+                          value={resumeData.title}
+                          onChange={(e) => updateBasicData("title", e.target.value)}
+                        />
+                        <button
+                          onClick={() => updateBasicData("titleVisible", !resumeData.titleVisible)}
+                          className={cn("mt-6 p-2 rounded-lg transition-colors", resumeData.titleVisible ? "text-zinc-400 hover:bg-zinc-100" : "text-zinc-200")}
+                        >
+                          {resumeData.titleVisible ? <Eye size={18} /> : <EyeOff size={18} />}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 pt-6 border-t border-zinc-100">
+                    <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest pl-1">联系信息 与 更多字段</h3>
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <SortableContext
+                        items={resumeData.contacts}
+                        strategy={verticalListSortingStrategy}
                       >
-                        <Plus size={14} />
-                      </Button>
-                    </div>
+                        <div className="space-y-1">
+                          {resumeData.contacts.map((item) => (
+                            <SortableContactItem
+                              key={item.id}
+                              item={item}
+                              onUpdate={(val, lab) => {
+                                setResumeData((prev) => ({
+                                  ...prev,
+                                  contacts: prev.contacts.map((c) =>
+                                    c.id === item.id ? { ...c, value: val, label: lab ?? c.label } : c
+                                  ),
+                                }));
+                              }}
+                              onDelete={() => {
+                                setResumeData((prev) => ({
+                                  ...prev,
+                                  contacts: prev.contacts.filter((c) => c.id !== item.id),
+                                }));
+                              }}
+                              onToggleVisibility={() => {
+                                setResumeData((prev) => ({
+                                  ...prev,
+                                  contacts: prev.contacts.map((c) =>
+                                    c.id === item.id ? { ...c, isVisible: !c.isVisible } : c
+                                  ),
+                                }));
+                              }}
+                              onToggleShowLabel={() => {
+                                setResumeData((prev) => ({
+                                  ...prev,
+                                  contacts: prev.contacts.map((c) =>
+                                    c.id === item.id ? { ...c, showLabel: !c.showLabel } : c
+                                  ),
+                                }));
+                              }}
+                            />
+                          ))}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+
+                    <Button
+                      onClick={() => {
+                        const id = `contact-${Date.now()}`;
+                        setResumeData((prev) => ({
+                          ...prev,
+                          contacts: [
+                            ...prev.contacts,
+                            { id, type: "custom", iconName: "custom", label: "自定义", value: "", isVisible: true, isCustom: true, showLabel: true },
+                          ],
+                        }));
+                      }}
+                      className="w-full bg-zinc-900 text-white flex items-center gap-2 mt-4"
+                    >
+                      <Plus size={16} /> 添加自定义字段
+                    </Button>
                   </div>
 
-                  <div className="grid grid-cols-1 gap-4">
-                    <Input
-                      label="主要电话"
-                      placeholder="例如：138-0000-0000"
-                      value={resumeData.phone}
-                      onChange={(e) => updateBasicData("phone", e.target.value)}
-                    />
-                    <Input
-                      label="电子邮件"
-                      placeholder="例如：example@qingjiao.com"
-                      value={resumeData.email}
-                      onChange={(e) => updateBasicData("email", e.target.value)}
-                    />
-                    <Input
-                      label="所在地"
-                      placeholder="例如：广东·江门"
-                      value={resumeData.city}
-                      onChange={(e) => updateBasicData("city", e.target.value)}
-                    />
-                  </div>
-
-                  <div className="pt-6 border-t border-zinc-200 space-y-4">
-                    <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1">更多个人详情</h4>
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-3">
-                      <Input
-                        label="出生日期"
-                        placeholder="例如：1998.05"
-                        value={resumeData.birthday}
-                        onChange={(e) => updateBasicData("birthday", e.target.value)}
-                      />
-                      <Input
-                        label="工作经验"
-                        placeholder="例如：3年经验"
-                        value={resumeData.experience}
-                        onChange={(e) => updateBasicData("experience", e.target.value)}
-                      />
-                      <Input
-                        label="籍贯"
-                        placeholder="例如：广东江门"
-                        value={resumeData.hometown}
-                        onChange={(e) => updateBasicData("hometown", e.target.value)}
-                      />
-                      <Input
-                        label="政治面貌"
-                        placeholder="例如：中共党员"
-                        value={resumeData.politics}
-                        onChange={(e) => updateBasicData("politics", e.target.value)}
-                      />
+                    <div className="pt-6 border-t border-zinc-200">
+                      <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1 mb-4">头像样式</h4>
+                      <div className="space-y-3">
+                        <div className="flex justify-between items-center text-xs font-medium text-zinc-500">
+                          <span>头像圆角 (px)</span>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-10 h-10 p-0"
+                            onClick={() => {
+                              const val = Math.max(0, (resumeData.avatarBorderRadius || 12) - 2);
+                              setResumeData((prev) => ({ ...prev, avatarBorderRadius: val }));
+                            }}
+                          >
+                            <Minus size={14} />
+                          </Button>
+                          <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">
+                            {resumeData.avatarBorderRadius || 12}
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="w-10 h-10 p-0"
+                            onClick={() => {
+                              const val = Math.min(64, (resumeData.avatarBorderRadius || 12) + 2);
+                              setResumeData((prev) => ({ ...prev, avatarBorderRadius: val }));
+                            }}
+                          >
+                            <Plus size={14} />
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="space-y-3">
-                      <Input
-                        label="GitHub"
-                        placeholder="github.com/yourid"
-                        value={resumeData.github}
-                        onChange={(e) => updateBasicData("github", e.target.value)}
-                      />
-                      <Input
-                        label="个人博客"
-                        placeholder="blog.com"
-                        value={resumeData.blog}
-                        onChange={(e) => updateBasicData("blog", e.target.value)}
-                      />
-                    </div>
-                  </div>
-                </section>
-              </motion.div>
-            )}
+                  </section>
+                </motion.div>
+              )}
 
             {activeTab === "edu" && (
               <motion.div
@@ -1781,28 +2028,34 @@ export default function ResumeEditor() {
                                   />
                                 )}
                               </div>
-                              <div className="space-y-2 flex-1 text-zinc-900">
-                                <h1 className="text-4xl font-black tracking-tight text-[var(--theme-color)] transition-none">
-                                  {resumeData.name || "您的姓名"}
-                                </h1>
-                                <p className="text-lg text-zinc-500 font-semibold tracking-wide">
-                                  {resumeData.title || "求职目标"}
-                                </p>
-                                <div className="text-[0.84em] text-zinc-400 flex flex-wrap gap-x-5 gap-y-1.5 mt-3.5 font-medium leading-tight">
-                                  <span className="text-zinc-600">{resumeData.phone}</span>
-                                  <span className="text-zinc-600 underline underline-offset-4 decoration-zinc-100">{resumeData.email}</span>
-                                  <span className="text-zinc-600">{resumeData.city}</span>
-                                  {resumeData.birthday && <span>| {resumeData.birthday}</span>}
-                                  {resumeData.experience && <span>| {resumeData.experience}</span>}
-                                  {resumeData.hometown && <span>| {resumeData.hometown}</span>}
-                                  {resumeData.politics && <span>| {resumeData.politics}</span>}
-                                </div>
-                                {(resumeData.github || resumeData.blog) && (
-                                  <div className="flex gap-4 mt-2 text-[0.75em] text-zinc-300 font-mono italic">
-                                    {resumeData.github && <span>GitHub: {resumeData.github}</span>}
-                                    {resumeData.blog && <span>Blog: {resumeData.blog}</span>}
-                                  </div>
+                              <div className="space-y-1.5 flex-1 text-zinc-900">
+                                {resumeData.nameVisible !== false && (
+                                  <h1 className="text-4xl font-black tracking-tight text-[var(--theme-color)] transition-none drop-shadow-sm">
+                                    {resumeData.name || "您的姓名"}
+                                  </h1>
                                 )}
+                                {resumeData.titleVisible !== false && (
+                                  <p className="text-lg text-zinc-500 font-bold tracking-tight opacity-90 mb-2">
+                                    {resumeData.title || "求职目标"}
+                                  </p>
+                                )}
+                                <div className="text-[0.84em] text-zinc-400 flex flex-wrap gap-x-4 gap-y-1.5 font-medium leading-[1.3] pt-1">
+                                  {resumeData.contacts
+                                    .filter((c) => c.isVisible && c.value)
+                                    .map((c, idx, arr) => {
+                                      const Icon = ICON_MAP[c.type] || ICON_MAP.custom;
+                                      return (
+                                        <span key={c.id} className="flex items-center gap-1.5 text-zinc-600 transition-none whitespace-nowrap">
+                                          <Icon size={12} className="text-[var(--theme-color)] opacity-60 shrink-0" />
+                                          <div className="flex items-center gap-1 text-[0.98em]">
+                                            {(c.isCustom || c.showLabel) && <span className="text-zinc-400 font-bold opacity-70">{c.label}:</span>}
+                                            <span className="font-semibold">{c.value}</span>
+                                          </div>
+                                          {idx < arr.length - 1 && <span className="text-zinc-200 ml-2 select-none opacity-40">/</span>}
+                                        </span>
+                                      );
+                                    })}
+                                </div>
                               </div>
                             </div>
 
