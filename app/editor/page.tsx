@@ -486,36 +486,51 @@ export default function ResumeEditor() {
 
   const [isSaving, setIsSaving] = useState(false); // 是否正在保存
   const [isExporting, setIsExporting] = useState(false); // 是否正在导出 PDF
+  const [exportProgress, setExportProgress] = useState<string | null>(null); // 导出进度提示
   const [isPanning, setIsPanning] = useState(false); // 预览区是否正在按下鼠标拖拽平移
   // 移动端底部 Tab 激活状态：管理、编辑、预览
   const [activeMobileTab, setActiveMobileTab] = useState<"manage" | "edit" | "preview">("edit");
   const scrollStart = React.useRef({ scrollLeft: 0, scrollTop: 0, x: 0, y: 0 }); // 记录拖拽起始位置
   const importInputRef = React.useRef<HTMLInputElement>(null); // JSON 导入隐藏 Input Ref
 
-  // 1. PDF 导出逻辑：独立于自动保存状态
+  // 1. PDF 导出逻辑：深度集成 jsPDF 与 html-to-image
   const exportToPdf = async () => {
     setIsExporting(true);
+    setExportProgress("正在准备文档...");
     try {
+      // 这里的尺寸为 A4 标准: 210mm x 297mm
       const pdf = new jsPDF("p", "mm", "a4");
       const pages = document.querySelectorAll(".group\\/page");
 
+      if (pages.length === 0) {
+        throw new Error("未找到预览页面");
+      }
+
       for (let i = 0; i < pages.length; i++) {
+        setExportProgress(`正在渲染第 ${i + 1} / ${pages.length} 页...`);
+        
+        // 使用 toJpeg 将 DOM 转换为高清晰度图片
         const imgData = await toJpeg(pages[i] as HTMLElement, {
-          quality: 1.0,
-          pixelRatio: 4,
+          quality: 0.95,
+          pixelRatio: 3, // 3倍像素比足以支持 Retina 级别的清晰打印
           backgroundColor: "#ffffff",
+          cacheBust: true, // 避免缓存干扰
         });
 
         if (i > 0) pdf.addPage();
+        
+        // 将图片完美贴合到 PDF 的 A4 页面上
         pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
       }
 
+      setExportProgress("正在打包下载...");
       pdf.save(`青椒简历-${resumeData.name || "未命名"}.pdf`);
     } catch (err) {
       console.error("PDF 失败:", err);
       alert("PDF 生成失败，请检查浏览器是否兼容。");
     } finally {
       setIsExporting(false);
+      setExportProgress(null);
     }
   };
 
@@ -595,28 +610,41 @@ export default function ResumeEditor() {
           <Badge
             className={cn(
               "ml-2 flex items-center gap-2 transition-all duration-300",
-              isSaving
-                ? "bg-amber-50 text-amber-600"
-                : "bg-emerald-50 text-emerald-600",
+              isExporting
+                ? "bg-blue-50 text-blue-600"
+                : isSaving
+                  ? "bg-amber-50 text-amber-600"
+                  : "bg-emerald-50 text-emerald-600",
             )}
           >
-            <motion.div
-              animate={
-                isSaving
-                  ? { scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }
-                  : { opacity: [0.4, 1, 0.4] }
-              }
-              transition={{
-                duration: isSaving ? 0.6 : 2,
-                repeat: Infinity,
-                ease: "easeInOut",
-              }}
-              className={cn(
-                "w-2 h-2 rounded-full",
-                isSaving ? "bg-amber-500" : "bg-emerald-500",
-              )}
-            />
-            {isSaving ? "正在同步..." : "已保存"}
+            {isExporting ? (
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+              >
+                <DownloadCloud size={12} />
+              </motion.div>
+            ) : (
+              <motion.div
+                animate={
+                  isSaving
+                    ? { scale: [1, 1.3, 1], opacity: [0.5, 1, 0.5] }
+                    : { opacity: [0.4, 1, 0.4] }
+                }
+                transition={{
+                  duration: isSaving ? 0.8 : 2.5,
+                  repeat: Infinity,
+                  ease: "easeInOut",
+                }}
+                className={cn(
+                  "w-1.5 h-1.5 rounded-full",
+                  isSaving ? "bg-amber-500" : "bg-emerald-500",
+                )}
+              />
+            )}
+            <span className="font-mono text-[10px] font-bold tracking-wider uppercase">
+              {isExporting ? exportProgress : isSaving ? "同步中..." : "已保存"}
+            </span>
           </Badge>
         </div>
 
@@ -1057,27 +1085,30 @@ export default function ResumeEditor() {
                   >
                     <button
                       onClick={() => deleteItem("edu", item.id)}
-                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100 shadow-sm"
+                      className="absolute top-2 right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100 shadow-sm z-10"
                       title="移除"
                     >
                       <Trash2 size={12} />
                     </button>
                     <Input
-                      placeholder="学校名称"
+                      label="学校名称"
+                      placeholder="例如：五邑大学"
                       value={item.school}
                       onChange={(e) =>
                         updateListItem("edu", item.id, "school", e.target.value)
                       }
                     />
                     <Input
-                      placeholder="专业科目"
+                      label="专业科目"
+                      placeholder="例如：通信工程"
                       value={item.major}
                       onChange={(e) =>
                         updateListItem("edu", item.id, "major", e.target.value)
                       }
                     />
                     <Input
-                      placeholder="入学起止日期"
+                      label="入学起止日期"
+                      placeholder="例如：2022 - 2026"
                       value={item.date}
                       onChange={(e) =>
                         updateListItem("edu", item.id, "date", e.target.value)
@@ -1116,13 +1147,14 @@ export default function ResumeEditor() {
                   >
                     <button
                       onClick={() => deleteItem("work", item.id)}
-                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100 shadow-sm"
+                      className="absolute top-2 right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100 shadow-sm z-10"
                       title="移除"
                     >
                       <Trash2 size={12} />
                     </button>
                     <Input
-                      placeholder="公司平台"
+                      label="公司平台"
+                      placeholder="例如：青椒实验室"
                       value={item.company}
                       onChange={(e) =>
                         updateListItem(
@@ -1134,28 +1166,34 @@ export default function ResumeEditor() {
                       }
                     />
                     <Input
-                      placeholder="主要角色"
+                      label="主要角色"
+                      placeholder="例如：高级前端开发"
                       value={item.role}
                       onChange={(e) =>
                         updateListItem("work", item.id, "role", e.target.value)
                       }
                     />
                     <Input
-                      placeholder="在职期间"
+                      label="在职期间"
+                      placeholder="例如：2020 - 至今"
                       value={item.date}
                       onChange={(e) =>
                         updateListItem("work", item.id, "date", e.target.value)
                       }
                     />
-                    <textarea
-                      placeholder="关键成果描述..."
-                      className="w-full h-32 p-3 text-sm border border-zinc-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
-                      value={item.desc}
-                      onChange={(e) =>
-                        updateListItem("work", item.id, "desc", e.target.value)
-                      }
-                      title="内容说明"
-                    />
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-zinc-500">
+                        关键成果描述
+                      </label>
+                      <textarea
+                        placeholder="请详细描述您的关键成果..."
+                        className="w-full h-32 p-3 text-sm border border-zinc-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
+                        value={item.desc}
+                        onChange={(e) =>
+                          updateListItem("work", item.id, "desc", e.target.value)
+                        }
+                      />
+                    </div>
                   </Card>
                 ))}
                 <Button
@@ -1189,13 +1227,14 @@ export default function ResumeEditor() {
                   >
                     <button
                       onClick={() => deleteItem("project", item.id)}
-                      className="absolute -top-2 -right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100"
+                      className="absolute top-2 right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100 shadow-sm z-10"
                       title="移除项目"
                     >
                       <Trash2 size={12} />
                     </button>
                     <Input
-                      placeholder="项目主题"
+                      label="项目主题"
+                      placeholder="例如：青椒简历编辑器"
                       value={item.name}
                       onChange={(e) =>
                         updateListItem(
@@ -1207,7 +1246,8 @@ export default function ResumeEditor() {
                       }
                     />
                     <Input
-                      placeholder="职责分工"
+                      label="职责分工"
+                      placeholder="例如：核心开发"
                       value={item.role}
                       onChange={(e) =>
                         updateListItem(
@@ -1219,7 +1259,8 @@ export default function ResumeEditor() {
                       }
                     />
                     <Input
-                      placeholder="时间段"
+                      label="时间段"
+                      placeholder="例如：2023.01 - 至今"
                       value={item.date}
                       onChange={(e) =>
                         updateListItem(
@@ -1230,20 +1271,24 @@ export default function ResumeEditor() {
                         )
                       }
                     />
-                    <textarea
-                      placeholder="项目核心亮点..."
-                      className="w-full h-32 p-3 text-sm border border-zinc-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
-                      value={item.desc}
-                      onChange={(e) =>
-                        updateListItem(
-                          "project",
-                          item.id,
-                          "desc",
-                          e.target.value,
-                        )
-                      }
-                      title="技术细节"
-                    />
+                    <div className="space-y-1.5">
+                      <label className="text-xs font-medium text-zinc-500">
+                        项目核心亮点
+                      </label>
+                      <textarea
+                        placeholder="请描述该项目的核心技术亮点..."
+                        className="w-full h-32 p-3 text-sm border border-zinc-100 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
+                        value={item.desc}
+                        onChange={(e) =>
+                          updateListItem(
+                            "project",
+                            item.id,
+                            "desc",
+                            e.target.value,
+                          )
+                        }
+                      />
+                    </div>
                   </Card>
                 ))}
                 <Button

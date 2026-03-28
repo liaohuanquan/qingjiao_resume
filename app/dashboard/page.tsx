@@ -17,7 +17,7 @@ const resumes = [
   { id: "1", title: "QingJiao", lastModified: "2 天前", theme: "#10b981" },
   {
     id: "2",
-    title: "前端开发工程师-廖欢全",
+    title: "前端开发工程师-QingJiao",
     lastModified: "1 周前",
     theme: "#3b82f6",
   },
