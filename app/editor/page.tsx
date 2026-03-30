@@ -725,10 +725,15 @@ export default function ResumeEditor() {
 
   // 数据规格化：将旧版本的扁平化字段迁移到 contacts 数组
   const normalizeResumeData = useCallback((data: unknown): ResumeData => {
-    const d = data as any;
-    if (!d) return d;
+    if (!data || typeof data !== "object") return data as ResumeData;
+    
+    // 使用 Record 类型进行安全的动态访问，规避 directly cast to any
+    const d = data as Record<string, unknown>;
+    
     // 如果没有 contacts 数组，说明是旧版本数据或刚初始化的数据
-    if (!d.contacts || d.contacts.length === 0) {
+    const contactsExist = Array.isArray(d.contacts) && (d.contacts as unknown[]).length > 0;
+    
+    if (!contactsExist) {
       const contacts: ContactItem[] = [];
       const legacyMap = [
         { key: 'phone', label: '电话', type: 'phone' },
@@ -743,13 +748,14 @@ export default function ResumeEditor() {
       ];
 
       legacyMap.forEach((item, idx) => {
-        if (data[item.key]) {
+        const val = d[item.key];
+        if (val && typeof val === "string") {
           contacts.push({
             id: `legacy-${idx}-${Date.now()}`,
             type: item.type,
             iconName: item.type,
             label: item.label,
-            value: data[item.key],
+            value: val,
             isVisible: true,
             isCustom: false,
           });
@@ -757,16 +763,16 @@ export default function ResumeEditor() {
       });
 
       return {
-        ...data,
-        nameVisible: data.nameVisible ?? true,
-        titleVisible: data.titleVisible ?? true,
+        ...(d as unknown as ResumeData),
+        nameVisible: (d.nameVisible as boolean | undefined) ?? true,
+        titleVisible: (d.titleVisible as boolean | undefined) ?? true,
         contacts: contacts.length > 0 ? contacts : [
           { id: 'c1', type: 'phone', iconName: 'phone', label: '电话', value: '13417531009', isVisible: true, isCustom: false },
           { id: 'c2', type: 'email', iconName: 'email', label: '邮箱', value: 'qingjiao@gmail.com', isVisible: true, isCustom: false },
         ]
-      };
+      } as ResumeData;
     }
-    return data;
+    return d as unknown as ResumeData;
   }, []);
 
   // 自动适配缩放比例，使预览区刚好填满容器宽度
