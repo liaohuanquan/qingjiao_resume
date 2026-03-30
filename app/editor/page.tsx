@@ -633,7 +633,7 @@ export default function ResumeEditor() {
     setModules((prev) => prev.filter((m) => m.id !== id));
   };
 
-  const updateBasicData = (field: keyof ResumeData, value: string) => {
+  const updateBasicData = (field: keyof ResumeData, value: string | boolean) => {
     setResumeData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -724,10 +724,11 @@ export default function ResumeEditor() {
   };
 
   // 数据规格化：将旧版本的扁平化字段迁移到 contacts 数组
-  const normalizeResumeData = useCallback((data: any): ResumeData => {
-    if (!data) return data;
+  const normalizeResumeData = useCallback((data: unknown): ResumeData => {
+    const d = data as any;
+    if (!d) return d;
     // 如果没有 contacts 数组，说明是旧版本数据或刚初始化的数据
-    if (!data.contacts || data.contacts.length === 0) {
+    if (!d.contacts || d.contacts.length === 0) {
       const contacts: ContactItem[] = [];
       const legacyMap = [
         { key: 'phone', label: '电话', type: 'phone' },
@@ -769,13 +770,13 @@ export default function ResumeEditor() {
   }, []);
 
   // 自动适配缩放比例，使预览区刚好填满容器宽度
-  const autoFit = () => {
+  const autoFit = useCallback(() => {
     if (previewContainerRef.current) {
       const containerWidth = previewContainerRef.current.clientWidth - 64;
       const scale = Math.min(1, containerWidth / 820);
       setZoomScale(Number(scale.toFixed(2)));
     }
-  };
+  }, []);
 
   React.useEffect(() => {
     // 1. 初始化加载本地存储
@@ -832,7 +833,7 @@ export default function ResumeEditor() {
       window.removeEventListener("resize", autoFit);
       observer.disconnect();
     };
-  }, [resumeId]);
+  }, [resumeId, normalizeResumeData, autoFit]);
 
   const [isSaving, setIsSaving] = useState(false); // 是否正在保存
   const [isExporting, setIsExporting] = useState(false); // 是否正在导出 PDF

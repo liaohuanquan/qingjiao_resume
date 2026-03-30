@@ -55,8 +55,11 @@ export default function DashboardPage() {
     if (localStorage.getItem("resume_list") === null) {
       localStorage.setItem("resume_list", JSON.stringify(resumes));
     }
-    setIsLoaded(true);
-  }, []);
+    // 仅在初始挂载且未加载时执行
+    if (!isLoaded) {
+      requestAnimationFrame(() => setIsLoaded(true));
+    }
+  }, [resumes, isLoaded]);
 
   // 2. 持久化存储
   const saveToStorage = (list: ResumeMetadata[]) => {
