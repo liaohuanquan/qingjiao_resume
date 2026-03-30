@@ -17,10 +17,7 @@ A minimalist, ultra-smooth, and modern online resume builder. Built with **Next.
   <a href="README.md">简体中文</a> | <b>English</b>
 </p>
 
-
-
 <pre class="vditor-reset" placeholder="" contenteditable="true" spellcheck="false"><p data-block="0"><img src="https://file+.vscode-resource.vscode-cdn.net/e%3A/code/demo/qingjiao_resume/image/README/1774840569061.png" alt="1774840569061"/><img src="https://file+.vscode-resource.vscode-cdn.net/e%3A/code/demo/qingjiao_resume/image/README/1774840556914.png" alt="1774840556914"/></p><p data-block="0"><img src="https://file+.vscode-resource.vscode-cdn.net/e%3A/code/demo/qingjiao_resume/image/README/1774840542395.png" alt="1774840542395"/></p></pre>
-
 
 ## Core Features
 
