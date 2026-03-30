@@ -11,7 +11,10 @@ import {
   Copy,
   LayoutDashboard,
   Search,
+  X,
+  AlertCircle,
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 // --- 类型定义 ---
 interface ResumeMetadata {
@@ -43,6 +46,8 @@ export default function DashboardPage() {
   });
   const [searchQuery, setSearchQuery] = useState("");
   const [isLoaded, setIsLoaded] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // 1. 初始化后的副作用
   useEffect(() => {
@@ -73,16 +78,27 @@ export default function DashboardPage() {
     router.push(`/editor?id=${newId}`);
   };
 
-  // 4. 功能函数：删除简历
-  const handleDelete = (e: React.MouseEvent, id: string) => {
+  // 4. 功能函数：准备删除简历 (触发弹窗)
+  const handleDeleteTrigger = (e: React.MouseEvent, id: string) => {
     e.preventDefault();
     e.stopPropagation();
-    if (confirm("确定要删除这份简历吗？此操作不可撤销。")) {
-      const newList = resumes.filter((r) => r.id !== id);
-      saveToStorage(newList);
-      // 同时清理该简历的具体内容数据
-      localStorage.removeItem(`resume_data_${id}`);
-    }
+    setDeleteTarget(id);
+  };
+
+  // 4b. 确认删除逻辑
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
+    setIsDeleting(true);
+    
+    // 模拟微小延迟增强反馈
+    await new Promise(r => setTimeout(r, 400));
+    
+    const newList = resumes.filter((r) => r.id !== deleteTarget);
+    saveToStorage(newList);
+    localStorage.removeItem(`resume_data_${deleteTarget}`);
+    
+    setDeleteTarget(null);
+    setIsDeleting(false);
   };
 
   // 5. 功能函数：克隆简历
@@ -126,7 +142,7 @@ export default function DashboardPage() {
   return (
     <div className="flex-1 min-h-full flex flex-col p-8 lg:p-12 bg-zinc-50/50">
       {/* 1. 顶部提示横幅 */}
-      <div className="group flex items-center justify-between p-4 bg-emerald-50/80 backdrop-blur-sm border border-emerald-200 rounded-2xl shadow-sm hover:shadow-md hover:bg-emerald-50 transition-all duration-300 mb-10 overflow-hidden relative">
+      <div className="flex items-center justify-between p-4 bg-emerald-50/80 backdrop-blur-sm border border-emerald-200 rounded-2xl shadow-sm mb-10 overflow-hidden relative">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
             <ShieldCheck size={18} className="text-emerald-600" />
@@ -269,9 +285,9 @@ export default function DashboardPage() {
                     <Copy size={16} />
                   </button>
                   <button 
-                    onClick={(e) => handleDelete(e, resume.id)}
-                    className="p-2 bg-zinc-50 rounded-xl text-zinc-500 hover:bg-red-50 hover:text-red-500 transition-all"
-                    title="删除简历"
+                    onClick={(e) => handleDeleteTrigger(e, resume.id)}
+                    className="p-2 bg-zinc-50 rounded-xl text-zinc-500 hover:bg-red-50 hover:text-red-500 transition-all font-bold"
+                    title="删除简历文档"
                   >
                     <Trash2 size={16} />
                   </button>
@@ -292,6 +308,67 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+
+      {/* 4. 确认删除弹窗 (Modal) */}
+      <AnimatePresence>
+        {deleteTarget && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            {/* 遮罩层 */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => !isDeleting && setDeleteTarget(null)}
+              className="absolute inset-0 bg-zinc-950/40 backdrop-blur-sm"
+            />
+            
+            {/* 弹窗内容 */}
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-white rounded-[2rem] shadow-2xl overflow-hidden"
+            >
+              <div className="p-8 text-center">
+                <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-500 mx-auto mb-6">
+                  <AlertCircle size={32} />
+                </div>
+                <h3 className="text-xl font-bold text-zinc-900 mb-2">确定删除简历？</h3>
+                <p className="text-zinc-500 text-sm leading-relaxed mb-8">
+                  此操作将永久移除该简历配置<br />及其所有编辑内容，且无法撤销。
+                </p>
+                <div className="flex gap-3">
+                  <button 
+                    disabled={isDeleting}
+                    onClick={() => setDeleteTarget(null)}
+                    className="flex-1 px-6 py-3 bg-zinc-100 rounded-2xl text-sm font-bold text-zinc-600 hover:bg-zinc-200 transition-all disabled:opacity-50"
+                  >
+                    取消
+                  </button>
+                  <button 
+                    disabled={isDeleting}
+                    onClick={handleConfirmDelete}
+                    className="flex-1 px-6 py-3 bg-red-500 rounded-2xl text-sm font-bold text-white hover:bg-red-600 shadow-lg shadow-red-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {isDeleting ? (
+                      <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
+                    ) : (
+                      "确定删除"
+                    )}
+                  </button>
+                </div>
+              </div>
+              <button 
+                disabled={isDeleting}
+                onClick={() => setDeleteTarget(null)}
+                className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-zinc-900 transition-colors"
+              >
+                <X size={20} />
+              </button>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -28,6 +28,11 @@ import {
   UserCheck,
   Globe,
   School,
+  Award,
+  Target,
+  Link,
+  Calendar,
+  MessageCircle,
 } from "lucide-react";
 
 import {
@@ -305,6 +310,11 @@ const ICON_MAP: Record<string, React.ElementType> = {
   blog: Globe,
   school: School,
   custom: User,
+  award: Award,
+  target: Target,
+  link: Link,
+  calendar: Calendar,
+  message: MessageCircle,
 };
 
 const Switch = ({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label?: string }) => (
@@ -325,19 +335,72 @@ const Switch = ({ checked, onChange, label }: { checked: boolean; onChange: (v: 
   </div>
 );
 
-function SortableContactItem({ 
+const ICON_LIST = Object.keys(ICON_MAP);
+
+function IconPicker({ 
+  currentIcon, 
+  onSelect 
+}: { 
+  currentIcon: string, 
+  onSelect: (name: string) => void 
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const IconComp = ICON_MAP[currentIcon] || User;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setIsOpen(!isOpen)}
+        className="p-1.5 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-50 transition-colors flex items-center justify-center text-zinc-500"
+        title="选择图标"
+      >
+        <IconComp size={16} />
+      </button>
+      
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-[60]" onClick={() => setIsOpen(false)} />
+          <div className="absolute top-full left-0 mt-2 p-2 bg-white border border-zinc-200 rounded-xl shadow-2xl z-[70] grid grid-cols-6 gap-1 w-48">
+            {ICON_LIST.map((iconName) => {
+              const ItemIcon = ICON_MAP[iconName];
+              return (
+                <button
+                  key={iconName}
+                  onClick={() => {
+                    onSelect(iconName);
+                    setIsOpen(false);
+                  }}
+                  className={cn(
+                    "p-2 rounded-lg flex items-center justify-center transition-colors",
+                    currentIcon === iconName ? "bg-zinc-900 text-white" : "hover:bg-zinc-100 text-zinc-500"
+                  )}
+                >
+                  <ItemIcon size={14} />
+                </button>
+              );
+            })}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+const SortableContactItem = React.memo(({ 
   item, 
   onUpdate, 
+  onUpdateIcon,
   onDelete, 
   onToggleVisibility,
   onToggleShowLabel
 }: { 
   item: ContactItem; 
   onUpdate: (val: string, label?: string) => void;
+  onUpdateIcon?: (name: string) => void;
   onDelete: () => void;
   onToggleVisibility: () => void;
   onToggleShowLabel?: () => void;
-}) {
+}) => {
   const {
     attributes,
     listeners,
@@ -353,66 +416,79 @@ function SortableContactItem({
     zIndex: isDragging ? 50 : undefined,
   };
 
-  const IconComp = ICON_MAP[item.type as keyof typeof ICON_MAP] || User;
-
   return (
     <div
       ref={setNodeRef}
       style={style}
       className={cn(
-        "group flex items-center gap-2 p-1.5 rounded-xl transition-all duration-300 select-none",
-        isDragging ? "bg-white shadow-2xl ring-1 ring-zinc-200 opacity-80" : "hover:bg-zinc-50/50",
-        item.isCustom && "bg-zinc-50/10 border border-dashed border-zinc-200"
+        "group flex items-start gap-2 p-3 rounded-2xl select-none relative",
+        !isDragging && "transition-all duration-300 hover:bg-zinc-50/50",
+        isDragging ? "bg-white shadow-2xl ring-1 ring-zinc-200 opacity-95 scale-[1.02]" : "ring-transparent",
+        item.isCustom && !isDragging && "bg-zinc-50/10 border border-dashed border-zinc-200"
       )}
     >
       <button
         {...attributes}
         {...listeners}
-        className="cursor-grab active:cursor-grabbing p-1.5 text-zinc-300 hover:text-zinc-600 transition-colors shrink-0"
+        className="cursor-grab active:cursor-grabbing p-1.5 text-zinc-300 hover:text-zinc-600 transition-colors shrink-0 mt-0.5"
       >
         <GripVertical size={16} />
       </button>
 
-      <div className="flex items-center gap-2 min-w-[70px] shrink-0">
-        <IconComp size={16} className="text-zinc-400" />
-        {item.isCustom ? (
+      <div className="flex-1 space-y-3 min-w-0">
+        {/* 第一排：图标、标签与控制按钮 */}
+        <div className="flex items-center justify-between gap-3 min-w-0">
+          <div className="flex items-center gap-2 flex-1 min-w-0">
+            <IconPicker 
+              currentIcon={item.iconName || item.type} 
+              onSelect={(icon) => onUpdateIcon?.(icon)} 
+            />
+            {item.isCustom ? (
+              <input
+                className="flex-1 min-w-0 bg-transparent text-xs font-bold text-zinc-600 outline-none border-b border-zinc-100 focus:border-zinc-400 focus:text-zinc-900 transition-all font-mono py-0.5"
+                value={item.label}
+                onChange={(e) => onUpdate(item.value, e.target.value)}
+                placeholder="字段名"
+              />
+            ) : (
+              <span className="text-xs font-bold text-zinc-500 uppercase tracking-tight ml-1 truncate">{item.label}</span>
+            )}
+          </div>
+
+          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            {item.isCustom && (
+              <Switch checked={item.showLabel || false} onChange={onToggleShowLabel || (() => {})} label="显示标签" />
+            )}
+            <button
+              onClick={onToggleVisibility}
+              className={cn("p-1.5 rounded-lg transition-colors ml-2", item.isVisible ? "text-zinc-400 hover:bg-zinc-100" : "text-zinc-200 opacity-40")}
+            >
+              {item.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
+            </button>
+            <button
+              onClick={onDelete}
+              className="p-1.5 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        </div>
+
+        {/* 第二排：全宽输入框 */}
+        <div className="relative min-w-0">
           <input
-            className="w-14 bg-transparent text-xs font-bold text-zinc-500 outline-none border-b border-transparent hover:border-zinc-200 focus:border-zinc-400 transition-colors"
-            value={item.label}
-            onChange={(e) => onUpdate(item.value, e.target.value)}
+            className="w-full bg-white border border-zinc-200 rounded-xl h-10 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 transition-all font-medium placeholder:text-zinc-300 min-w-0"
+            value={item.value}
+            onChange={(e) => onUpdate(e.target.value)}
+            placeholder={`请输入${item.label}...`}
           />
-        ) : (
-          <span className="text-xs font-bold text-zinc-500 uppercase tracking-tight">{item.label}</span>
-        )}
-      </div>
-
-      <input
-        className="flex-1 min-w-0 bg-white border border-zinc-300 rounded-lg h-9 px-3 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 transition-all font-medium"
-        value={item.value}
-        onChange={(e) => onUpdate(e.target.value)}
-        placeholder={`请输入${item.label}...`}
-      />
-
-      <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity pl-1 shrink-0">
-        {item.isCustom && (
-          <Switch checked={item.showLabel || false} onChange={onToggleShowLabel || (() => {})} label="标签" />
-        )}
-        <button
-          onClick={onToggleVisibility}
-          className={cn("p-1.5 rounded-lg transition-colors", item.isVisible ? "text-zinc-400 hover:bg-zinc-100" : "text-zinc-200 opacity-40")}
-        >
-          {item.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
-        </button>
-        <button
-          onClick={onDelete}
-          className="p-1.5 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-        >
-          <Trash2 size={16} />
-        </button>
+        </div>
       </div>
     </div>
   );
-}
+});
+
+SortableContactItem.displayName = "SortableContactItem";
 
 // --- 主页面组件 ---
 
@@ -476,14 +552,14 @@ export default function ResumeEditor() {
   ]);
 
   const [resumeData, setResumeData] = useState<ResumeData>({
-    name: "廖欢全",
+    name: "QingJiao",
     nameVisible: true,
     title: "AI全栈工程师 / 青椒简历核心开发",
     titleVisible: true,
     contacts: [
-      { id: 'c1', type: 'phone', iconName: 'phone', label: '电话', value: '13417531009', isVisible: true, isCustom: false },
-      { id: 'c2', type: 'email', iconName: 'email', label: '邮箱', value: 'qingjiao730@gmail.com', isVisible: true, isCustom: false },
-      { id: 'c3', type: 'city', iconName: 'city', label: '城市', value: '广东·江门', isVisible: true, isCustom: false },
+      { id: 'c1', type: 'phone', iconName: 'phone', label: '电话', value: '13800000000', isVisible: true, isCustom: false },
+      { id: 'c2', type: 'email', iconName: 'email', label: '邮箱', value: 'example@gmail.com', isVisible: true, isCustom: false },
+      { id: 'c3', type: 'city', iconName: 'city', label: '城市', value: '广东', isVisible: true, isCustom: false },
     ],
     avatarAspect: 1,
     avatarBorderRadius: 12,
@@ -1236,7 +1312,7 @@ export default function ResumeEditor() {
 
         {/* Column 2: Editor Pane - Mobile Toggle */}
         <aside className={cn(
-          "w-full lg:w-[380px] bg-zinc-50/50 border-r border-zinc-200 p-6 overflow-y-auto scrollbar-hide absolute inset-0 z-30 lg:relative lg:block lg:translate-x-0 transition-transform duration-300",
+          "w-full lg:w-[380px] bg-zinc-50/50 border-r border-zinc-200 p-6 overflow-y-auto overflow-x-hidden scrollbar-hide absolute inset-0 z-30 lg:relative lg:block lg:translate-x-0 transition-transform duration-300",
           activeMobileTab === "edit" ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
         )}>
           <AnimatePresence mode="wait">
@@ -1372,6 +1448,14 @@ export default function ResumeEditor() {
                                   ...prev,
                                   contacts: prev.contacts.map((c) =>
                                     c.id === item.id ? { ...c, showLabel: !c.showLabel } : c
+                                  ),
+                                }));
+                              }}
+                              onUpdateIcon={(icon) => {
+                                setResumeData((prev) => ({
+                                  ...prev,
+                                  contacts: prev.contacts.map((c) =>
+                                    c.id === item.id ? { ...c, iconName: icon } : c
                                   ),
                                 }));
                               }}
