@@ -1,0 +1,18 @@
+# Standard Next.js ignore
+node_modules
+.next
+.git
+.gitignore
+.dockerignore
+LICENSE
+README.md
+README_EN.md
+Dockerfile
+.env*.local
+*.tsbuildinfo
+image
+DESIGN.md
+todo.md
+AGENTS.md
+CLAUDE.md
+GEMINI.md
