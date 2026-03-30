@@ -12,7 +12,7 @@ import {
   Type,
   Sun,
   Palette,
-  Maximize2,
+  Maximize,
   EyeOff,
   Briefcase,
   GraduationCap,
@@ -978,9 +978,15 @@ export default function ResumeEditor() {
         <div className="flex items-center gap-3">
           <button 
             onClick={() => router.push("/dashboard")}
-            className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center hover:bg-zinc-800 transition-colors"
+            className="w-8 h-8 overflow-hidden rounded-full shadow-sm hover:scale-105 transition-transform"
           >
-            <Maximize2 size={18} className="text-white" />
+            <NextImage 
+              src="/images/qinfjiao_resume.png" 
+              alt="Logo" 
+              width={32} 
+              height={32} 
+              className="object-cover"
+            />
           </button>
           <div className="flex flex-col">
             <span className="font-bold text-sm tracking-tight leading-none mb-0.5">青椒简历</span>
@@ -2009,7 +2015,7 @@ export default function ResumeEditor() {
               className="w-10 h-10 hover:bg-zinc-100 rounded-xl text-zinc-500"
               title="自适应宽度"
             >
-              <Maximize2 size={18} />
+              <Maximize size={18} />
             </Button>
           </div>
 

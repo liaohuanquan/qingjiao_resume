@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import {
   FileText,
@@ -9,7 +10,6 @@ import {
   BrainCircuit,
   Settings,
   LogOut,
-  Maximize2,
   Menu,
   type LucideIcon,
 } from "lucide-react";
@@ -71,9 +71,15 @@ export default function DashboardLayout({
       >
         {/* Logo 区 */}
         <div className="h-20 flex items-center px-6 gap-3 border-b border-zinc-100 shrink-0">
-          <div className="w-9 h-9 bg-zinc-900 rounded-xl flex items-center justify-center shadow-lg shadow-zinc-200">
-            <Maximize2 size={20} className="text-white" />
-          </div>
+          <Link href="/" className="w-9 h-9 overflow-hidden rounded-full shadow-lg shadow-zinc-200 hover:scale-105 transition-transform">
+            <Image 
+              src="/images/qinfjiao_resume.png" 
+              alt="青椒简历 Logo" 
+              width={36} 
+              height={36} 
+              className="object-cover"
+            />
+          </Link>
           {isSidebarOpen && (
             <span className="font-bold text-lg tracking-tight text-zinc-900">
               青椒简历

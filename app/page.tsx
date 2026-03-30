@@ -3,7 +3,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { motion } from "framer-motion";
-import { Maximize2, ArrowRight, ShieldCheck, Zap, Sparkles, Star, CheckCircle2, type LucideIcon } from "lucide-react";
+import { ArrowRight, ShieldCheck, Zap, Sparkles, Star, CheckCircle2, type LucideIcon } from "lucide-react";
 
 export default function Home() {
   return (
@@ -23,9 +23,15 @@ export default function Home() {
           animate={{ opacity: 1, x: 0 }}
           className="flex items-center gap-3"
         >
-          <div className="w-10 h-10 bg-zinc-900 rounded-xl flex items-center justify-center shadow-xl shadow-zinc-200/50">
-            <Maximize2 size={22} className="text-white" />
-          </div>
+          <Link href="/" className="w-10 h-10 overflow-hidden rounded-full shadow-xl shadow-zinc-200/50 hover:scale-105 transition-transform active:scale-95">
+            <Image 
+              src="/images/qinfjiao_resume.png" 
+              alt="青椒简历 Logo" 
+              width={40} 
+              height={40} 
+              className="object-cover"
+            />
+          </Link>
           <span className="font-bold text-xl tracking-tight bg-clip-text text-transparent bg-gradient-to-br from-zinc-900 via-zinc-800 to-zinc-500">青椒简历</span>
         </motion.div>
         
@@ -192,7 +198,7 @@ export default function Home() {
               delay={0.2}
             />
             <FeatureCard 
-              icon={Maximize2}
+              icon={Sparkles}
               title="高保真 A4"
               desc="不仅是编辑器，更是排版专家。多套专业 A4 标准模板库，适应各行业求职需求。"
               delay={0.3}
@@ -205,8 +211,14 @@ export default function Home() {
       <footer className="py-20 border-t border-zinc-100 bg-zinc-50/50">
         <div className="max-w-7xl mx-auto px-10 flex flex-col md:flex-row items-center justify-between gap-10">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-zinc-900 rounded-lg flex items-center justify-center">
-              <Maximize2 size={16} className="text-white" />
+            <div className="w-8 h-8 overflow-hidden rounded-full shadow-sm">
+              <Image 
+                src="/images/qinfjiao_resume.png" 
+                alt="青椒简历 Logo" 
+                width={32} 
+                height={32} 
+                className="object-cover"
+              />
             </div>
             <span className="font-bold text-lg">青椒简历</span>
           </div>

@@ -1,4 +1,19 @@
-# 青椒简历 (QingJiao Resume)
+<p align="center">
+  <img src="public/images/qinfjiao_resume.png" width="120" height="120" style="border-radius: 50%" />
+</p>
+
+<h1 align="center">青椒简历 (QingJiao Resume)</h1>
+
+<p align="center">
+  <img src="https://img.shields.io/badge/Next.js-15-black?logo=next.js" />
+  <img src="https://img.shields.io/badge/React-19-blue?logo=react" />
+  <img src="https://img.shields.io/badge/Tailwind_CSS-4-38B2AC?logo=tailwind-css" />
+  <img src="https://img.shields.io/badge/License-MIT-green" />
+</p>
+
+<p align="center">
+  <b>简体中文</b> | <a href="README_EN.md">English</a>
+</p>
 
 一个极简、极其流畅且现代化的在线简历编辑器。基于 **Next.js 15**、**Tailwind CSS 4** 和 **Framer Motion** 构建，旨在通过 AI 辅助与极致的 UI 交互，让写简历变成一种享受。
 
