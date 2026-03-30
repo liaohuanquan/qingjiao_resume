@@ -13,7 +13,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "青椒简历 - 极简专业的简历编辑器",
+  title: "青椒简历 | 极简专业的简历编辑器",
   description: "专为求职者打造的高保真简历编辑工具，支持 PDF 一键导出、AI 智能优化与实时同步。",
 };
 
