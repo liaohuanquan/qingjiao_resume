@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  output: 'standalone',
+  output: "export",
+  trailingSlash: true,
+  basePath: "/qingjiao_resume",
 };
 
 export default nextConfig;
