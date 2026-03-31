@@ -981,7 +981,7 @@ function ResumeEditorContent() {
             className="w-8 h-8 overflow-hidden rounded-full shadow-sm hover:scale-105 transition-transform"
           >
             <NextImage 
-              src="/images/qinfjiao_resume.png" 
+              src="/qingjiao_resume/images/qinfjiao_resume.png" 
               alt="Logo" 
               width={32} 
               height={32} 

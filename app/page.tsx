@@ -25,7 +25,7 @@ export default function Home() {
         >
           <Link href="/" className="w-10 h-10 overflow-hidden rounded-full shadow-xl shadow-zinc-200/50 hover:scale-105 transition-transform active:scale-95">
             <Image 
-              src="/images/qinfjiao_resume.png" 
+              src="/qingjiao_resume/images/qinfjiao_resume.png" 
               alt="青椒简历 Logo" 
               width={40} 
               height={40} 
@@ -133,7 +133,7 @@ export default function Home() {
               </div>
               <div className="relative aspect-[16/10] overflow-hidden rounded-2xl border border-zinc-100 shadow-inner">
                  <Image 
-                    src="/images/hero-mockup.png"
+                    src="/qingjiao_resume/images/hero-mockup.png"
                     alt="青椒简历编辑器界面投影"
                     fill
                     className="object-cover group-hover:scale-[1.02] transition-transform duration-700"

@@ -121,7 +121,7 @@ export default function SettingsPage() {
                      <div className="flex flex-col md:flex-row gap-10">
                         <div className="relative group shrink-0 self-start">
                            <div className="w-24 h-24 rounded-[2rem] bg-zinc-100 overflow-hidden shadow-inner flex items-center justify-center border-4 border-white shadow-zinc-200">
-                             <img src="/images/qinfjiao_resume.png" alt="Avatar" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                             <img src="/qingjiao_resume/images/qinfjiao_resume.png" alt="Avatar" className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                            </div>
                            <button className="absolute -bottom-2 -right-2 w-10 h-10 bg-zinc-900 text-white rounded-2xl flex items-center justify-center shadow-xl hover:scale-110 transition-transform">
                              <Camera size={18} />

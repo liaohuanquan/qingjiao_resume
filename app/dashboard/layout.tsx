@@ -73,7 +73,7 @@ export default function DashboardLayout({
         <div className="h-20 flex items-center px-6 gap-3 border-b border-zinc-100 shrink-0">
           <Link href="/" className="w-9 h-9 overflow-hidden rounded-full shadow-lg shadow-zinc-200 hover:scale-105 transition-transform">
             <Image 
-              src="/images/qinfjiao_resume.png" 
+              src="/qingjiao_resume/images/qinfjiao_resume.png" 
               alt="青椒简历 Logo" 
               width={36} 
               height={36} 
