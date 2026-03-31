@@ -4,6 +4,9 @@ const nextConfig: NextConfig = {
   output: "export",
   trailingSlash: true,
   basePath: "/qingjiao_resume",
+  images: {
+    unoptimized: true,
+  },
 };
 
 export default nextConfig;
