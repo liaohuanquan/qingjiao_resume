@@ -100,7 +100,7 @@ const TYPE_CONFIG = {
 };
 
 export default function AIPage() {
-  const [providers, setProviders] = useState<AIProvider[]>([]);
+  const [providers, setProviders] = useState<AIProvider[]>(DEFAULT_PROVIDERS);
   const [isLoaded, setIsLoaded] = useState(false);
   const [showKey, setShowKey] = useState<Record<string, boolean>>({});
   const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "success">("idle");
@@ -109,24 +109,26 @@ export default function AIPage() {
   // 1. 初始化加载
   useEffect(() => {
     const saved = localStorage.getItem("ai_providers");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        // 合并默认值确保新增的服务商出现在旧配置中
-        const merged = [...parsed];
-        DEFAULT_PROVIDERS.forEach(def => {
-          if (!merged.find(p => p.type === def.type)) {
-            merged.push(def);
-          }
-        });
-        setProviders(merged);
-      } catch {
-        setProviders(DEFAULT_PROVIDERS);
+    
+    // 使用 requestAnimationFrame 确保所有初始化状态更新都在下一帧执行
+    // 避免同步调用引发的 "cascading renders" 警告，并确保与 Hydration 流程解耦
+    requestAnimationFrame(() => {
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          const merged = [...parsed];
+          DEFAULT_PROVIDERS.forEach(def => {
+            if (!merged.find(p => p.type === def.type)) {
+              merged.push(def);
+            }
+          });
+          setProviders(merged);
+        } catch {
+          setProviders(DEFAULT_PROVIDERS);
+        }
       }
-    } else {
-      setProviders(DEFAULT_PROVIDERS);
-    }
-    setIsLoaded(true);
+      setIsLoaded(true);
+    });
   }, []);
 
   // 2. 保存至本地
@@ -140,16 +142,16 @@ export default function AIPage() {
   };
 
   // 3. 更新字段
-  const updateProvider = (id: string, field: keyof AIProvider, value: any) => {
+  const updateProvider = (id: string, field: keyof AIProvider, value: string | boolean) => {
     setProviders(prev => prev.map(p => {
       if (p.id === id) {
         if (field === "isActive" && value === true) {
-          return { ...p, isActive: true };
+          return { ...p, isActive: true } as AIProvider;
         }
-        return { ...p, [field]: value };
+        return { ...p, [field]: value } as AIProvider;
       }
       if (field === "isActive" && value === true) {
-        return { ...p, isActive: false };
+        return { ...p, isActive: false } as AIProvider;
       }
       return p;
     }));
