@@ -492,7 +492,7 @@ SortableContactItem.displayName = "SortableContactItem";
 
 // --- 主页面组件 ---
 
-export default function ResumeEditor() {
+function ResumeEditorContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const resumeId = searchParams.get("id") || "default-1";
@@ -2463,3 +2463,12 @@ export default function ResumeEditor() {
     </div>
   );
 }
+
+export default function ResumeEditor() {
+  return (
+    <React.Suspense fallback={null}>
+      <ResumeEditorContent />
+    </React.Suspense>
+  );
+}
+
