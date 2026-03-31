@@ -56,7 +56,7 @@ npm run dev
 
 ### 3. Start Creating
 
-Visit `http://localhost:3000/editor` to start editing your resume.
+Visit `http://localhost:3000/qingjiao_resume/editor` to start editing your resume.
 
 ## 🤝 Contributing
 
