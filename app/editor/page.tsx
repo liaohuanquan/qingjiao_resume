@@ -317,32 +317,46 @@ const ICON_MAP: Record<string, React.ElementType> = {
   message: MessageCircle,
 };
 
-const Switch = ({ checked, onChange, label }: { checked: boolean; onChange: (v: boolean) => void; label?: string }) => (
+const Switch = ({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean;
+  onChange: (v: boolean) => void;
+  label?: string;
+}) => (
   <div className="flex items-center gap-2">
     <button
       onClick={() => onChange(!checked)}
       className={cn(
         "w-9 h-5 rounded-full relative transition-colors duration-200 outline-none flex items-center shrink-0",
-        checked ? "bg-zinc-900" : "bg-zinc-200"
+        checked ? "bg-zinc-900" : "bg-zinc-200",
       )}
     >
-      <div className={cn(
-        "absolute w-3 h-3 bg-white rounded-full transition-all duration-200",
-        checked ? "left-[20px]" : "left-[4px]"
-      )} />
+      <div
+        className={cn(
+          "absolute w-3 h-3 bg-white rounded-full transition-all duration-200",
+          checked ? "left-[20px]" : "left-[4px]",
+        )}
+      />
     </button>
-    {label && <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-tighter whitespace-nowrap">{label}</span>}
+    {label && (
+      <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-tighter whitespace-nowrap">
+        {label}
+      </span>
+    )}
   </div>
 );
 
 const ICON_LIST = Object.keys(ICON_MAP);
 
-function IconPicker({ 
-  currentIcon, 
-  onSelect 
-}: { 
-  currentIcon: string, 
-  onSelect: (name: string) => void 
+function IconPicker({
+  currentIcon,
+  onSelect,
+}: {
+  currentIcon: string;
+  onSelect: (name: string) => void;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const IconComp = ICON_MAP[currentIcon] || User;
@@ -356,10 +370,13 @@ function IconPicker({
       >
         <IconComp size={16} />
       </button>
-      
+
       {isOpen && (
         <>
-          <div className="fixed inset-0 z-[60]" onClick={() => setIsOpen(false)} />
+          <div
+            className="fixed inset-0 z-[60]"
+            onClick={() => setIsOpen(false)}
+          />
           <div className="absolute top-full left-0 mt-2 p-2 bg-white border border-zinc-200 rounded-xl shadow-2xl z-[70] grid grid-cols-6 gap-1 w-48">
             {ICON_LIST.map((iconName) => {
               const ItemIcon = ICON_MAP[iconName];
@@ -372,7 +389,9 @@ function IconPicker({
                   }}
                   className={cn(
                     "p-2 rounded-lg flex items-center justify-center transition-colors",
-                    currentIcon === iconName ? "bg-zinc-900 text-white" : "hover:bg-zinc-100 text-zinc-500"
+                    currentIcon === iconName
+                      ? "bg-zinc-900 text-white"
+                      : "hover:bg-zinc-100 text-zinc-500",
                   )}
                 >
                   <ItemIcon size={14} />
@@ -386,107 +405,124 @@ function IconPicker({
   );
 }
 
-const SortableContactItem = React.memo(({ 
-  item, 
-  onUpdate, 
-  onUpdateIcon,
-  onDelete, 
-  onToggleVisibility,
-  onToggleShowLabel
-}: { 
-  item: ContactItem; 
-  onUpdate: (val: string, label?: string) => void;
-  onUpdateIcon?: (name: string) => void;
-  onDelete: () => void;
-  onToggleVisibility: () => void;
-  onToggleShowLabel?: () => void;
-}) => {
-  const {
-    attributes,
-    listeners,
-    setNodeRef,
-    transform,
-    transition,
-    isDragging,
-  } = useSortable({ id: item.id });
+const SortableContactItem = React.memo(
+  ({
+    item,
+    onUpdate,
+    onUpdateIcon,
+    onDelete,
+    onToggleVisibility,
+    onToggleShowLabel,
+  }: {
+    item: ContactItem;
+    onUpdate: (val: string, label?: string) => void;
+    onUpdateIcon?: (name: string) => void;
+    onDelete: () => void;
+    onToggleVisibility: () => void;
+    onToggleShowLabel?: () => void;
+  }) => {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: item.id });
 
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    zIndex: isDragging ? 50 : undefined,
-  };
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      zIndex: isDragging ? 50 : undefined,
+    };
 
-  return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={cn(
-        "group flex items-start gap-2 p-3 rounded-2xl select-none relative",
-        !isDragging && "transition-all duration-300 hover:bg-zinc-50/50",
-        isDragging ? "bg-white shadow-2xl ring-1 ring-zinc-200 opacity-95 scale-[1.02]" : "ring-transparent",
-        item.isCustom && !isDragging && "bg-zinc-50/10 border border-dashed border-zinc-200"
-      )}
-    >
-      <button
-        {...attributes}
-        {...listeners}
-        className="cursor-grab active:cursor-grabbing p-1.5 text-zinc-300 hover:text-zinc-600 transition-colors shrink-0 mt-0.5"
+    return (
+      <div
+        ref={setNodeRef}
+        style={style}
+        className={cn(
+          "group flex items-start gap-2 p-3 rounded-2xl select-none relative",
+          !isDragging && "transition-all duration-300 hover:bg-zinc-50/50",
+          isDragging
+            ? "bg-white shadow-2xl ring-1 ring-zinc-200 opacity-95 scale-[1.02]"
+            : "ring-transparent",
+          item.isCustom &&
+            !isDragging &&
+            "bg-zinc-50/10 border border-dashed border-zinc-200",
+        )}
       >
-        <GripVertical size={16} />
-      </button>
+        <button
+          {...attributes}
+          {...listeners}
+          className="cursor-grab active:cursor-grabbing p-1.5 text-zinc-300 hover:text-zinc-600 transition-colors shrink-0 mt-0.5"
+        >
+          <GripVertical size={16} />
+        </button>
 
-      <div className="flex-1 space-y-3 min-w-0">
-        {/* 第一排：图标、标签与控制按钮 */}
-        <div className="flex items-center justify-between gap-3 min-w-0">
-          <div className="flex items-center gap-2 flex-1 min-w-0">
-            <IconPicker 
-              currentIcon={item.iconName || item.type} 
-              onSelect={(icon) => onUpdateIcon?.(icon)} 
-            />
-            {item.isCustom ? (
-              <input
-                className="flex-1 min-w-0 bg-transparent text-xs font-bold text-zinc-600 outline-none border-b border-zinc-100 focus:border-zinc-400 focus:text-zinc-900 transition-all font-mono py-0.5"
-                value={item.label}
-                onChange={(e) => onUpdate(item.value, e.target.value)}
-                placeholder="字段名"
+        <div className="flex-1 space-y-3 min-w-0">
+          {/* 第一排：图标、标签与控制按钮 */}
+          <div className="flex items-center justify-between gap-3 min-w-0">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
+              <IconPicker
+                currentIcon={item.iconName || item.type}
+                onSelect={(icon) => onUpdateIcon?.(icon)}
               />
-            ) : (
-              <span className="text-xs font-bold text-zinc-500 uppercase tracking-tight ml-1 truncate">{item.label}</span>
-            )}
+              {item.isCustom ? (
+                <input
+                  className="flex-1 min-w-0 bg-transparent text-xs font-bold text-zinc-600 outline-none border-b border-zinc-100 focus:border-zinc-400 focus:text-zinc-900 transition-all font-mono py-0.5"
+                  value={item.label}
+                  onChange={(e) => onUpdate(item.value, e.target.value)}
+                  placeholder="字段名"
+                />
+              ) : (
+                <span className="text-xs font-bold text-zinc-500 uppercase tracking-tight ml-1 truncate">
+                  {item.label}
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              {item.isCustom && (
+                <Switch
+                  checked={item.showLabel || false}
+                  onChange={onToggleShowLabel || (() => {})}
+                  label="显示标签"
+                />
+              )}
+              <button
+                onClick={onToggleVisibility}
+                className={cn(
+                  "p-1.5 rounded-lg transition-colors ml-2",
+                  item.isVisible
+                    ? "text-zinc-400 hover:bg-zinc-100"
+                    : "text-zinc-200 opacity-40",
+                )}
+              >
+                {item.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
+              </button>
+              <button
+                onClick={onDelete}
+                className="p-1.5 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
           </div>
 
-          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
-            {item.isCustom && (
-              <Switch checked={item.showLabel || false} onChange={onToggleShowLabel || (() => {})} label="显示标签" />
-            )}
-            <button
-              onClick={onToggleVisibility}
-              className={cn("p-1.5 rounded-lg transition-colors ml-2", item.isVisible ? "text-zinc-400 hover:bg-zinc-100" : "text-zinc-200 opacity-40")}
-            >
-              {item.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
-            </button>
-            <button
-              onClick={onDelete}
-              className="p-1.5 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
-            >
-              <Trash2 size={16} />
-            </button>
+          {/* 第二排：全宽输入框 */}
+          <div className="relative min-w-0">
+            <input
+              className="w-full bg-white border border-zinc-200 rounded-xl h-10 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 transition-all font-medium placeholder:text-zinc-300 min-w-0"
+              value={item.value}
+              onChange={(e) => onUpdate(e.target.value)}
+              placeholder={`请输入${item.label}...`}
+            />
           </div>
-        </div>
-
-        {/* 第二排：全宽输入框 */}
-        <div className="relative min-w-0">
-          <input
-            className="w-full bg-white border border-zinc-200 rounded-xl h-10 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 transition-all font-medium placeholder:text-zinc-300 min-w-0"
-            value={item.value}
-            onChange={(e) => onUpdate(e.target.value)}
-            placeholder={`请输入${item.label}...`}
-          />
         </div>
       </div>
-    </div>
-  );
-});
+    );
+  },
+);
 
 SortableContactItem.displayName = "SortableContactItem";
 
@@ -526,7 +562,7 @@ function ResumeEditorContent() {
     useSensor(PointerSensor),
     useSensor(KeyboardSensor, {
       coordinateGetter: sortableKeyboardCoordinates,
-    })
+    }),
   );
 
   const handleDragEnd = (event: DragEndEvent) => {
@@ -557,14 +593,43 @@ function ResumeEditorContent() {
     title: "AI全栈工程师 / 青椒简历核心开发",
     titleVisible: true,
     contacts: [
-      { id: 'c1', type: 'phone', iconName: 'phone', label: '电话', value: '13800000000', isVisible: true, isCustom: false },
-      { id: 'c2', type: 'email', iconName: 'email', label: '邮箱', value: 'example@gmail.com', isVisible: true, isCustom: false },
-      { id: 'c3', type: 'city', iconName: 'city', label: '城市', value: '广东', isVisible: true, isCustom: false },
+      {
+        id: "c1",
+        type: "phone",
+        iconName: "phone",
+        label: "电话",
+        value: "13800000000",
+        isVisible: true,
+        isCustom: false,
+      },
+      {
+        id: "c2",
+        type: "email",
+        iconName: "email",
+        label: "邮箱",
+        value: "example@gmail.com",
+        isVisible: true,
+        isCustom: false,
+      },
+      {
+        id: "c3",
+        type: "city",
+        iconName: "city",
+        label: "城市",
+        value: "广东",
+        isVisible: true,
+        isCustom: false,
+      },
     ],
     avatarAspect: 1,
     avatarBorderRadius: 12,
     education: [
-      { id: "e1", school: "五邑大学", major: "通信工程 (本科)", date: "2022 - 2026" },
+      {
+        id: "e1",
+        school: "五邑大学",
+        major: "通信工程 (本科)",
+        date: "2022 - 2026",
+      },
     ],
     workExperiences: [
       {
@@ -633,7 +698,10 @@ function ResumeEditorContent() {
     setModules((prev) => prev.filter((m) => m.id !== id));
   };
 
-  const updateBasicData = (field: keyof ResumeData, value: string | boolean) => {
+  const updateBasicData = (
+    field: keyof ResumeData,
+    value: string | boolean,
+  ) => {
     setResumeData((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -726,25 +794,26 @@ function ResumeEditorContent() {
   // 数据规格化：将旧版本的扁平化字段迁移到 contacts 数组
   const normalizeResumeData = useCallback((data: unknown): ResumeData => {
     if (!data || typeof data !== "object") return data as ResumeData;
-    
+
     // 使用 Record 类型进行安全的动态访问，规避 directly cast to any
     const d = data as Record<string, unknown>;
-    
+
     // 如果没有 contacts 数组，说明是旧版本数据或刚初始化的数据
-    const contactsExist = Array.isArray(d.contacts) && (d.contacts as unknown[]).length > 0;
-    
+    const contactsExist =
+      Array.isArray(d.contacts) && (d.contacts as unknown[]).length > 0;
+
     if (!contactsExist) {
       const contacts: ContactItem[] = [];
       const legacyMap = [
-        { key: 'phone', label: '电话', type: 'phone' },
-        { key: 'email', label: '邮箱', type: 'email' },
-        { key: 'city', label: '地址', type: 'city' },
-        { key: 'birthday', label: '状态', type: 'birthday' },
-        { key: 'experience', label: '经验', type: 'experience' },
-        { key: 'hometown', label: '籍贯', type: 'hometown' },
-        { key: 'politics', label: '面貌', type: 'politics' },
-        { key: 'github', label: 'GitHub', type: 'github' },
-        { key: 'blog', label: '博客', type: 'blog' },
+        { key: "phone", label: "电话", type: "phone" },
+        { key: "email", label: "邮箱", type: "email" },
+        { key: "city", label: "地址", type: "city" },
+        { key: "birthday", label: "状态", type: "birthday" },
+        { key: "experience", label: "经验", type: "experience" },
+        { key: "hometown", label: "籍贯", type: "hometown" },
+        { key: "politics", label: "面貌", type: "politics" },
+        { key: "github", label: "GitHub", type: "github" },
+        { key: "blog", label: "博客", type: "blog" },
       ];
 
       legacyMap.forEach((item, idx) => {
@@ -766,10 +835,29 @@ function ResumeEditorContent() {
         ...(d as unknown as ResumeData),
         nameVisible: (d.nameVisible as boolean | undefined) ?? true,
         titleVisible: (d.titleVisible as boolean | undefined) ?? true,
-        contacts: contacts.length > 0 ? contacts : [
-          { id: 'c1', type: 'phone', iconName: 'phone', label: '电话', value: '13417531009', isVisible: true, isCustom: false },
-          { id: 'c2', type: 'email', iconName: 'email', label: '邮箱', value: 'qingjiao@gmail.com', isVisible: true, isCustom: false },
-        ]
+        contacts:
+          contacts.length > 0
+            ? contacts
+            : [
+                {
+                  id: "c1",
+                  type: "phone",
+                  iconName: "phone",
+                  label: "电话",
+                  value: "13417531009",
+                  isVisible: true,
+                  isCustom: false,
+                },
+                {
+                  id: "c2",
+                  type: "email",
+                  iconName: "email",
+                  label: "邮箱",
+                  value: "qingjiao@gmail.com",
+                  isVisible: true,
+                  isCustom: false,
+                },
+              ],
       } as ResumeData;
     }
     return d as unknown as ResumeData;
@@ -789,10 +877,11 @@ function ResumeEditorContent() {
     try {
       const dataKey = `resume_data_${resumeId}`;
       const savedFullData = localStorage.getItem(dataKey);
-      
+
       if (savedFullData) {
         const config = JSON.parse(savedFullData);
-        if (config.resumeData) setResumeData(normalizeResumeData(config.resumeData));
+        if (config.resumeData)
+          setResumeData(normalizeResumeData(config.resumeData));
         if (config.modules) setModules(config.modules);
         if (config.themeColor) setThemeColor(config.themeColor);
         if (config.typography) setTypography(config.typography);
@@ -800,13 +889,13 @@ function ResumeEditorContent() {
         // 兼容旧版本数据或加载默认值
         const savedData = localStorage.getItem("resume_v2_data");
         if (savedData && resumeId === "default-1") {
-           setResumeData(normalizeResumeData(JSON.parse(savedData)));
-           const savedModules = localStorage.getItem("resume_v2_modules");
-           const savedTheme = localStorage.getItem("resume_v2_theme");
-           const savedTypo = localStorage.getItem("resume_v2_typography");
-           if (savedModules) setModules(JSON.parse(savedModules));
-           if (savedTheme) setThemeColor(savedTheme);
-           if (savedTypo) setTypography(JSON.parse(savedTypo));
+          setResumeData(normalizeResumeData(JSON.parse(savedData)));
+          const savedModules = localStorage.getItem("resume_v2_modules");
+          const savedTheme = localStorage.getItem("resume_v2_theme");
+          const savedTypo = localStorage.getItem("resume_v2_typography");
+          if (savedModules) setModules(JSON.parse(savedModules));
+          if (savedTheme) setThemeColor(savedTheme);
+          if (savedTypo) setTypography(JSON.parse(savedTypo));
         }
       }
 
@@ -846,7 +935,9 @@ function ResumeEditorContent() {
   const [exportProgress, setExportProgress] = useState<string | null>(null); // 导出进度提示
   const [isPanning, setIsPanning] = useState(false); // 预览区是否正在按下鼠标拖拽平移
   // 移动端底部 Tab 激活状态：管理、编辑、预览
-  const [activeMobileTab, setActiveMobileTab] = useState<"manage" | "edit" | "preview">("edit");
+  const [activeMobileTab, setActiveMobileTab] = useState<
+    "manage" | "edit" | "preview"
+  >("edit");
   const scrollStart = React.useRef({ scrollLeft: 0, scrollTop: 0, x: 0, y: 0 }); // 记录拖拽起始位置
   const importInputRef = React.useRef<HTMLInputElement>(null); // JSON 导入隐藏 Input Ref
 
@@ -865,7 +956,7 @@ function ResumeEditorContent() {
 
       for (let i = 0; i < pages.length; i++) {
         setExportProgress(`正在渲染第 ${i + 1} / ${pages.length} 页...`);
-        
+
         // 使用 toJpeg 将 DOM 转换为高清晰度图片
         const imgData = await toJpeg(pages[i] as HTMLElement, {
           quality: 0.95,
@@ -875,7 +966,7 @@ function ResumeEditorContent() {
         });
 
         if (i > 0) pdf.addPage();
-        
+
         // 将图片完美贴合到 PDF 的 A4 页面上
         pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
       }
@@ -938,11 +1029,15 @@ function ResumeEditorContent() {
       if (savedList) {
         try {
           const list = JSON.parse(savedList);
-          const index = list.findIndex((item: ResumeMetadata) => item.id === resumeId);
+          const index = list.findIndex(
+            (item: ResumeMetadata) => item.id === resumeId,
+          );
           if (index !== -1) {
             list[index] = {
               ...list[index],
-              title: resumeData.name ? `${resumeData.name}的简历` : list[index].title,
+              title: resumeData.name
+                ? `${resumeData.name}的简历`
+                : list[index].title,
               theme: themeColor,
               lastModified: new Date().toLocaleDateString(),
             };
@@ -976,21 +1071,25 @@ function ResumeEditorContent() {
       {/* Head */}
       <header className="h-[60px] flex items-center justify-between px-6 bg-white border-b border-zinc-200 shadow-sm z-50">
         <div className="flex items-center gap-3">
-          <button 
+          <button
             onClick={() => router.push("/dashboard")}
             className="w-8 h-8 overflow-hidden rounded-full shadow-sm hover:scale-105 transition-transform"
           >
-            <NextImage 
-              src="/qingjiao_resume/images/qinfjiao_resume.png" 
-              alt="Logo" 
-              width={32} 
-              height={32} 
+            <NextImage
+              src="/qingjiao_resume/images/qinfjiao_resume.png"
+              alt="Logo"
+              width={32}
+              height={32}
               className="object-cover"
             />
           </button>
           <div className="flex flex-col">
-            <span className="font-bold text-sm tracking-tight leading-none mb-0.5">青椒简历</span>
-            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">Editor Mode</span>
+            <span className="font-bold text-sm tracking-tight leading-none mb-0.5">
+              青椒简历
+            </span>
+            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
+              Editor Mode
+            </span>
           </div>
           <Badge
             className={cn(
@@ -1034,7 +1133,9 @@ function ResumeEditorContent() {
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-zinc-600 hidden sm:inline-block">QingJiao Resume</span>
+          <span className="text-sm font-medium text-zinc-600 hidden sm:inline-block">
+            QingJiao Resume
+          </span>
           <Button
             variant="ghost"
             size="icon"
@@ -1044,18 +1145,41 @@ function ResumeEditorContent() {
             <Sun size={18} />
           </Button>
           <div className="flex items-center gap-2 border-l border-zinc-200 pl-4 ml-1">
-             <Button variant="outline" size="sm" className="gap-2 text-xs font-bold hidden md:flex" onClick={() => importInputRef.current?.click()}>
-               <Rocket size={14} /> 导入配置
-               <input type="file" ref={importInputRef} className="hidden" accept=".json" onChange={handleImportJson} />
-             </Button>
-             <Button variant="outline" size="sm" className="gap-2 text-xs font-bold hidden sm:flex" onClick={exportToJson}>
-               <Code size={14} /> 备份 JSON
-             </Button>
-             <Button size="sm" className="gap-2 text-xs font-bold shadow-lg shadow-emerald-900/10" onClick={exportToPdf} disabled={isExporting}>
-               <DownloadCloud size={14} /> 
-               <span className="hidden sm:inline">{isExporting ? "正在生成 PDF..." : "下载 PDF"}</span>
-               <span className="sm:hidden">{isExporting ? "..." : "下载"}</span>
-             </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-xs font-bold hidden md:flex"
+              onClick={() => importInputRef.current?.click()}
+            >
+              <Rocket size={14} /> 导入配置
+              <input
+                type="file"
+                ref={importInputRef}
+                className="hidden"
+                accept=".json"
+                onChange={handleImportJson}
+              />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-xs font-bold hidden sm:flex"
+              onClick={exportToJson}
+            >
+              <Code size={14} /> 备份 JSON
+            </Button>
+            <Button
+              size="sm"
+              className="gap-2 text-xs font-bold shadow-lg shadow-emerald-900/10"
+              onClick={exportToPdf}
+              disabled={isExporting}
+            >
+              <DownloadCloud size={14} />
+              <span className="hidden sm:inline">
+                {isExporting ? "正在生成 PDF..." : "下载 PDF"}
+              </span>
+              <span className="sm:hidden">{isExporting ? "..." : "下载"}</span>
+            </Button>
           </div>
         </div>
       </header>
@@ -1063,10 +1187,14 @@ function ResumeEditorContent() {
       {/* Main Content */}
       <main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
         {/* Column 1: Module Manager - Mobile Toggle */}
-        <aside className={cn(
-          "w-full lg:w-[280px] bg-white border-r border-zinc-100 p-4 overflow-y-auto flex-col gap-6 scrollbar-hide absolute inset-0 z-40 lg:relative lg:flex lg:translate-x-0 transition-transform duration-300",
-          activeMobileTab === "manage" ? "translate-x-0 flex" : "-translate-x-full lg:translate-x-0"
-        )}>
+        <aside
+          className={cn(
+            "w-full lg:w-[280px] bg-white border-r border-zinc-100 p-4 overflow-y-auto flex-col gap-6 scrollbar-hide absolute inset-0 z-40 lg:relative lg:flex lg:translate-x-0 transition-transform duration-300",
+            activeMobileTab === "manage"
+              ? "translate-x-0 flex"
+              : "-translate-x-full lg:translate-x-0",
+          )}
+        >
           <section>
             <h3 className="text-sm font-semibold mb-3 text-zinc-900 flex items-center gap-2">
               <Settings2 size={14} /> 模块管理（拖动排序）
@@ -1146,7 +1274,7 @@ function ResumeEditorContent() {
                   </Reorder.Item>
                 ))}
             </Reorder.Group>
-            
+
             <Button
               variant="outline"
               className="w-full mt-4 border-dashed border-zinc-300 bg-white hover:bg-zinc-50 flex items-center gap-2"
@@ -1154,7 +1282,13 @@ function ResumeEditorContent() {
                 const id = `custom-${Date.now()}`;
                 setModules((prev) => [
                   ...prev,
-                  { id, title: "自定义板块", visible: true, type: "custom", content: "" }
+                  {
+                    id,
+                    title: "自定义板块",
+                    visible: true,
+                    type: "custom",
+                    content: "",
+                  },
                 ]);
                 setActiveTab(id);
               }}
@@ -1183,7 +1317,9 @@ function ResumeEditorContent() {
               <div className="relative group/pill">
                 <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-full border border-zinc-200 bg-white hover:border-zinc-300 hover:shadow-sm transition-all cursor-pointer">
                   <Palette size={14} className="text-zinc-500" />
-                  <span className="text-xs font-semibold text-zinc-700">自定义</span>
+                  <span className="text-xs font-semibold text-zinc-700">
+                    自定义
+                  </span>
                   <div
                     className="w-4 h-4 rounded-full border border-black/10 shadow-inner"
                     style={{ backgroundColor: themeColor }}
@@ -1259,7 +1395,9 @@ function ResumeEditorContent() {
                     onClick={() =>
                       setTypography((prev) => ({
                         ...prev,
-                        lineHeight: parseFloat(Math.max(1, prev.lineHeight - 0.05).toFixed(2)),
+                        lineHeight: parseFloat(
+                          Math.max(1, prev.lineHeight - 0.05).toFixed(2),
+                        ),
                       }))
                     }
                   >
@@ -1275,7 +1413,9 @@ function ResumeEditorContent() {
                     onClick={() =>
                       setTypography((prev) => ({
                         ...prev,
-                        lineHeight: parseFloat(Math.min(2.5, prev.lineHeight + 0.05).toFixed(2)),
+                        lineHeight: parseFloat(
+                          Math.min(2.5, prev.lineHeight + 0.05).toFixed(2),
+                        ),
                       }))
                     }
                   >
@@ -1324,10 +1464,14 @@ function ResumeEditorContent() {
         </aside>
 
         {/* Column 2: Editor Pane - Mobile Toggle */}
-        <aside className={cn(
-          "w-full lg:w-[380px] bg-zinc-50/50 border-r border-zinc-200 p-6 overflow-y-auto overflow-x-hidden scrollbar-hide absolute inset-0 z-30 lg:relative lg:block lg:translate-x-0 transition-transform duration-300",
-          activeMobileTab === "edit" ? "translate-x-0" : "-translate-x-full lg:translate-x-0"
-        )}>
+        <aside
+          className={cn(
+            "w-full lg:w-[380px] bg-zinc-50/50 border-r border-zinc-200 p-6 overflow-y-auto overflow-x-hidden scrollbar-hide absolute inset-0 z-30 lg:relative lg:block lg:translate-x-0 transition-transform duration-300",
+            activeMobileTab === "edit"
+              ? "translate-x-0"
+              : "-translate-x-full lg:translate-x-0",
+          )}
+        >
           <AnimatePresence mode="wait">
             {activeTab === "basic" && (
               <motion.div
@@ -1393,33 +1537,67 @@ function ResumeEditorContent() {
                         <Input
                           placeholder="姓名"
                           value={resumeData.name}
-                          onChange={(e) => updateBasicData("name", e.target.value)}
+                          onChange={(e) =>
+                            updateBasicData("name", e.target.value)
+                          }
                         />
                         <button
-                          onClick={() => updateBasicData("nameVisible", !resumeData.nameVisible)}
-                          className={cn("mt-6 p-2 rounded-lg transition-colors", resumeData.nameVisible ? "text-zinc-400 hover:bg-zinc-100" : "text-zinc-200")}
+                          onClick={() =>
+                            updateBasicData(
+                              "nameVisible",
+                              !resumeData.nameVisible,
+                            )
+                          }
+                          className={cn(
+                            "mt-6 p-2 rounded-lg transition-colors",
+                            resumeData.nameVisible
+                              ? "text-zinc-400 hover:bg-zinc-100"
+                              : "text-zinc-200",
+                          )}
                         >
-                          {resumeData.nameVisible ? <Eye size={18} /> : <EyeOff size={18} />}
+                          {resumeData.nameVisible ? (
+                            <Eye size={18} />
+                          ) : (
+                            <EyeOff size={18} />
+                          )}
                         </button>
                       </div>
                       <div className="flex items-center gap-3">
                         <Input
                           placeholder="职位/称号"
                           value={resumeData.title}
-                          onChange={(e) => updateBasicData("title", e.target.value)}
+                          onChange={(e) =>
+                            updateBasicData("title", e.target.value)
+                          }
                         />
                         <button
-                          onClick={() => updateBasicData("titleVisible", !resumeData.titleVisible)}
-                          className={cn("mt-6 p-2 rounded-lg transition-colors", resumeData.titleVisible ? "text-zinc-400 hover:bg-zinc-100" : "text-zinc-200")}
+                          onClick={() =>
+                            updateBasicData(
+                              "titleVisible",
+                              !resumeData.titleVisible,
+                            )
+                          }
+                          className={cn(
+                            "mt-6 p-2 rounded-lg transition-colors",
+                            resumeData.titleVisible
+                              ? "text-zinc-400 hover:bg-zinc-100"
+                              : "text-zinc-200",
+                          )}
                         >
-                          {resumeData.titleVisible ? <Eye size={18} /> : <EyeOff size={18} />}
+                          {resumeData.titleVisible ? (
+                            <Eye size={18} />
+                          ) : (
+                            <EyeOff size={18} />
+                          )}
                         </button>
                       </div>
                     </div>
                   </div>
 
                   <div className="space-y-4 pt-6 border-t border-zinc-100">
-                    <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest pl-1">联系信息 与 更多字段</h3>
+                    <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest pl-1">
+                      联系信息 与 更多字段
+                    </h3>
                     <DndContext
                       sensors={sensors}
                       collisionDetection={closestCenter}
@@ -1438,21 +1616,31 @@ function ResumeEditorContent() {
                                 setResumeData((prev) => ({
                                   ...prev,
                                   contacts: prev.contacts.map((c) =>
-                                    c.id === item.id ? { ...c, value: val, label: lab ?? c.label } : c
+                                    c.id === item.id
+                                      ? {
+                                          ...c,
+                                          value: val,
+                                          label: lab ?? c.label,
+                                        }
+                                      : c,
                                   ),
                                 }));
                               }}
                               onDelete={() => {
                                 setResumeData((prev) => ({
                                   ...prev,
-                                  contacts: prev.contacts.filter((c) => c.id !== item.id),
+                                  contacts: prev.contacts.filter(
+                                    (c) => c.id !== item.id,
+                                  ),
                                 }));
                               }}
                               onToggleVisibility={() => {
                                 setResumeData((prev) => ({
                                   ...prev,
                                   contacts: prev.contacts.map((c) =>
-                                    c.id === item.id ? { ...c, isVisible: !c.isVisible } : c
+                                    c.id === item.id
+                                      ? { ...c, isVisible: !c.isVisible }
+                                      : c,
                                   ),
                                 }));
                               }}
@@ -1460,7 +1648,9 @@ function ResumeEditorContent() {
                                 setResumeData((prev) => ({
                                   ...prev,
                                   contacts: prev.contacts.map((c) =>
-                                    c.id === item.id ? { ...c, showLabel: !c.showLabel } : c
+                                    c.id === item.id
+                                      ? { ...c, showLabel: !c.showLabel }
+                                      : c,
                                   ),
                                 }));
                               }}
@@ -1468,7 +1658,9 @@ function ResumeEditorContent() {
                                 setResumeData((prev) => ({
                                   ...prev,
                                   contacts: prev.contacts.map((c) =>
-                                    c.id === item.id ? { ...c, iconName: icon } : c
+                                    c.id === item.id
+                                      ? { ...c, iconName: icon }
+                                      : c,
                                   ),
                                 }));
                               }}
@@ -1485,7 +1677,16 @@ function ResumeEditorContent() {
                           ...prev,
                           contacts: [
                             ...prev.contacts,
-                            { id, type: "custom", iconName: "custom", label: "自定义", value: "", isVisible: true, isCustom: true, showLabel: true },
+                            {
+                              id,
+                              type: "custom",
+                              iconName: "custom",
+                              label: "自定义",
+                              value: "",
+                              isVisible: true,
+                              isCustom: true,
+                              showLabel: true,
+                            },
                           ],
                         }));
                       }}
@@ -1495,44 +1696,58 @@ function ResumeEditorContent() {
                     </Button>
                   </div>
 
-                    <div className="pt-6 border-t border-zinc-200">
-                      <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1 mb-4">头像样式</h4>
-                      <div className="space-y-3">
-                        <div className="flex justify-between items-center text-xs font-medium text-zinc-500">
-                          <span>头像圆角 (px)</span>
+                  <div className="pt-6 border-t border-zinc-200">
+                    <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1 mb-4">
+                      头像样式
+                    </h4>
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-center text-xs font-medium text-zinc-500">
+                        <span>头像圆角 (px)</span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-10 h-10 p-0"
+                          onClick={() => {
+                            const val = Math.max(
+                              0,
+                              (resumeData.avatarBorderRadius || 12) - 2,
+                            );
+                            setResumeData((prev) => ({
+                              ...prev,
+                              avatarBorderRadius: val,
+                            }));
+                          }}
+                        >
+                          <Minus size={14} />
+                        </Button>
+                        <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">
+                          {resumeData.avatarBorderRadius || 12}
                         </div>
-                        <div className="flex items-center gap-3">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-10 h-10 p-0"
-                            onClick={() => {
-                              const val = Math.max(0, (resumeData.avatarBorderRadius || 12) - 2);
-                              setResumeData((prev) => ({ ...prev, avatarBorderRadius: val }));
-                            }}
-                          >
-                            <Minus size={14} />
-                          </Button>
-                          <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">
-                            {resumeData.avatarBorderRadius || 12}
-                          </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="w-10 h-10 p-0"
-                            onClick={() => {
-                              const val = Math.min(64, (resumeData.avatarBorderRadius || 12) + 2);
-                              setResumeData((prev) => ({ ...prev, avatarBorderRadius: val }));
-                            }}
-                          >
-                            <Plus size={14} />
-                          </Button>
-                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="w-10 h-10 p-0"
+                          onClick={() => {
+                            const val = Math.min(
+                              64,
+                              (resumeData.avatarBorderRadius || 12) + 2,
+                            );
+                            setResumeData((prev) => ({
+                              ...prev,
+                              avatarBorderRadius: val,
+                            }));
+                          }}
+                        >
+                          <Plus size={14} />
+                        </Button>
                       </div>
                     </div>
-                  </section>
-                </motion.div>
-              )}
+                  </div>
+                </section>
+              </motion.div>
+            )}
 
             {activeTab === "edu" && (
               <motion.div
@@ -1660,7 +1875,12 @@ function ResumeEditorContent() {
                         className="w-full h-32 p-3 text-sm border border-zinc-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
                         value={item.desc}
                         onChange={(e) =>
-                          updateListItem("work", item.id, "desc", e.target.value)
+                          updateListItem(
+                            "work",
+                            item.id,
+                            "desc",
+                            e.target.value,
+                          )
                         }
                       />
                     </div>
@@ -1840,7 +2060,10 @@ function ResumeEditorContent() {
                         onClick={() =>
                           setTypography((prev) => ({
                             ...prev,
-                            skillTagRadius: Math.max(0, (prev.skillTagRadius || 6) - 2),
+                            skillTagRadius: Math.max(
+                              0,
+                              (prev.skillTagRadius || 6) - 2,
+                            ),
                           }))
                         }
                       >
@@ -1856,7 +2079,10 @@ function ResumeEditorContent() {
                         onClick={() =>
                           setTypography((prev) => ({
                             ...prev,
-                            skillTagRadius: Math.min(32, (prev.skillTagRadius || 6) + 2),
+                            skillTagRadius: Math.min(
+                              32,
+                              (prev.skillTagRadius || 6) + 2,
+                            ),
                           }))
                         }
                       >
@@ -1938,9 +2164,11 @@ function ResumeEditorContent() {
                   <div className="w-10 h-10 bg-white rounded-xl border border-zinc-300 flex items-center justify-center text-zinc-600">
                     <Settings2 size={20} />
                   </div>
-                  <h2 className="text-xl font-bold tracking-tight">自定义内容</h2>
+                  <h2 className="text-xl font-bold tracking-tight">
+                    自定义内容
+                  </h2>
                 </header>
-                
+
                 <div className="space-y-4">
                   <Input
                     label="板块标题"
@@ -1949,23 +2177,31 @@ function ResumeEditorContent() {
                       const newTitle = e.target.value;
                       setModules((prev) =>
                         prev.map((mod) =>
-                          mod.id === activeTab ? { ...mod, title: newTitle } : mod,
+                          mod.id === activeTab
+                            ? { ...mod, title: newTitle }
+                            : mod,
                         ),
                       );
                     }}
                   />
-                  
+
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-500">板块内容 (支持换行)</label>
+                    <label className="text-xs font-medium text-zinc-500">
+                      板块内容 (支持换行)
+                    </label>
                     <textarea
                       className="w-full h-96 p-4 text-sm border border-zinc-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white leading-relaxed font-mono"
                       placeholder="在这里输入内容..."
-                      value={modules.find((m) => m.id === activeTab)?.content || ""}
+                      value={
+                        modules.find((m) => m.id === activeTab)?.content || ""
+                      }
                       onChange={(e) => {
                         const newContent = e.target.value;
                         setModules((prev) =>
                           prev.map((mod) =>
-                            mod.id === activeTab ? { ...mod, content: newContent } : mod,
+                            mod.id === activeTab
+                              ? { ...mod, content: newContent }
+                              : mod,
                           ),
                         );
                       }}
@@ -1981,7 +2217,9 @@ function ResumeEditorContent() {
         <section
           className={cn(
             "flex-1 bg-zinc-100 flex flex-col relative overflow-hidden group absolute inset-0 z-20 lg:relative lg:flex lg:translate-x-0 transition-transform duration-300",
-            activeMobileTab === "preview" ? "translate-x-0" : "translate-x-full lg:translate-x-0",
+            activeMobileTab === "preview"
+              ? "translate-x-0"
+              : "translate-x-full lg:translate-x-0",
           )}
         >
           {/* 右侧悬浮预览工具栏：缩放控制、自适应 */}
@@ -2140,15 +2378,32 @@ function ResumeEditorContent() {
                                   {resumeData.contacts
                                     .filter((c) => c.isVisible && c.value)
                                     .map((c, idx, arr) => {
-                                      const Icon = ICON_MAP[c.type] || ICON_MAP.custom;
+                                      const Icon =
+                                        ICON_MAP[c.type] || ICON_MAP.custom;
                                       return (
-                                        <span key={c.id} className="flex items-center gap-1.5 text-zinc-600 transition-none whitespace-nowrap">
-                                          <Icon size={12} className="text-[var(--theme-color)] opacity-60 shrink-0" />
+                                        <span
+                                          key={c.id}
+                                          className="flex items-center gap-1.5 text-zinc-600 transition-none whitespace-nowrap"
+                                        >
+                                          <Icon
+                                            size={12}
+                                            className="text-[var(--theme-color)] opacity-60 shrink-0"
+                                          />
                                           <div className="flex items-center gap-1 text-[0.98em]">
-                                            {(c.isCustom || c.showLabel) && <span className="text-zinc-400 font-bold opacity-70">{c.label}:</span>}
-                                            <span className="font-semibold">{c.value}</span>
+                                            {(c.isCustom || c.showLabel) && (
+                                              <span className="text-zinc-400 font-bold opacity-70">
+                                                {c.label}:
+                                              </span>
+                                            )}
+                                            <span className="font-semibold">
+                                              {c.value}
+                                            </span>
                                           </div>
-                                          {idx < arr.length - 1 && <span className="text-zinc-200 ml-2 select-none opacity-40">/</span>}
+                                          {idx < arr.length - 1 && (
+                                            <span className="text-zinc-200 ml-2 select-none opacity-40">
+                                              /
+                                            </span>
+                                          )}
                                         </span>
                                       );
                                     })}
@@ -2264,17 +2519,19 @@ function ResumeEditorContent() {
                                                   "tag"
                                                     ? {
                                                         borderRadius: `${typography.skillTagRadius}px`,
-                                                        backgroundColor: typography.skillTagUseTheme
-                                                          ? "var(--theme-color-5)"
-                                                          : `${typography.skillTagColor}10`,
+                                                        backgroundColor:
+                                                          typography.skillTagUseTheme
+                                                            ? "var(--theme-color-5)"
+                                                            : `${typography.skillTagColor}10`,
                                                         border: `1px solid ${
                                                           typography.skillTagUseTheme
                                                             ? "var(--theme-color-20)"
                                                             : `${typography.skillTagColor}33`
                                                         }`,
-                                                        color: typography.skillTagUseTheme
-                                                          ? "var(--theme-color)"
-                                                          : typography.skillTagColor,
+                                                        color:
+                                                          typography.skillTagUseTheme
+                                                            ? "var(--theme-color)"
+                                                            : typography.skillTagColor,
                                                         padding: "4px 12px",
                                                         fontSize: "0.9em",
                                                       }
@@ -2315,7 +2572,9 @@ function ResumeEditorContent() {
             onClick={() => setActiveMobileTab("manage")}
             className={cn(
               "flex flex-col items-center justify-center gap-1 w-16 h-10 rounded-xl transition-all",
-              activeMobileTab === "manage" ? "text-white bg-white/10" : "text-zinc-500",
+              activeMobileTab === "manage"
+                ? "text-white bg-white/10"
+                : "text-zinc-500",
             )}
           >
             <Settings2 size={16} />
@@ -2325,7 +2584,9 @@ function ResumeEditorContent() {
             onClick={() => setActiveMobileTab("edit")}
             className={cn(
               "flex flex-col items-center justify-center gap-1 w-16 h-10 rounded-xl transition-all",
-              activeMobileTab === "edit" ? "text-white bg-white/10" : "text-zinc-500",
+              activeMobileTab === "edit"
+                ? "text-white bg-white/10"
+                : "text-zinc-500",
             )}
           >
             <User size={16} />
@@ -2335,7 +2596,9 @@ function ResumeEditorContent() {
             onClick={() => setActiveMobileTab("preview")}
             className={cn(
               "flex flex-col items-center justify-center gap-1 w-20 h-10 rounded-xl transition-all",
-              activeMobileTab === "preview" ? "text-white bg-white/10" : "text-zinc-500",
+              activeMobileTab === "preview"
+                ? "text-white bg-white/10"
+                : "text-zinc-500",
             )}
           >
             <Eye size={16} />
@@ -2471,4 +2734,3 @@ export default function ResumeEditor() {
     </React.Suspense>
   );
 }
-

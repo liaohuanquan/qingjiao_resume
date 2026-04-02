@@ -66,17 +66,22 @@ export default function DashboardLayout({
       <aside
         className={cn(
           "h-full bg-white border-r border-zinc-200 flex flex-col transition-all duration-300 ease-in-out z-50",
-          isSidebarOpen ? "w-[260px]" : "w-[0px] lg:w-[80px] -translate-x-full lg:translate-x-0"
+          isSidebarOpen
+            ? "w-[260px]"
+            : "w-[0px] lg:w-[80px] -translate-x-full lg:translate-x-0",
         )}
       >
         {/* Logo 区 */}
         <div className="h-20 flex items-center px-6 gap-3 border-b border-zinc-100 shrink-0">
-          <Link href="/" className="w-9 h-9 overflow-hidden rounded-full shadow-lg shadow-zinc-200 hover:scale-105 transition-transform">
-            <Image 
-              src="/qingjiao_resume/images/qinfjiao_resume.png" 
-              alt="青椒简历 Logo" 
-              width={36} 
-              height={36} 
+          <Link
+            href="/"
+            className="w-9 h-9 overflow-hidden rounded-full shadow-lg shadow-zinc-200 hover:scale-105 transition-transform"
+          >
+            <Image
+              src="/qingjiao_resume/images/qinfjiao_resume.png"
+              alt="青椒简历 Logo"
+              width={36}
+              height={36}
               className="object-cover"
             />
           </Link>
@@ -110,7 +115,7 @@ export default function DashboardLayout({
           </div>
 
           <div>
-             {isSidebarOpen && (
+            {isSidebarOpen && (
               <p className="px-4 text-[10px] font-bold text-zinc-400 uppercase tracking-widest mb-2">
                 高级工具
               </p>
@@ -133,8 +138,13 @@ export default function DashboardLayout({
         {/* 底部退出区 */}
         <div className="p-4 border-t border-zinc-100 bg-zinc-50/50">
           <button className="w-full flex items-center gap-3 px-4 py-3 text-zinc-500 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all group">
-            <LogOut size={18} className="group-hover:translate-x-0.5 transition-transform" />
-            {isSidebarOpen && <span className="font-medium text-sm">退出登录</span>}
+            <LogOut
+              size={18}
+              className="group-hover:translate-x-0.5 transition-transform"
+            />
+            {isSidebarOpen && (
+              <span className="font-medium text-sm">退出登录</span>
+            )}
           </button>
         </div>
       </aside>
@@ -143,9 +153,9 @@ export default function DashboardLayout({
       <div className="flex-1 flex flex-col overflow-hidden relative">
         {/* 内容顶栏 (可选，用于放置切换按钮) */}
         <header className="h-16 flex items-center px-8 bg-zinc-50/50 absolute top-0 left-0 right-0 z-10 pointer-events-none">
-          <button 
-             onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-             className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-zinc-200 text-zinc-500 hover:text-zinc-900 hover:shadow-sm transition-all pointer-events-auto"
+          <button
+            onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+            className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-zinc-200 text-zinc-500 hover:text-zinc-900 hover:shadow-sm transition-all pointer-events-auto"
           >
             <Menu size={20} />
           </button>
