@@ -72,6 +72,23 @@ AI_MODEL=gpt-4o-mini
 
 访问 `http://localhost:3000/qingjiao_resume/editor` 即可开始编辑您的简历。
 
+## 部署说明
+
+项目使用 Next.js 服务端输出模式，支持 `app/api/ai/optimize` 动态接口。生产环境需要使用 Node 服务或支持 Next.js 服务器能力的平台部署，不能再按纯静态站点托管。
+
+### Docker 部署
+
+```bash
+docker build -t qingjiao_resume .
+docker run -p 3000:3000 \
+  -e AI_BASE_URL=https://api.openai.com/v1 \
+  -e AI_API_KEY=your_api_key \
+  -e AI_MODEL=gpt-4o-mini \
+  qingjiao_resume
+```
+
+部署后访问 `http://localhost:3000/qingjiao_resume/editor`。
+
 ## 🤝 贡献与支持 (Contribution)
 
 欢迎任何形式的贡献！无论是修复 Bug、改进 UI，还是增加新的模板和功能特性。
