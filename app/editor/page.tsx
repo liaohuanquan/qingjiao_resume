@@ -33,6 +33,7 @@ import {
   Link,
   Calendar,
   MessageCircle,
+  Sparkles,
 } from "lucide-react";
 
 import {
@@ -200,6 +201,26 @@ interface ResumeMetadata {
   lastModified: string;
   theme: string;
 }
+
+type AiOptimizeMode = "polish" | "quantify" | "concise";
+
+type AiTarget =
+  | { type: "work"; id: string }
+  | { type: "project"; id: string }
+  | { type: "skills" };
+
+interface AiDraft {
+  target: AiTarget;
+  sourceText: string;
+  result: string;
+  context: string;
+}
+
+const AI_MODE_LABELS: Record<AiOptimizeMode, string> = {
+  polish: "润色表达",
+  quantify: "量化成果",
+  concise: "压缩语气",
+};
 
 // --- 基础 UI 组件 ---
 
@@ -787,7 +808,7 @@ function ResumeEditorContent() {
   const updateSkills = (value: string) => {
     setResumeData((prev) => ({
       ...prev,
-      skills: value.split(",").map((s) => s.trim()),
+      skills: value.split(/[,，\n]/).map((s) => s.trim()),
     }));
   };
 
@@ -940,6 +961,97 @@ function ResumeEditorContent() {
   >("edit");
   const scrollStart = React.useRef({ scrollLeft: 0, scrollTop: 0, x: 0, y: 0 }); // 记录拖拽起始位置
   const importInputRef = React.useRef<HTMLInputElement>(null); // JSON 导入隐藏 Input Ref
+  const [isAiOptimizing, setIsAiOptimizing] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiDraft, setAiDraft] = useState<AiDraft | null>(null);
+
+  const optimizeWithAi = async ({
+    text,
+    target,
+    context,
+    mode,
+  }: {
+    text: string;
+    target: AiTarget;
+    context: string;
+    mode: AiOptimizeMode;
+  }) => {
+    const sourceText = text.trim();
+    if (!sourceText) {
+      setAiError("待优化文本不能为空。");
+      return;
+    }
+
+    setIsAiOptimizing(true);
+    setAiError(null);
+    try {
+      const apiBasePath = window.location.pathname.startsWith("/qingjiao_resume")
+        ? "/qingjiao_resume"
+        : "";
+      const response = await fetch(`${apiBasePath}/api/ai/optimize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: sourceText, mode, context }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || "AI 优化失败");
+      }
+
+      setAiDraft({
+        target,
+        sourceText,
+        result: data.result,
+        context: `${context} · ${AI_MODE_LABELS[mode]}`,
+      });
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : "AI 优化失败");
+    } finally {
+      setIsAiOptimizing(false);
+    }
+  };
+
+  const applyAiDraft = () => {
+    if (!aiDraft) return;
+
+    if (aiDraft.target.type === "work") {
+      updateListItem("work", aiDraft.target.id, "desc", aiDraft.result);
+    } else if (aiDraft.target.type === "project") {
+      updateListItem("project", aiDraft.target.id, "desc", aiDraft.result);
+    } else {
+      updateSkills(aiDraft.result);
+    }
+
+    setAiDraft(null);
+  };
+
+  const renderAiActions = ({
+    text,
+    target,
+    context,
+  }: {
+    text: string;
+    target: AiTarget;
+    context: string;
+  }) => (
+    <div className="grid grid-cols-3 gap-2">
+      {(["polish", "quantify", "concise"] as AiOptimizeMode[]).map((mode) => (
+        <Button
+          key={mode}
+          type="button"
+          variant="outline"
+          size="sm"
+          className="gap-1.5 text-[10px] font-bold"
+          disabled={isAiOptimizing}
+          onClick={() => optimizeWithAi({ text, target, context, mode })}
+        >
+          <Sparkles size={12} />
+          {AI_MODE_LABELS[mode]}
+        </Button>
+      ))}
+    </div>
+  );
 
   // 1. PDF 导出逻辑：深度集成 jsPDF 与 html-to-image
   const exportToPdf = async () => {
@@ -1472,6 +1584,11 @@ function ResumeEditorContent() {
               : "-translate-x-full lg:translate-x-0",
           )}
         >
+          {aiError && (
+            <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-medium text-red-600">
+              {aiError}
+            </div>
+          )}
           <AnimatePresence mode="wait">
             {activeTab === "basic" && (
               <motion.div
@@ -1883,6 +2000,11 @@ function ResumeEditorContent() {
                           )
                         }
                       />
+                      {renderAiActions({
+                        text: item.desc,
+                        target: { type: "work", id: item.id },
+                        context: "工作经历关键成果描述",
+                      })}
                     </div>
                   </Card>
                 ))}
@@ -1978,6 +2100,11 @@ function ResumeEditorContent() {
                           )
                         }
                       />
+                      {renderAiActions({
+                        text: item.desc,
+                        target: { type: "project", id: item.id },
+                        context: "项目经验核心亮点",
+                      })}
                     </div>
                   </Card>
                 ))}
@@ -2015,6 +2142,11 @@ function ResumeEditorContent() {
                     onChange={(e) => updateSkills(e.target.value)}
                     title="列表键入"
                   />
+                  {renderAiActions({
+                    text: resumeData.skills.join(", "),
+                    target: { type: "skills" },
+                    context: "专业技能清单，结果使用逗号分隔",
+                  })}
                 </div>
 
                 <div className="space-y-3 pt-4 border-t border-zinc-100">
@@ -2606,6 +2738,80 @@ function ResumeEditorContent() {
           </button>
         </div>
       </main>
+
+      {/* AI Optimize Modal */}
+      <AnimatePresence>
+        {aiDraft && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 16 }}
+              className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-zinc-100 p-6">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                    <Sparkles size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-zinc-900">
+                      AI 优化结果
+                    </h3>
+                    <p className="text-xs font-medium text-zinc-400">
+                      {aiDraft.context}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setAiDraft(null)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
+                  title="关闭"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="grid gap-4 p-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+                    原文
+                  </div>
+                  <div className="h-72 overflow-auto whitespace-pre-wrap rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm leading-relaxed text-zinc-500">
+                    {aiDraft.sourceText}
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <div className="text-xs font-bold uppercase tracking-widest text-emerald-600">
+                    优化后
+                  </div>
+                  <div className="h-72 overflow-auto whitespace-pre-wrap rounded-xl border border-emerald-100 bg-emerald-50/40 p-4 text-sm leading-relaxed text-zinc-800">
+                    {aiDraft.result}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-zinc-100 bg-zinc-50/60 p-6 sm:flex-row sm:justify-end">
+                <Button
+                  variant="outline"
+                  className="h-11"
+                  onClick={() => setAiDraft(null)}
+                >
+                  保留原文
+                </Button>
+                <Button className="h-11 gap-2" onClick={applyAiDraft}>
+                  <Check size={16} /> 应用结果
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Avatar Crop Modal */}
       <AnimatePresence>

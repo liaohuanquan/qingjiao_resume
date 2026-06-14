@@ -58,7 +58,17 @@ npm install
 npm run dev
 ```
 
-### 3. 开始创作
+### 3. 配置 AI 服务端能力
+
+如需使用 AI 优化功能，请在 `.env.local` 中配置 OpenAI-compatible 服务：
+
+```bash
+AI_BASE_URL=https://api.openai.com/v1
+AI_API_KEY=your_api_key
+AI_MODEL=gpt-4o-mini
+```
+
+### 4. 开始创作
 
 访问 `http://localhost:3000/qingjiao_resume/editor` 即可开始编辑您的简历。
 
