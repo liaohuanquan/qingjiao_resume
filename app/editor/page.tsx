@@ -955,6 +955,9 @@ function ResumeEditorContent() {
   const [isSaving, setIsSaving] = useState(false); // 是否正在保存
   const [isExporting, setIsExporting] = useState(false); // 是否正在导出 PDF
   const [exportProgress, setExportProgress] = useState<string | null>(null); // 导出进度提示
+  const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
+  const [exportFilename, setExportFilename] = useState("");
+  const [exportWarnings, setExportWarnings] = useState<string[]>([]);
   const [isPanning, setIsPanning] = useState(false); // 预览区是否正在按下鼠标拖拽平移
   // 移动端底部 Tab 激活状态：管理、编辑、预览
   const [activeMobileTab, setActiveMobileTab] = useState<
@@ -1175,6 +1178,29 @@ function ResumeEditorContent() {
     </Button>
   );
 
+  const getExportWarnings = () => {
+    const warnings: string[] = [];
+    if (!resumeData.name.trim()) warnings.push("姓名为空，建议补充后再导出。");
+    if (!resumeData.title.trim())
+      warnings.push("求职意向为空，建议补充后再导出。");
+    if (
+      resumeData.contacts.filter((item) => item.isVisible && item.value)
+        .length === 0
+    ) {
+      warnings.push("没有可见联系方式，建议至少保留电话或邮箱。");
+    }
+    if (numPages > 1) {
+      warnings.push(`当前预览为 ${numPages} 页，导出 PDF 将包含多页。`);
+    }
+    return warnings;
+  };
+
+  const openExportDialog = () => {
+    setExportFilename(`青椒简历-${resumeData.name || "未命名"}`);
+    setExportWarnings(getExportWarnings());
+    setIsExportDialogOpen(true);
+  };
+
   // 1. PDF 导出逻辑：深度集成 jsPDF 与 html-to-image
   const exportToPdf = async () => {
     setIsExporting(true);
@@ -1206,7 +1232,11 @@ function ResumeEditorContent() {
       }
 
       setExportProgress("正在打包下载...");
-      pdf.save(`青椒简历-${resumeData.name || "未命名"}.pdf`);
+      const safeName =
+        exportFilename.trim().replace(/[\\/:*?"<>|]/g, "-") ||
+        `青椒简历-${resumeData.name || "未命名"}`;
+      pdf.save(`${safeName}.pdf`);
+      setIsExportDialogOpen(false);
     } catch (err) {
       console.error("PDF 失败:", err);
       alert("PDF 生成失败，请检查浏览器是否兼容。");
@@ -1413,7 +1443,7 @@ function ResumeEditorContent() {
             <Button
               size="sm"
               className="gap-2 text-xs font-bold shadow-lg shadow-emerald-900/10"
-              onClick={exportToPdf}
+              onClick={openExportDialog}
               disabled={isExporting}
             >
               <DownloadCloud size={14} />
@@ -2890,6 +2920,91 @@ function ResumeEditorContent() {
           </button>
         </div>
       </main>
+
+      {/* Export Check Modal */}
+      <AnimatePresence>
+        {isExportDialogOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 16 }}
+              className="w-full max-w-lg overflow-hidden rounded-2xl bg-white shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-zinc-100 p-6">
+                <div>
+                  <h3 className="text-lg font-bold text-zinc-900">
+                    导出前检查
+                  </h3>
+                  <p className="text-xs font-medium text-zinc-400">
+                    确认文件名与 A4 页数后生成 PDF
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsExportDialogOpen(false)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
+                  title="关闭"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-5 p-6">
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+                    PDF 文件名
+                  </label>
+                  <input
+                    className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 text-sm font-medium outline-none transition-colors focus:border-zinc-400"
+                    value={exportFilename}
+                    onChange={(e) => setExportFilename(e.target.value)}
+                  />
+                </div>
+
+                <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                  <div className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-400">
+                    检查结果
+                  </div>
+                  {exportWarnings.length > 0 ? (
+                    <ul className="space-y-2 text-sm font-medium text-amber-700">
+                      {exportWarnings.map((warning) => (
+                        <li key={warning}>- {warning}</li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <p className="text-sm font-medium text-emerald-600">
+                      未发现明显问题，可以导出。
+                    </p>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex flex-col-reverse gap-3 border-t border-zinc-100 bg-zinc-50/60 p-6 sm:flex-row sm:justify-end">
+                <Button
+                  variant="outline"
+                  className="h-11"
+                  onClick={() => setIsExportDialogOpen(false)}
+                >
+                  取消
+                </Button>
+                <Button
+                  className="h-11 gap-2"
+                  disabled={isExporting}
+                  onClick={exportToPdf}
+                >
+                  <DownloadCloud size={16} />
+                  {isExporting ? "正在生成" : "确认导出"}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* AI Analysis Modal */}
       <AnimatePresence>
