@@ -1012,6 +1012,45 @@ function ResumeEditorContent() {
     }
   };
 
+  const generateAiDraft = async ({
+    target,
+    context,
+    payload,
+  }: {
+    target: Extract<AiTarget, { type: "work" | "project" }>;
+    context: string;
+    payload: Record<string, string | string[]>;
+  }) => {
+    setIsAiOptimizing(true);
+    setAiError(null);
+    try {
+      const apiBasePath = window.location.pathname.startsWith("/qingjiao_resume")
+        ? "/qingjiao_resume"
+        : "";
+      const response = await fetch(`${apiBasePath}/api/ai/generate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || "AI 生成失败");
+      }
+
+      setAiDraft({
+        target,
+        sourceText: "根据当前填写的公司、岗位、时间与技能生成初稿。",
+        result: data.result,
+        context,
+      });
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : "AI 生成失败");
+    } finally {
+      setIsAiOptimizing(false);
+    }
+  };
+
   const applyAiDraft = () => {
     if (!aiDraft) return;
 
@@ -1051,6 +1090,27 @@ function ResumeEditorContent() {
         </Button>
       ))}
     </div>
+  );
+
+  const renderGenerateButton = ({
+    target,
+    context,
+    payload,
+  }: {
+    target: Extract<AiTarget, { type: "work" | "project" }>;
+    context: string;
+    payload: Record<string, string | string[]>;
+  }) => (
+    <Button
+      type="button"
+      variant="secondary"
+      size="sm"
+      className="w-full gap-2 text-xs font-bold"
+      disabled={isAiOptimizing}
+      onClick={() => generateAiDraft({ target, context, payload })}
+    >
+      <Sparkles size={14} /> AI 生成初稿
+    </Button>
   );
 
   // 1. PDF 导出逻辑：深度集成 jsPDF 与 html-to-image
@@ -2005,6 +2065,17 @@ function ResumeEditorContent() {
                         target: { type: "work", id: item.id },
                         context: "工作经历关键成果描述",
                       })}
+                      {renderGenerateButton({
+                        target: { type: "work", id: item.id },
+                        context: "工作经历 · AI 生成初稿",
+                        payload: {
+                          type: "work",
+                          company: item.company,
+                          role: item.role,
+                          date: item.date,
+                          skills: resumeData.skills,
+                        },
+                      })}
                     </div>
                   </Card>
                 ))}
@@ -2104,6 +2175,17 @@ function ResumeEditorContent() {
                         text: item.desc,
                         target: { type: "project", id: item.id },
                         context: "项目经验核心亮点",
+                      })}
+                      {renderGenerateButton({
+                        target: { type: "project", id: item.id },
+                        context: "项目经验 · AI 生成初稿",
+                        payload: {
+                          type: "project",
+                          projectName: item.name,
+                          role: item.role,
+                          date: item.date,
+                          skills: resumeData.skills,
+                        },
                       })}
                     </div>
                   </Card>
