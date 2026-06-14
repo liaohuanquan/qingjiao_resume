@@ -2,7 +2,7 @@
 
 ## 1. 项目基础与核心架构
 
-- [X] 开发环境搭建：Next.js 15, Tailwind CSS 4, Framer Motion。
+- [X] 开发环境搭建：Next.js 16, Tailwind CSS 4, Framer Motion。
 - [X] 安装并配置关键依赖：`lucide-react`, `clsx`, `tailwind-merge`。
 - [X] **页面骨架实现 (app/editor/page.tsx)**：
   - [X] `h-screen` 三栏式静止布局（三区联动）。

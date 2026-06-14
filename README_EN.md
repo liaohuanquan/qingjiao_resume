@@ -1,13 +1,13 @@
 # QingJiao Resume
 
-A minimalist, ultra-smooth, and modern online resume builder. Built with **Next.js 15**, **Tailwind CSS 4**, and **Framer Motion**, designed to make resume writing enjoyable through AI assistance and ultimate UI interaction.
+A minimalist, ultra-smooth, and modern online resume builder. Built with **Next.js 16**, **Tailwind CSS 4**, and **Framer Motion**, designed to make resume writing enjoyable through AI assistance and ultimate UI interaction.
 
 <p align="center">
   <img src="public/images/qinfjiao_resume.png" width="120" height="120" style="border-radius: 50%" />
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Next.js-15-black?logo=next.js" />
+  <img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js" />
   <img src="https://img.shields.io/badge/React-19-blue?logo=react" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-4-38B2AC?logo=tailwind-css" />
   <img src="https://img.shields.io/badge/License-MIT-green" />
@@ -33,7 +33,7 @@ A minimalist, ultra-smooth, and modern online resume builder. Built with **Next.
 
 ## Tech Stack
 
-- **Framework**: [Next.js 15 (App Router)](https://nextjs.org/)
+- **Framework**: [Next.js 16 (App Router)](https://nextjs.org/)
 - **UI Logic**: [React 19](https://react.dev/)
 - **Styling**: [Tailwind CSS 4](https://tailwindcss.com/)
 - **Animation**: [Framer Motion](https://www.framer.com/motion/)

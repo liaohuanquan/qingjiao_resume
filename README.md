@@ -5,7 +5,7 @@
 <h1 align="center">青椒简历 (QingJiao Resume)</h1>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Next.js-15-black?logo=next.js" />
+  <img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js" />
   <img src="https://img.shields.io/badge/React-19-blue?logo=react" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-4-38B2AC?logo=tailwind-css" />
   <img src="https://img.shields.io/badge/License-MIT-green" />
@@ -15,7 +15,7 @@
   <b>简体中文</b> | <a href="README_EN.md">English</a>
 </p>
 
-一个极简、极其流畅且现代化的在线简历编辑器。基于 **Next.js 15**、**Tailwind CSS 4** 和 **Framer Motion** 构建，旨在通过 AI 辅助与极致的 UI 交互，让写简历变成一种享受。
+一个极简、极其流畅且现代化的在线简历编辑器。基于 **Next.js 16**、**Tailwind CSS 4** 和 **Framer Motion** 构建，旨在通过 AI 辅助与极致的 UI 交互，让写简历变成一种享受。
 
 ![1774840569061](image/README/1774840569061.png)![1774840556914](image/README/1774840556914.png)
 
@@ -37,7 +37,7 @@
 
 ## 技术栈
 
-- **框架**: [Next.js 15 (App Router)](https://nextjs.org/)
+- **框架**: [Next.js 16 (App Router)](https://nextjs.org/)
 - **UI 逻辑**: [React 19](https://react.dev/)
 - **样式**: [Tailwind CSS 4](https://tailwindcss.com/)
 - **动画**: [Framer Motion](https://www.framer.com/motion/)
