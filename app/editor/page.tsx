@@ -203,6 +203,7 @@ interface ResumeMetadata {
 }
 
 type AiOptimizeMode = "polish" | "quantify" | "concise";
+type AiAnalyzeMode = "jd_match" | "score";
 
 type AiTarget =
   | { type: "work"; id: string }
@@ -962,8 +963,69 @@ function ResumeEditorContent() {
   const scrollStart = React.useRef({ scrollLeft: 0, scrollTop: 0, x: 0, y: 0 }); // 记录拖拽起始位置
   const importInputRef = React.useRef<HTMLInputElement>(null); // JSON 导入隐藏 Input Ref
   const [isAiOptimizing, setIsAiOptimizing] = useState(false);
+  const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiDraft, setAiDraft] = useState<AiDraft | null>(null);
+  const [isAiAnalysisOpen, setIsAiAnalysisOpen] = useState(false);
+  const [jdText, setJdText] = useState("");
+  const [aiAnalysisResult, setAiAnalysisResult] = useState("");
+
+  const buildResumeText = () =>
+    [
+      resumeData.name,
+      resumeData.title,
+      resumeData.contacts
+        .filter((item) => item.isVisible && item.value)
+        .map((item) => `${item.label}: ${item.value}`)
+        .join("\n"),
+      "教育背景",
+      ...resumeData.education.map(
+        (item) => `${item.school} ${item.major} ${item.date}`,
+      ),
+      "工作经历",
+      ...resumeData.workExperiences.map(
+        (item) => `${item.company} ${item.role} ${item.date}\n${item.desc}`,
+      ),
+      "项目经验",
+      ...resumeData.projects.map(
+        (item) => `${item.name} ${item.role} ${item.date}\n${item.desc}`,
+      ),
+      "专业技能",
+      resumeData.skills.join(", "),
+    ]
+      .filter(Boolean)
+      .join("\n\n");
+
+  const analyzeResumeWithAi = async (mode: AiAnalyzeMode) => {
+    setIsAiAnalyzing(true);
+    setAiError(null);
+    setAiAnalysisResult("");
+    try {
+      const apiBasePath = window.location.pathname.startsWith("/qingjiao_resume")
+        ? "/qingjiao_resume"
+        : "";
+      const response = await fetch(`${apiBasePath}/api/ai/analyze`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode,
+          resumeText: buildResumeText(),
+          jdText,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error || "AI 分析失败");
+      }
+
+      setAiAnalysisResult(data.result);
+    } catch (error) {
+      setAiError(error instanceof Error ? error.message : "AI 分析失败");
+    } finally {
+      setIsAiAnalyzing(false);
+    }
+  };
 
   const optimizeWithAi = async ({
     text,
@@ -1331,6 +1393,14 @@ function ResumeEditorContent() {
                 accept=".json"
                 onChange={handleImportJson}
               />
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-xs font-bold hidden sm:flex"
+              onClick={() => setIsAiAnalysisOpen(true)}
+            >
+              <Target size={14} /> AI 分析
             </Button>
             <Button
               variant="outline"
@@ -2820,6 +2890,105 @@ function ResumeEditorContent() {
           </button>
         </div>
       </main>
+
+      {/* AI Analysis Modal */}
+      <AnimatePresence>
+        {isAiAnalysisOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 16 }}
+              className="w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-zinc-100 p-6">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                    <Target size={22} />
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-zinc-900">
+                      AI 简历分析
+                    </h3>
+                    <p className="text-xs font-medium text-zinc-400">
+                      支持 JD 匹配优化与简历评分
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setIsAiAnalysisOpen(false)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
+                  title="关闭"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="grid gap-6 p-6 lg:grid-cols-[360px_1fr]">
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+                      招聘 JD
+                    </label>
+                    <textarea
+                      className="h-72 w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm leading-relaxed text-zinc-700 outline-none transition-colors focus:border-zinc-400"
+                      placeholder="粘贴招聘岗位描述，用于分析匹配度..."
+                      value={jdText}
+                      onChange={(e) => setJdText(e.target.value)}
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <Button
+                      type="button"
+                      className="h-11 gap-2"
+                      disabled={isAiAnalyzing}
+                      onClick={() => analyzeResumeWithAi("jd_match")}
+                    >
+                      <Target size={15} /> JD 匹配
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="h-11 gap-2"
+                      disabled={isAiAnalyzing}
+                      onClick={() => analyzeResumeWithAi("score")}
+                    >
+                      <Award size={15} /> 简历评分
+                    </Button>
+                  </div>
+                  {aiError && (
+                    <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-medium text-red-600">
+                      {aiError}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+                      分析报告
+                    </div>
+                    {isAiAnalyzing && (
+                      <span className="text-xs font-bold text-emerald-600">
+                        分析中...
+                      </span>
+                    )}
+                  </div>
+                  <div className="h-[352px] overflow-auto whitespace-pre-wrap rounded-xl border border-zinc-200 bg-white p-4 text-sm leading-relaxed text-zinc-700">
+                    {aiAnalysisResult ||
+                      "点击 JD 匹配或简历评分后，分析结果会显示在这里。"}
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* AI Optimize Modal */}
       <AnimatePresence>
