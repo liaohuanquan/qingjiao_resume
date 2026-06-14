@@ -39,6 +39,12 @@ interface AIProvider {
     | "custom";
 }
 
+interface ServerAIStatus {
+  baseUrl: string;
+  model: string;
+  hasApiKey: boolean;
+}
+
 const DEFAULT_PROVIDERS: AIProvider[] = [
   {
     id: "openai-1",
@@ -114,6 +120,7 @@ export default function AIPage() {
     "idle",
   );
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [serverStatus, setServerStatus] = useState<ServerAIStatus | null>(null);
 
   // 1. 初始化加载
   useEffect(() => {
@@ -138,6 +145,14 @@ export default function AIPage() {
       }
       setIsLoaded(true);
     });
+
+    const apiBasePath = window.location.pathname.startsWith("/qingjiao_resume")
+      ? "/qingjiao_resume"
+      : "";
+    fetch(`${apiBasePath}/api/ai/status`)
+      .then((res) => res.json())
+      .then((data) => setServerStatus(data))
+      .catch(() => setServerStatus(null));
   }, []);
 
   // 2. 保存至本地
@@ -219,7 +234,7 @@ export default function AIPage() {
               AI 服务商管理
             </h1>
             <p className="text-zinc-500 font-medium">
-              配置 API 密钥，让您的简历获得 AI 智能改写与纠错能力。
+              查看服务端 AI 状态，并维护本地服务商配置草稿。
             </p>
           </div>
 
@@ -251,7 +266,7 @@ export default function AIPage() {
           </div>
         </header>
 
-        {/* Info Banner */}
+        {/* Server Status Banner */}
         <div className="mb-10 p-8 bg-zinc-900 rounded-[2.5rem] text-white overflow-hidden relative group shadow-xl shadow-zinc-200">
           <div className="absolute top-0 right-0 p-8 opacity-10 pointer-events-none group-hover:scale-110 transition-transform duration-700">
             <ShieldCheck size={120} />
@@ -262,22 +277,34 @@ export default function AIPage() {
                 <ShieldCheck size={28} className="text-emerald-400" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-xl font-bold">本地隐私保护与直连</h3>
+                <h3 className="text-xl font-bold">服务端 AI 配置状态</h3>
                 <p className="text-zinc-400 text-sm max-w-lg leading-relaxed font-medium">
-                  您的 API Key
-                  将直接存储在当前浏览器的本地存储中，不会上传到青椒简历的服务器。这意味着所有
-                  AI 交互逻辑均在您的浏览器中直连 AI 服务商，确保数据主权。
+                  当前编辑器的 AI
+                  功能读取服务端环境变量。本页下方配置保存在浏览器本地，可作为配置草稿使用，不会影响已上线的服务端调用。
                 </p>
+                <div className="flex flex-wrap gap-2 pt-3 text-[10px] font-bold uppercase tracking-widest">
+                  <span className="rounded-full bg-white/10 px-3 py-1 text-zinc-300">
+                    {serverStatus?.model || "模型读取中"}
+                  </span>
+                  <span
+                    className={cn(
+                      "rounded-full px-3 py-1",
+                      serverStatus?.hasApiKey
+                        ? "bg-emerald-400/15 text-emerald-300"
+                        : "bg-red-400/15 text-red-300",
+                    )}
+                  >
+                    {serverStatus?.hasApiKey ? "API Key 已配置" : "API Key 未配置"}
+                  </span>
+                </div>
               </div>
             </div>
-            <a
-              href="https://platform.openai.com/api-keys"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-6 py-3 bg-white/10 hover:bg-white/20 rounded-xl text-[10px] font-bold uppercase tracking-widest transition-all flex items-center gap-2 self-start md:self-center border border-white/10"
+            <div
+              className="max-w-full px-6 py-3 bg-white/10 rounded-xl text-[10px] font-bold uppercase tracking-widest flex items-center gap-2 self-start md:self-center border border-white/10 font-mono truncate"
+              title={serverStatus?.baseUrl || "读取服务端配置"}
             >
-              获取 API Key <ExternalLink size={14} />
-            </a>
+              {serverStatus?.baseUrl || "读取服务端配置"} <ExternalLink size={14} />
+            </div>
           </div>
         </div>
 
