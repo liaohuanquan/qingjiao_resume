@@ -1458,6 +1458,14 @@ function ResumeEditorContent() {
             <Button
               variant="outline"
               size="sm"
+              className="gap-1.5 text-xs font-bold sm:hidden"
+              onClick={() => setIsAiAnalysisOpen(true)}
+            >
+              <Target size={14} /> AI
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
               className="gap-2 text-xs font-bold hidden sm:flex"
               onClick={exportToJson}
             >
