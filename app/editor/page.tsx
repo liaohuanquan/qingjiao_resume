@@ -254,12 +254,201 @@ const RESUME_TEMPLATES: Array<{
   { id: "tech", name: "技术岗版", description: "突出技能和项目，适合研发岗位" },
 ];
 
+type ImportSectionKey = "intro" | "contact" | "education" | "work" | "project" | "skill";
+
+const IMPORT_SECTION_KEYWORDS: Record<Exclude<ImportSectionKey, "intro">, string[]> = {
+  contact: ["联系", "联系方式", "contact", "contacts"],
+  education: ["教育", "教育背景", "education"],
+  work: ["工作", "工作经历", "经历", "experience", "work"],
+  project: ["项目", "项目经验", "projects", "project"],
+  skill: ["技能", "专业技能", "skills", "skill"],
+};
+
+const stripImportLine = (line: string) =>
+  line
+    .replace(/^#{1,6}\s*/, "")
+    .replace(/^[-*•]\s*/, "")
+    .replace(/^\d+[.)、]\s*/, "")
+    .replace(/\*\*/g, "")
+    .trim();
+
+const getImportSectionKey = (line: string): ImportSectionKey | null => {
+  const normalized = stripImportLine(line).replace(/[:：]$/, "").toLowerCase();
+  const match = Object.entries(IMPORT_SECTION_KEYWORDS).find(([, keywords]) =>
+    keywords.some((keyword) => normalized === keyword.toLowerCase()),
+  );
+  return (match?.[0] as ImportSectionKey | undefined) ?? null;
+};
+
+const splitImportBlocks = (lines: string[]) => {
+  const blocks: string[][] = [];
+  let current: string[] = [];
+
+  lines.forEach((line) => {
+    if (!line.trim()) {
+      if (current.length > 0) {
+        blocks.push(current);
+        current = [];
+      }
+      return;
+    }
+    current.push(stripImportLine(line));
+  });
+
+  if (current.length > 0) blocks.push(current);
+  return blocks;
+};
+
+const findImportDate = (lines: string[]) => {
+  const datePattern =
+    /((?:19|20)\d{2}(?:[./-]\d{1,2})?\s*(?:-|–|—|至|到|~)\s*(?:至今|present|now|(?:19|20)\d{2}(?:[./-]\d{1,2})?)|(?:19|20)\d{2}(?:[./-]\d{1,2})?)/i;
+  return lines.find((line) => datePattern.test(line))?.match(datePattern)?.[0] ?? "";
+};
+
+const removeImportDate = (line: string, date: string) =>
+  date ? line.replace(date, "").replace(/[|｜·,，-]+$/g, "").trim() : line;
+
+const parseImportContacts = (text: string, contactLines: string[]) => {
+  const contacts: ContactItem[] = [];
+  const pushContact = (
+    type: string,
+    iconName: string,
+    label: string,
+    value: string,
+  ) => {
+    if (!value || contacts.some((item) => item.value === value)) return;
+    contacts.push({
+      id: `import-contact-${contacts.length + 1}`,
+      type,
+      iconName,
+      label,
+      value,
+      isVisible: true,
+      isCustom: false,
+      showLabel: type === "custom",
+    });
+  };
+
+  const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] ?? "";
+  const phone =
+    text.match(/(?:\+?\d[\d\s-]{7,}\d)/)?.[0]?.replace(/\s+/g, "") ?? "";
+  pushContact("phone", "phone", "电话", phone);
+  pushContact("email", "email", "邮箱", email);
+
+  contactLines.forEach((line) => {
+    const value = stripImportLine(line);
+    if (!value) return;
+    if (/城市|地址|所在地|location|city/i.test(value)) {
+      pushContact("city", "city", "城市", value.split(/[:：]/).pop()?.trim() ?? value);
+    } else if (/github/i.test(value)) {
+      pushContact("github", "github", "GitHub", value.split(/[:：]/).pop()?.trim() ?? value);
+    } else if (/博客|blog|website|网站/i.test(value)) {
+      pushContact("blog", "blog", "博客", value.split(/[:：]/).pop()?.trim() ?? value);
+    }
+  });
+
+  return contacts;
+};
+
+const parseResumeTextDraft = (text: string): ResumeData => {
+  const sections: Record<ImportSectionKey, string[]> = {
+    intro: [],
+    contact: [],
+    education: [],
+    work: [],
+    project: [],
+    skill: [],
+  };
+  let currentSection: ImportSectionKey = "intro";
+
+  text.split(/\r?\n/).forEach((rawLine) => {
+    const sectionKey = getImportSectionKey(rawLine);
+    if (sectionKey) {
+      currentSection = sectionKey;
+      return;
+    }
+    sections[currentSection].push(rawLine);
+  });
+
+  const introLines = sections.intro.map(stripImportLine).filter(Boolean);
+  const contactLines = sections.contact.map(stripImportLine).filter(Boolean);
+  const contacts = parseImportContacts(text, [...introLines, ...contactLines]);
+  const introWithoutContacts = introLines.filter(
+    (line) =>
+      !/@/.test(line) &&
+      !/(电话|手机|邮箱|email|phone|城市|地址|location|city)/i.test(line),
+  );
+
+  const educationBlocks = splitImportBlocks(sections.education);
+  const workBlocks = splitImportBlocks(sections.work);
+  const projectBlocks = splitImportBlocks(sections.project);
+  const skillLines = sections.skill.map(stripImportLine).filter(Boolean);
+
+  return {
+    name: introWithoutContacts[0] || "",
+    nameVisible: true,
+    title: introWithoutContacts[1] || "",
+    titleVisible: true,
+    contacts,
+    avatarAspect: 1,
+    avatarBorderRadius: 12,
+    education: educationBlocks.map((block, index) => {
+      const date = findImportDate(block);
+      const withoutDate = block.map((line) => removeImportDate(line, date)).filter(Boolean);
+      return {
+        id: `import-edu-${index + 1}`,
+        school: withoutDate[0] || "",
+        major: withoutDate.slice(1).join(" ") || "",
+        date,
+      };
+    }),
+    workExperiences: workBlocks.map((block, index) => {
+      const date = findImportDate(block);
+      const withoutDate = block.map((line) => removeImportDate(line, date)).filter(Boolean);
+      return {
+        id: `import-work-${index + 1}`,
+        company: withoutDate[0] || "",
+        role: withoutDate[1] || "",
+        date,
+        desc: withoutDate.slice(2).join("\n"),
+      };
+    }),
+    projects: projectBlocks.map((block, index) => {
+      const date = findImportDate(block);
+      const withoutDate = block.map((line) => removeImportDate(line, date)).filter(Boolean);
+      return {
+        id: `import-project-${index + 1}`,
+        name: withoutDate[0] || "",
+        role: withoutDate[1] || "",
+        date,
+        desc: withoutDate.slice(2).join("\n"),
+      };
+    }),
+    skills:
+      skillLines
+        .join(",")
+        .split(/[,，、|｜/]/)
+        .map((skill) => skill.trim())
+        .filter(Boolean) || [],
+  };
+};
+
 const EDITOR_COPY = {
   "zh-CN": {
     editorMode: "Editor Mode",
     saving: "保存中",
     saved: "已保存",
     importConfig: "导入配置",
+    importTitle: "数据导入",
+    importDesc: "支持 JSON 配置文件，以及 Markdown / 纯文本简历草稿。",
+    importJson: "导入 JSON",
+    pasteResumeText: "粘贴简历文本",
+    importTextPlaceholder:
+      "可粘贴 Markdown、LinkedIn 风格文本或普通简历文本。\n\n示例：\n张三\n前端工程师\n电话：13800000000\n邮箱：demo@example.com\n\n教育背景\n某某大学\n计算机科学 本科\n2020 - 2024\n\n工作经历\n某某科技\n前端工程师\n2024 - 至今\n- 负责后台系统重构\n- 优化首屏加载性能\n\n专业技能\nReact, Next.js, TypeScript",
+    applyTextImport: "解析并导入",
+    importEmptyError: "请先粘贴简历文本。",
+    importFailed: "导入失败，请检查内容格式。",
+    beforeImportLabel: "导入前",
     aiAnalysis: "AI 分析",
     backupJson: "备份 JSON",
     versionHistory: "版本历史",
@@ -340,6 +529,17 @@ const EDITOR_COPY = {
     saving: "Saving",
     saved: "Saved",
     importConfig: "Import config",
+    importTitle: "Data import",
+    importDesc:
+      "Supports JSON config files and Markdown / plain-text resume drafts.",
+    importJson: "Import JSON",
+    pasteResumeText: "Paste resume text",
+    importTextPlaceholder:
+      "Paste Markdown, LinkedIn-style text, or a plain resume draft.\n\nExample:\nAlex Chen\nFrontend Engineer\nPhone: 13800000000\nEmail: demo@example.com\n\nEducation\nExample University\nComputer Science, Bachelor\n2020 - 2024\n\nWork Experience\nExample Tech\nFrontend Engineer\n2024 - Present\n- Rebuilt the admin system\n- Improved first-screen performance\n\nSkills\nReact, Next.js, TypeScript",
+    applyTextImport: "Parse and import",
+    importEmptyError: "Paste resume text first.",
+    importFailed: "Import failed. Check the content format.",
+    beforeImportLabel: "Before import",
     aiAnalysis: "AI analysis",
     backupJson: "Backup JSON",
     versionHistory: "Version history",
@@ -420,6 +620,15 @@ const EDITOR_COPY = {
   saving: string;
   saved: string;
   importConfig: string;
+  importTitle: string;
+  importDesc: string;
+  importJson: string;
+  pasteResumeText: string;
+  importTextPlaceholder: string;
+  applyTextImport: string;
+  importEmptyError: string;
+  importFailed: string;
+  beforeImportLabel: string;
   aiAnalysis: string;
   backupJson: string;
   versionHistory: string;
@@ -1226,6 +1435,9 @@ function ResumeEditorContent() {
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [exportFilename, setExportFilename] = useState("");
   const [exportWarnings, setExportWarnings] = useState<string[]>([]);
+  const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
+  const [importText, setImportText] = useState("");
+  const [importError, setImportError] = useState<string | null>(null);
   const [isPanning, setIsPanning] = useState(false); // 预览区是否正在按下鼠标拖拽平移
   // 移动端底部 Tab 激活状态：管理、编辑、预览
   const [activeMobileTab, setActiveMobileTab] = useState<
@@ -1614,17 +1826,39 @@ function ResumeEditorContent() {
     reader.onload = (event) => {
       try {
         const config = JSON.parse(event.target?.result as string);
-        if (config.resumeData) setResumeData(config.resumeData);
+        saveVersionSnapshot(copy.beforeImportLabel);
+        if (config.resumeData)
+          setResumeData(normalizeResumeData(config.resumeData));
         if (config.modules) setModules(config.modules);
         if (config.themeColor) setThemeColor(config.themeColor);
         if (config.typography) setTypography(config.typography);
         if (config.templateId) setTemplateId(config.templateId);
+        setIsImportDialogOpen(false);
       } catch {
-        alert("导入失败：JSON 格式不正确");
+        setImportError(copy.importFailed);
       }
     };
     reader.readAsText(file);
     e.target.value = "";
+  };
+
+  const applyTextImport = () => {
+    if (!importText.trim()) {
+      setImportError(copy.importEmptyError);
+      return;
+    }
+
+    try {
+      const parsed = parseResumeTextDraft(importText);
+      saveVersionSnapshot(copy.beforeImportLabel);
+      setResumeData(normalizeResumeData(parsed));
+      setIsImportDialogOpen(false);
+      setImportText("");
+      setImportError(null);
+    } catch (error) {
+      console.log("[applyTextImport] 解析简历文本失败", error);
+      setImportError(copy.importFailed);
+    }
   };
 
   // 3. 自动保存逻辑：优化防抖机制
@@ -1775,16 +2009,9 @@ function ResumeEditorContent() {
               variant="outline"
               size="sm"
               className="gap-2 text-xs font-bold hidden md:flex"
-              onClick={() => importInputRef.current?.click()}
+              onClick={() => setIsImportDialogOpen(true)}
             >
               <Rocket size={14} /> {copy.importConfig}
-              <input
-                type="file"
-                ref={importInputRef}
-                className="hidden"
-                accept=".json"
-                onChange={handleImportJson}
-              />
             </Button>
             <Button
               variant="outline"
@@ -1801,6 +2028,15 @@ function ResumeEditorContent() {
               onClick={() => setIsAiAnalysisOpen(true)}
             >
               <Target size={14} /> AI
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="sm:hidden"
+              title={copy.importConfig}
+              onClick={() => setIsImportDialogOpen(true)}
+            >
+              <Rocket size={14} />
             </Button>
             <Button
               variant="outline"
@@ -3448,6 +3684,96 @@ function ResumeEditorContent() {
           </button>
         </div>
       </main>
+
+      {/* 数据导入弹窗 */}
+      <AnimatePresence>
+        {isImportDialogOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 16 }}
+              className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-zinc-100 p-6">
+                <div>
+                  <h3 className="text-lg font-bold text-zinc-900">
+                    {copy.importTitle}
+                  </h3>
+                  <p className="text-xs font-medium text-zinc-400">
+                    {copy.importDesc}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsImportDialogOpen(false)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
+                  title={copy.close}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="flex-1 space-y-5 overflow-y-auto p-6">
+                <Button
+                  variant="outline"
+                  className="h-11 w-full gap-2"
+                  onClick={() => importInputRef.current?.click()}
+                >
+                  <Code size={16} />
+                  {copy.importJson}
+                </Button>
+                <input
+                  type="file"
+                  ref={importInputRef}
+                  className="hidden"
+                  accept=".json"
+                  onChange={handleImportJson}
+                />
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">
+                    {copy.pasteResumeText}
+                  </label>
+                  <textarea
+                    className="h-80 w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm leading-relaxed text-zinc-700 outline-none transition-colors focus:border-zinc-400"
+                    placeholder={copy.importTextPlaceholder}
+                    value={importText}
+                    onChange={(event) => {
+                      setImportText(event.target.value);
+                      setImportError(null);
+                    }}
+                  />
+                </div>
+
+                {importError && (
+                  <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
+                    {importError}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-3 border-t border-zinc-100 p-6">
+                <Button
+                  variant="secondary"
+                  className="h-11"
+                  onClick={() => setIsImportDialogOpen(false)}
+                >
+                  {copy.cancel}
+                </Button>
+                <Button className="h-11 gap-2" onClick={applyTextImport}>
+                  <Rocket size={16} />
+                  {copy.applyTextImport}
+                </Button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* 版本历史弹窗 */}
       <AnimatePresence>
