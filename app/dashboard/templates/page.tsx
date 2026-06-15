@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
@@ -247,9 +248,11 @@ export default function TemplatesPage() {
             >
               {/* Left: Preview Image */}
               <div className="w-full sm:w-[240px] h-[300px] sm:h-auto overflow-hidden relative shrink-0">
-                <img
+                <Image
                   src={template.image}
                   alt={templateCopy.name}
+                  fill
+                  sizes="(min-width: 640px) 240px, 100vw"
                   className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
                 />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity duration-500 flex items-center justify-center backdrop-blur-[2px]">

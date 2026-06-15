@@ -6,6 +6,12 @@ const nextConfig: NextConfig = {
   basePath: "/qingjiao_resume",
   images: {
     unoptimized: true,
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+      },
+    ],
   },
 };
 

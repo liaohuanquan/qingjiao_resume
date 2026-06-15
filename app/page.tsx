@@ -16,11 +16,11 @@ import {
 export default function Home() {
   return (
     <div className="min-h-screen bg-white flex flex-col font-sans text-zinc-900 selection:bg-zinc-900 selection:text-white overflow-x-hidden">
-      {/* 动态渐变背景 */}
+      {/* 柔和背景 */}
       <div className="fixed inset-0 -z-10 pointer-events-none overflow-hidden">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-emerald-100/40 blur-[120px] animate-pulse" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-blue-100/40 blur-[120px] animate-pulse delay-700" />
-        <div className="absolute top-[20%] right-[10%] w-[30%] h-[30%] rounded-full bg-purple-100/30 blur-[100px]" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[40%] h-[40%] rounded-full bg-amber-100/40 blur-[120px] animate-pulse delay-700" />
+        <div className="absolute top-[20%] right-[10%] w-[30%] h-[30%] rounded-full bg-zinc-100/40 blur-[100px]" />
         <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20 mix-blend-overlay" />
       </div>
 
@@ -211,7 +211,7 @@ export default function Home() {
               className="absolute -left-10 bottom-1/4 hidden lg:flex flex-col gap-2 p-5 bg-white rounded-3xl shadow-2xl border border-zinc-100"
             >
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center text-blue-600">
+                <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center text-amber-600">
                   <Star size={24} />
                 </div>
                 <div>
@@ -267,7 +267,7 @@ export default function Home() {
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 overflow-hidden rounded-full shadow-sm">
               <Image
-                src="/images/qinfjiao_resume.png"
+                src="/qingjiao_resume/images/qinfjiao_resume.png"
                 alt="青椒简历 Logo"
                 width={32}
                 height={32}

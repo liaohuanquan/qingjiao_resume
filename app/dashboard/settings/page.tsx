@@ -1,15 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
+import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   User,
   Shield,
   Palette,
-  Mail,
-  Lock,
-  Bell,
-  Globe,
   HardDrive,
   Trash2,
   Download,
@@ -142,9 +139,11 @@ export default function SettingsPage() {
                   <div className="flex flex-col md:flex-row gap-10">
                     <div className="relative group shrink-0 self-start">
                       <div className="w-24 h-24 rounded-[2rem] bg-zinc-100 overflow-hidden shadow-inner flex items-center justify-center border-4 border-white shadow-zinc-200">
-                        <img
+                        <Image
                           src="/qingjiao_resume/images/qinfjiao_resume.png"
                           alt="Avatar"
+                          width={96}
+                          height={96}
                           className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                         />
                       </div>
@@ -271,7 +270,7 @@ export default function SettingsPage() {
                   </div>
 
                   <div className="bg-white border border-zinc-100 rounded-[2.5rem] p-10 shadow-sm flex flex-col items-center text-center group cursor-pointer hover:shadow-xl hover:shadow-zinc-200/50 transition-all">
-                    <div className="w-16 h-16 rounded-3xl bg-blue-100 text-blue-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
+                    <div className="w-16 h-16 rounded-3xl bg-amber-100 text-amber-600 flex items-center justify-center mb-6 group-hover:scale-110 transition-transform">
                       <Upload size={32} />
                     </div>
                     <h4 className="text-xl font-black text-zinc-900 mb-2">
