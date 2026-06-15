@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
+import { useAppLocale, type AppLocale } from "@/app/hooks/useAppLocale";
 import { motion } from "framer-motion";
 import {
   Heart,
@@ -56,8 +57,6 @@ const TEMPLATES = [
   },
 ];
 
-type Locale = "zh-CN" | "en-US";
-
 const COPY = {
   "zh-CN": {
     eyebrow: "Resume Gallery",
@@ -71,7 +70,6 @@ const COPY = {
     preview: "快速预览",
     footerBadge: "更新中：即将推出“学术风”模板",
     footer: "QingJiao Resume • The Future of Identity Design",
-    lang: "EN",
   },
   "en-US": {
     eyebrow: "Resume Gallery",
@@ -86,12 +84,11 @@ const COPY = {
     preview: "Preview",
     footerBadge: "Academic template is coming soon",
     footer: "QingJiao Resume • The Future of Identity Design",
-    lang: "中文",
   },
-} satisfies Record<Locale, Record<string, string>>;
+} satisfies Record<AppLocale, Record<string, string>>;
 
 const TEMPLATE_COPY: Record<
-  Locale,
+  AppLocale,
   Record<string, { name: string; description: string }>
 > = {
   "zh-CN": {
@@ -129,12 +126,9 @@ const TEMPLATE_COPY: Record<
 
 export default function TemplatesPage() {
   const router = useRouter();
+  const { locale } = useAppLocale();
   const [activeTab, setActiveTab] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
-  const [locale, setLocale] = useState<Locale>(() => {
-    if (typeof window === "undefined") return "zh-CN";
-    return (localStorage.getItem("app_locale") as Locale) || "zh-CN";
-  });
   const [selectedTemplateId, setSelectedTemplateId] = useState(() => {
     if (typeof window === "undefined") return "classic";
     return localStorage.getItem("selected_template_id") || "classic";
@@ -162,12 +156,6 @@ export default function TemplatesPage() {
     router.push("/editor");
   };
 
-  const toggleLocale = () => {
-    const nextLocale = locale === "zh-CN" ? "en-US" : "zh-CN";
-    setLocale(nextLocale);
-    localStorage.setItem("app_locale", nextLocale);
-  };
-
   return (
     <div className="flex-1 min-h-full p-8 lg:p-12 bg-zinc-50/50 flex flex-col items-center overflow-y-auto scrollbar-hide">
       <div className="w-full max-w-6xl">
@@ -186,12 +174,6 @@ export default function TemplatesPage() {
           </div>
 
           <div className="flex items-center gap-4">
-            <button
-              onClick={toggleLocale}
-              className="h-12 px-4 bg-white border border-zinc-200 rounded-[1.25rem] text-xs font-black text-zinc-600 hover:text-zinc-900 hover:border-zinc-300 transition-all shadow-sm"
-            >
-              {copy.lang}
-            </button>
             <div className="relative group">
               <Search
                 size={18}

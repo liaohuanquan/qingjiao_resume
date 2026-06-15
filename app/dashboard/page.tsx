@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { useAppLocale, type AppLocale } from "@/app/hooks/useAppLocale";
 import {
   Plus,
   Trash2,
@@ -24,8 +25,67 @@ interface ResumeMetadata {
   theme: string;
 }
 
+const COPY = {
+  "zh-CN": {
+    defaultResumeTitle: "我的第一份简历",
+    untitledResume: "未命名简历",
+    copySuffix: "副本",
+    loading: "正在准备仪表盘...",
+    securityTitle: "数据本地安全存储",
+    securityDesc: "简历数据存储在本地浏览器中，确保隐私与安全。",
+    resumeCount: "份简历文档",
+    eyebrow: "Dashboard",
+    title: "简历中心",
+    subtitle: "管理求职文档，点击卡片即可开始编辑。",
+    searchPlaceholder: "搜索简历标题...",
+    create: "新建简历",
+    createDesc1: "创建一个全新的简历配置",
+    createDesc2: "开始职业新篇章",
+    edit: "编辑简历",
+    updated: "更新",
+    duplicateTitle: "复制简历",
+    deleteTitle: "删除简历文档",
+    emptyTitle: "未找到相关简历",
+    emptyDesc: "换个关键词试试，或者新建一份简历。",
+    deleteConfirmTitle: "确定删除简历？",
+    deleteConfirmDesc1: "此操作将永久移除该简历配置",
+    deleteConfirmDesc2: "及其所有编辑内容，且无法撤销。",
+    cancel: "取消",
+    confirmDelete: "确定删除",
+  },
+  "en-US": {
+    defaultResumeTitle: "My First Resume",
+    untitledResume: "Untitled Resume",
+    copySuffix: "Copy",
+    loading: "Preparing dashboard...",
+    securityTitle: "Local data storage",
+    securityDesc: "Resume data is stored in the local browser for privacy.",
+    resumeCount: "resume documents",
+    eyebrow: "Dashboard",
+    title: "Resume Hub",
+    subtitle: "Manage job documents and open any card to start editing.",
+    searchPlaceholder: "Search resume title...",
+    create: "New Resume",
+    createDesc1: "Create a fresh resume profile",
+    createDesc2: "Start a new career draft",
+    edit: "Edit resume",
+    updated: "Updated",
+    duplicateTitle: "Duplicate resume",
+    deleteTitle: "Delete resume",
+    emptyTitle: "No matching resumes",
+    emptyDesc: "Try another keyword or create a new resume.",
+    deleteConfirmTitle: "Delete this resume?",
+    deleteConfirmDesc1: "This will permanently remove the resume profile",
+    deleteConfirmDesc2: "and all related editing content.",
+    cancel: "Cancel",
+    confirmDelete: "Delete",
+  },
+} satisfies Record<AppLocale, Record<string, string>>;
+
 export default function DashboardPage() {
   const router = useRouter();
+  const { locale } = useAppLocale();
+  const copy = COPY[locale];
   const [resumes, setResumes] = useState<ResumeMetadata[]>(() => {
     if (typeof window === "undefined") return [];
     const saved = localStorage.getItem("resume_list");
@@ -38,7 +98,7 @@ export default function DashboardPage() {
     }
     const defaultResume: ResumeMetadata = {
       id: "default-1",
-      title: "我的第一份简历",
+      title: copy.defaultResumeTitle,
       lastModified: new Date().toLocaleDateString(),
       theme: "#10b981",
     };
@@ -57,7 +117,8 @@ export default function DashboardPage() {
     }
     // 仅在初始挂载且未加载时执行
     if (!isLoaded) {
-      requestAnimationFrame(() => setIsLoaded(true));
+      const timer = window.setTimeout(() => setIsLoaded(true), 0);
+      return () => window.clearTimeout(timer);
     }
   }, [resumes, isLoaded]);
 
@@ -72,7 +133,7 @@ export default function DashboardPage() {
     const newId = crypto.randomUUID();
     const newResume: ResumeMetadata = {
       id: newId,
-      title: "未命名简历",
+      title: copy.untitledResume,
       lastModified: new Date().toLocaleDateString(),
       theme: "#10b981",
     };
@@ -112,7 +173,7 @@ export default function DashboardPage() {
     const newResume: ResumeMetadata = {
       ...resume,
       id: newId,
-      title: `${resume.title} (副本)`,
+      title: `${resume.title} (${copy.copySuffix})`,
       lastModified: new Date().toLocaleDateString(),
     };
 
@@ -137,7 +198,7 @@ export default function DashboardPage() {
         <div className="flex flex-col items-center gap-4">
           <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
           <p className="text-sm font-medium text-zinc-400">
-            正在准备您的仪表盘...
+            {copy.loading}
           </p>
         </div>
       </div>
@@ -154,17 +215,17 @@ export default function DashboardPage() {
           </div>
           <div>
             <p className="text-sm font-bold text-emerald-900 leading-tight">
-              数据本地安全存储
+              {copy.securityTitle}
             </p>
             <p className="text-xs text-emerald-600/80">
-              您的简历数据完全存储在本地浏览器中，确保隐私与安全。
+              {copy.securityDesc}
             </p>
           </div>
         </div>
         <div className="flex items-center gap-4">
           <div className="hidden md:block h-8 w-px bg-emerald-200" />
           <p className="hidden md:block text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
-            {resumes.length} 份简历文档
+            {resumes.length} {copy.resumeCount}
           </p>
         </div>
       </div>
@@ -175,14 +236,14 @@ export default function DashboardPage() {
           <div className="flex items-center gap-2 mb-2 text-emerald-600">
             <LayoutDashboard size={18} />
             <span className="text-xs font-bold uppercase tracking-widest">
-              Dashboard
+              {copy.eyebrow}
             </span>
           </div>
           <h1 className="text-3xl font-black tracking-tight text-zinc-900 mb-1">
-            简历中心
+            {copy.title}
           </h1>
           <p className="text-zinc-500 text-sm font-medium">
-            在这里管理您的求职文档，点击卡片即可开始编辑。
+            {copy.subtitle}
           </p>
         </div>
 
@@ -194,7 +255,7 @@ export default function DashboardPage() {
             />
             <input
               type="text"
-              placeholder="搜索简历标题..."
+              placeholder={copy.searchPlaceholder}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="pl-10 pr-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm font-medium text-zinc-700 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all"
@@ -204,7 +265,7 @@ export default function DashboardPage() {
             onClick={handleCreate}
             className="flex items-center justify-center gap-2 px-6 py-2.5 bg-zinc-900 border border-zinc-900 rounded-xl text-sm font-bold text-white hover:bg-zinc-800 transition-all shadow-lg shadow-zinc-200 hover:-translate-y-0.5 active:translate-y-0"
           >
-            <Plus size={18} strokeWidth={3} /> 新建简历
+            <Plus size={18} strokeWidth={3} /> {copy.create}
           </button>
         </div>
       </header>
@@ -220,11 +281,13 @@ export default function DashboardPage() {
             <Plus size={24} strokeWidth={3} />
           </div>
           <div className="mt-5 text-center px-6">
-            <p className="text-base font-bold text-zinc-900 mb-1">新建简历</p>
+            <p className="text-base font-bold text-zinc-900 mb-1">
+              {copy.create}
+            </p>
             <p className="text-xs text-zinc-500 leading-relaxed font-medium">
-              创建一个全新的简历配置
+              {copy.createDesc1}
               <br />
-              开始您的职业新篇章
+              {copy.createDesc2}
             </p>
           </div>
         </button>
@@ -267,7 +330,7 @@ export default function DashboardPage() {
               <div className="absolute inset-0 bg-zinc-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
                 <div className="flex items-center gap-3 translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
                   <div className="px-5 py-2.5 bg-white rounded-full text-zinc-900 font-bold text-sm shadow-xl flex items-center gap-2 hover:scale-105 transition-transform">
-                    <FileEdit size={16} /> 编辑简历
+                    <FileEdit size={16} /> {copy.edit}
                   </div>
                 </div>
               </div>
@@ -286,7 +349,7 @@ export default function DashboardPage() {
                       style={{ backgroundColor: resume.theme }}
                     />
                     <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
-                      {resume.lastModified} 更新
+                      {resume.lastModified} {copy.updated}
                     </span>
                   </div>
                 </div>
@@ -295,14 +358,14 @@ export default function DashboardPage() {
                   <button
                     onClick={(e) => handleDuplicate(e, resume)}
                     className="p-2 bg-zinc-50 rounded-xl text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-all"
-                    title="复制简历"
+                    title={copy.duplicateTitle}
                   >
                     <Copy size={16} />
                   </button>
                   <button
                     onClick={(e) => handleDeleteTrigger(e, resume.id)}
                     className="p-2 bg-zinc-50 rounded-xl text-zinc-500 hover:bg-red-50 hover:text-red-500 transition-all font-bold"
-                    title="删除简历文档"
+                    title={copy.deleteTitle}
                   >
                     <Trash2 size={16} />
                   </button>
@@ -318,9 +381,11 @@ export default function DashboardPage() {
             <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-400 mb-4">
               <Search size={32} />
             </div>
-            <h3 className="text-lg font-bold text-zinc-900">未找到相关简历</h3>
+            <h3 className="text-lg font-bold text-zinc-900">
+              {copy.emptyTitle}
+            </h3>
             <p className="text-zinc-500 text-sm mt-1">
-              换个关键词试试，或者新建一份简历吧。
+              {copy.emptyDesc}
             </p>
           </div>
         )}
@@ -351,12 +416,12 @@ export default function DashboardPage() {
                   <AlertCircle size={32} />
                 </div>
                 <h3 className="text-xl font-bold text-zinc-900 mb-2">
-                  确定删除简历？
+                  {copy.deleteConfirmTitle}
                 </h3>
                 <p className="text-zinc-500 text-sm leading-relaxed mb-8">
-                  此操作将永久移除该简历配置
+                  {copy.deleteConfirmDesc1}
                   <br />
-                  及其所有编辑内容，且无法撤销。
+                  {copy.deleteConfirmDesc2}
                 </p>
                 <div className="flex gap-3">
                   <button
@@ -364,7 +429,7 @@ export default function DashboardPage() {
                     onClick={() => setDeleteTarget(null)}
                     className="flex-1 px-6 py-3 bg-zinc-100 rounded-2xl text-sm font-bold text-zinc-600 hover:bg-zinc-200 transition-all disabled:opacity-50"
                   >
-                    取消
+                    {copy.cancel}
                   </button>
                   <button
                     disabled={isDeleting}
@@ -374,7 +439,7 @@ export default function DashboardPage() {
                     {isDeleting ? (
                       <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
                     ) : (
-                      "确定删除"
+                      copy.confirmDelete
                     )}
                   </button>
                 </div>
