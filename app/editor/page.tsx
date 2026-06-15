@@ -254,14 +254,54 @@ const RESUME_TEMPLATES: Array<{
   { id: "tech", name: "技术岗版", description: "突出技能和项目，适合研发岗位" },
 ];
 
-type ImportSectionKey = "intro" | "contact" | "education" | "work" | "project" | "skill";
+type ImportSectionKey =
+  | "intro"
+  | "contact"
+  | "education"
+  | "work"
+  | "project"
+  | "skill";
 
-const IMPORT_SECTION_KEYWORDS: Record<Exclude<ImportSectionKey, "intro">, string[]> = {
-  contact: ["联系", "联系方式", "contact", "contacts"],
-  education: ["教育", "教育背景", "education"],
-  work: ["工作", "工作经历", "经历", "experience", "work"],
-  project: ["项目", "项目经验", "projects", "project"],
-  skill: ["技能", "专业技能", "skills", "skill"],
+const IMPORT_SECTION_KEYWORDS: Record<
+  Exclude<ImportSectionKey, "intro">,
+  string[]
+> = {
+  contact: [
+    "联系",
+    "联系方式",
+    "contact",
+    "contacts",
+    "contact information",
+  ],
+  education: ["教育", "教育背景", "education", "education background"],
+  work: [
+    "工作",
+    "工作经历",
+    "实习经历",
+    "经历",
+    "experience",
+    "work",
+    "work experience",
+    "professional experience",
+    "employment history",
+  ],
+  project: [
+    "项目",
+    "项目经验",
+    "projects",
+    "project",
+    "project experience",
+    "personal projects",
+  ],
+  skill: [
+    "技能",
+    "专业技能",
+    "skills",
+    "skill",
+    "technical skills",
+    "professional skills",
+    "core skills",
+  ],
 };
 
 const stripImportLine = (line: string) =>
