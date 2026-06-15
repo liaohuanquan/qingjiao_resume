@@ -18,6 +18,7 @@ import {
   GraduationCap,
   Rocket,
   Settings2,
+  Layout,
   Plus,
   Minus,
   X,
@@ -200,8 +201,10 @@ interface ResumeMetadata {
   title: string;
   lastModified: string;
   theme: string;
+  templateId?: ResumeTemplateId;
 }
 
+type ResumeTemplateId = "classic" | "split" | "tech";
 type AiOptimizeMode = "polish" | "quantify" | "concise";
 type AiAnalyzeMode = "jd_match" | "score";
 
@@ -222,6 +225,16 @@ const AI_MODE_LABELS: Record<AiOptimizeMode, string> = {
   quantify: "量化成果",
   concise: "压缩语气",
 };
+
+const RESUME_TEMPLATES: Array<{
+  id: ResumeTemplateId;
+  name: string;
+  description: string;
+}> = [
+  { id: "classic", name: "极简经典", description: "稳重单栏，适合通用岗位" },
+  { id: "split", name: "左右分栏", description: "信息密度更高，适合管理与运营" },
+  { id: "tech", name: "技术岗版", description: "突出技能和项目，适合研发岗位" },
+];
 
 // --- 基础 UI 组件 ---
 
@@ -557,6 +570,7 @@ function ResumeEditorContent() {
 
   const [activeTab, setActiveTab] = useState("basic");
   const [themeColor, setThemeColor] = useState("#10b981");
+  const [templateId, setTemplateId] = useState<ResumeTemplateId>("classic");
   const [zoomScale, setZoomScale] = useState(0.8);
   const [numPages, setNumPages] = useState(1);
   const previewContainerRef = React.useRef<HTMLDivElement>(null);
@@ -907,6 +921,7 @@ function ResumeEditorContent() {
         if (config.modules) setModules(config.modules);
         if (config.themeColor) setThemeColor(config.themeColor);
         if (config.typography) setTypography(config.typography);
+        if (config.templateId) setTemplateId(config.templateId);
       } else {
         // 兼容旧版本数据或加载默认值
         const savedData = localStorage.getItem("resume_v2_data");
@@ -919,6 +934,12 @@ function ResumeEditorContent() {
           if (savedTheme) setThemeColor(savedTheme);
           if (savedTypo) setTypography(JSON.parse(savedTypo));
         }
+      }
+
+      const selectedTemplate = localStorage.getItem("selected_template_id");
+      if (selectedTemplate) {
+        setTemplateId(selectedTemplate as ResumeTemplateId);
+        localStorage.removeItem("selected_template_id");
       }
 
       // 处理头像
@@ -1248,7 +1269,7 @@ function ResumeEditorContent() {
 
   // 2. JSON 配置导出与导入
   const exportToJson = () => {
-    const config = { resumeData, modules, themeColor, typography };
+    const config = { resumeData, modules, themeColor, typography, templateId };
     const blob = new Blob([JSON.stringify(config, null, 2)], {
       type: "application/json",
     });
@@ -1271,6 +1292,7 @@ function ResumeEditorContent() {
         if (config.modules) setModules(config.modules);
         if (config.themeColor) setThemeColor(config.themeColor);
         if (config.typography) setTypography(config.typography);
+        if (config.templateId) setTemplateId(config.templateId);
       } catch {
         alert("导入失败：JSON 格式不正确");
       }
@@ -1285,7 +1307,7 @@ function ResumeEditorContent() {
       setIsSaving(true);
 
       // 1. 保存详细数据
-      const config = { resumeData, modules, themeColor, typography };
+      const config = { resumeData, modules, themeColor, typography, templateId };
       localStorage.setItem(`resume_data_${resumeId}`, JSON.stringify(config));
 
       // 2. 同步更新 Dashboard 列表元数据
@@ -1303,6 +1325,7 @@ function ResumeEditorContent() {
                 ? `${resumeData.name}的简历`
                 : list[index].title,
               theme: themeColor,
+              templateId,
               lastModified: new Date().toLocaleDateString(),
             };
             localStorage.setItem("resume_list", JSON.stringify(list));
@@ -1316,7 +1339,7 @@ function ResumeEditorContent() {
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [resumeData, modules, themeColor, typography, resumeId]);
+  }, [resumeData, modules, themeColor, typography, templateId, resumeId]);
 
   return (
     <div
@@ -1467,6 +1490,38 @@ function ResumeEditorContent() {
               : "-translate-x-full lg:translate-x-0",
           )}
         >
+          <section>
+            <h3 className="text-sm font-semibold mb-3 text-zinc-900 flex items-center gap-2">
+              <Layout size={14} /> 简历模板
+            </h3>
+            <div className="space-y-2">
+              {RESUME_TEMPLATES.map((template) => (
+                <button
+                  key={template.id}
+                  onClick={() => setTemplateId(template.id)}
+                  className={cn(
+                    "w-full rounded-xl border p-3 text-left transition-all",
+                    templateId === template.id
+                      ? "border-zinc-900 bg-white shadow-sm"
+                      : "border-zinc-200 bg-white/70 hover:border-zinc-300",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm font-bold text-zinc-800">
+                      {template.name}
+                    </span>
+                    {templateId === template.id && (
+                      <Check size={14} className="text-emerald-600" />
+                    )}
+                  </div>
+                  <p className="mt-1 text-xs font-medium text-zinc-400">
+                    {template.description}
+                  </p>
+                </button>
+              ))}
+            </div>
+          </section>
+
           <section>
             <h3 className="text-sm font-semibold mb-3 text-zinc-900 flex items-center gap-2">
               <Settings2 size={14} /> 模块管理（拖动排序）
@@ -2625,12 +2680,21 @@ function ResumeEditorContent() {
                     const PAGE_H = 1160;
                     const PADDING = 64;
                     const EFFECTIVE_H = PAGE_H - PADDING * 2;
+                    const currentTemplate =
+                      RESUME_TEMPLATES.find((item) => item.id === templateId) ||
+                      RESUME_TEMPLATES[0];
 
                     return (
                       <motion.div
                         key={pageIdx}
-                        className="w-[820px] h-[1160px] bg-white shadow-2xl relative overflow-hidden shrink-0 group/page"
+                        className={cn(
+                          "w-[820px] h-[1160px] bg-white shadow-2xl relative overflow-hidden shrink-0 group/page",
+                          templateId === "tech" && "bg-zinc-50",
+                        )}
                       >
+                        <div className="absolute right-8 top-7 z-10 rounded-full border border-zinc-200 bg-white/90 px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-zinc-400">
+                          {currentTemplate.name}
+                        </div>
                         <div
                           className="absolute left-[64px] right-[64px] overflow-hidden pointer-events-none"
                           style={{
@@ -2642,7 +2706,10 @@ function ResumeEditorContent() {
                             className="w-full"
                             style={{
                               transform: `translateY(-${pageIdx * EFFECTIVE_H}px)`,
-                              fontFamily: "var(--font-family)",
+                              fontFamily:
+                                templateId === "tech"
+                                  ? "var(--font-geist-mono), var(--font-family)"
+                                  : "var(--font-family)",
                               lineHeight: "var(--line-height)",
                               fontSize: `${typography.fontSize}px`,
                             }}
@@ -2651,11 +2718,21 @@ function ResumeEditorContent() {
                             <div
                               className={cn(
                                 "flex items-center gap-10 mb-12 transition-none",
+                                templateId === "split" &&
+                                  "items-stretch gap-0 overflow-hidden rounded-2xl border border-zinc-100",
+                                templateId === "tech" &&
+                                  "border-b-2 border-zinc-900 pb-8",
                                 pageIdx > 0 && "invisible",
                               )}
                             >
                               <div
-                                className="w-28 bg-zinc-50 flex items-center justify-center overflow-hidden relative shadow-inner ring-1 ring-zinc-100"
+                                className={cn(
+                                  "w-28 bg-zinc-50 flex items-center justify-center overflow-hidden relative shadow-inner ring-1 ring-zinc-100",
+                                  templateId === "split" &&
+                                    "m-6 shrink-0 bg-zinc-800 ring-zinc-700",
+                                  templateId === "tech" &&
+                                    "rounded-none bg-white ring-zinc-300",
+                                )}
                                 style={{
                                   height: `${112 / (resumeData.avatarAspect || 1)}px`,
                                   borderRadius: `${resumeData.avatarBorderRadius}px`,
@@ -2677,14 +2754,32 @@ function ResumeEditorContent() {
                                   />
                                 )}
                               </div>
-                              <div className="space-y-1.5 flex-1 text-zinc-900">
+                              <div
+                                className={cn(
+                                  "space-y-1.5 flex-1 text-zinc-900",
+                                  templateId === "split" &&
+                                    "bg-zinc-900 p-7 text-white",
+                                )}
+                              >
                                 {resumeData.nameVisible !== false && (
-                                  <h1 className="text-4xl font-black tracking-tight text-[var(--theme-color)] transition-none drop-shadow-sm">
+                                  <h1
+                                    className={cn(
+                                      "text-4xl font-black tracking-tight text-[var(--theme-color)] transition-none drop-shadow-sm",
+                                      templateId === "split" && "text-white",
+                                      templateId === "tech" &&
+                                        "text-zinc-950 uppercase",
+                                    )}
+                                  >
                                     {resumeData.name || "您的姓名"}
                                   </h1>
                                 )}
                                 {resumeData.titleVisible !== false && (
-                                  <p className="text-lg text-zinc-500 font-bold tracking-tight opacity-90 mb-2">
+                                  <p
+                                    className={cn(
+                                      "text-lg text-zinc-500 font-bold tracking-tight opacity-90 mb-2",
+                                      templateId === "split" && "text-zinc-300",
+                                    )}
+                                  >
                                     {resumeData.title || "求职目标"}
                                   </p>
                                 )}
@@ -2701,15 +2796,31 @@ function ResumeEditorContent() {
                                         >
                                           <Icon
                                             size={12}
-                                            className="text-[var(--theme-color)] opacity-60 shrink-0"
+                                            className={cn(
+                                              "text-[var(--theme-color)] opacity-60 shrink-0",
+                                              templateId === "split" &&
+                                                "text-emerald-300 opacity-90",
+                                            )}
                                           />
                                           <div className="flex items-center gap-1 text-[0.98em]">
                                             {(c.isCustom || c.showLabel) && (
-                                              <span className="text-zinc-400 font-bold opacity-70">
+                                              <span
+                                                className={cn(
+                                                  "text-zinc-400 font-bold opacity-70",
+                                                  templateId === "split" &&
+                                                    "text-zinc-400",
+                                                )}
+                                              >
                                                 {c.label}:
                                               </span>
                                             )}
-                                            <span className="font-semibold">
+                                            <span
+                                              className={cn(
+                                                "font-semibold",
+                                                templateId === "split" &&
+                                                  "text-zinc-100",
+                                              )}
+                                            >
                                               {c.value}
                                             </span>
                                           </div>
@@ -2725,18 +2836,63 @@ function ResumeEditorContent() {
                               </div>
                             </div>
 
-                            <div className="space-y-12">
+                            <div
+                              className={cn(
+                                "space-y-12",
+                                templateId === "split" &&
+                                  "grid grid-cols-[220px_1fr] gap-x-8 gap-y-8 space-y-0",
+                                templateId === "tech" && "space-y-9",
+                              )}
+                            >
                               {modules
                                 .filter((m) => m.visible && m.id !== "basic")
                                 .map((m) => (
-                                  <section key={m.id}>
-                                    <div className="flex items-center gap-3 mb-6 border-b-2 border-zinc-900/10 pb-2.5">
-                                      <div className="w-2 h-6 rounded-sm bg-[var(--theme-color)]" />
-                                      <h3 className="text-xl font-bold tracking-tight text-zinc-800 uppercase">
+                                  <section
+                                    key={m.id}
+                                    className={cn(
+                                      templateId === "split" &&
+                                        (m.id === "edu" || m.id === "skill"
+                                          ? "col-start-1"
+                                          : "col-start-2"),
+                                      templateId === "split" &&
+                                        m.type === "custom" &&
+                                        "col-span-2",
+                                      templateId === "tech" &&
+                                        "rounded-xl border border-zinc-200 bg-white p-5",
+                                    )}
+                                  >
+                                    <div
+                                      className={cn(
+                                        "flex items-center gap-3 mb-6 border-b-2 border-zinc-900/10 pb-2.5",
+                                        templateId === "tech" &&
+                                          "border-zinc-900 pb-3",
+                                      )}
+                                    >
+                                      <div
+                                        className={cn(
+                                          "w-2 h-6 rounded-sm bg-[var(--theme-color)]",
+                                          templateId === "tech" &&
+                                            "h-4 w-4 rounded-full",
+                                        )}
+                                      />
+                                      <h3
+                                        className={cn(
+                                          "text-xl font-bold tracking-tight text-zinc-800 uppercase",
+                                          templateId === "split" && "text-base",
+                                          templateId === "tech" &&
+                                            "text-base tracking-widest text-zinc-950",
+                                        )}
+                                      >
                                         {m.title}
                                       </h3>
                                     </div>
-                                    <div className="pl-1 space-y-6">
+                                    <div
+                                      className={cn(
+                                        "pl-1 space-y-6",
+                                        templateId === "split" &&
+                                          "space-y-4 pl-0",
+                                      )}
+                                    >
                                       {m.type === "custom" && (
                                         <div className="text-zinc-600 whitespace-pre-wrap leading-relaxed text-[0.95em]">
                                           {m.content?.toString() || "暂无内容"}

@@ -1,13 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Heart,
   Search,
-  Filter,
   Sparkles,
-  Crown,
   Layout,
   CheckCircle2,
   ExternalLink,
@@ -33,49 +32,49 @@ const TEMPLATES = [
     color: "bg-zinc-900",
   },
   {
-    id: "modern",
-    name: "现代几何",
-    description: "动感的布局设计，深得互联网大厂及设计师的青睐。",
+    id: "split",
+    name: "左右分栏",
+    description: "更高信息密度，适合管理、运营及综合型岗位。",
     image:
       "https://images.unsplash.com/photo-1626197031507-c17099753214?q=80&w=2070&auto=format&fit=crop",
     tag: "热门",
     isFree: true,
-    category: "Modern",
-    color: "bg-blue-600",
+    category: "Split",
+    color: "bg-zinc-700",
   },
   {
-    id: "creative",
-    name: "极客风范",
-    description: "代码高亮风格与终端交互感，为开发者量身打造。",
+    id: "tech",
+    name: "技术岗版",
+    description: "强化技能、项目和工程成果，为开发者量身打造。",
     image:
       "https://images.unsplash.com/photo-1542831371-29b0f74f9713?q=80&w=2070&auto=format&fit=crop",
     tag: "New",
-    isFree: false,
-    category: "Creative",
+    isFree: true,
+    category: "Tech",
     color: "bg-emerald-600",
-  },
-  {
-    id: "elegant",
-    name: "优雅极简",
-    description: "大面积留白与精致衬线体，展现从容的职业态度。",
-    image:
-      "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=1964&auto=format&fit=crop",
-    tag: "Pro",
-    isFree: false,
-    category: "Elegant",
-    color: "bg-amber-600",
   },
 ];
 
 export default function TemplatesPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState("All");
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedTemplateId, setSelectedTemplateId] = useState(() => {
+    if (typeof window === "undefined") return "classic";
+    return localStorage.getItem("selected_template_id") || "classic";
+  });
 
   const filteredTemplates = TEMPLATES.filter(
     (t) =>
       (activeTab === "All" || t.category === activeTab) &&
       (t.name.includes(searchQuery) || t.description.includes(searchQuery)),
   );
+
+  const handleUseTemplate = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    localStorage.setItem("selected_template_id", templateId);
+    router.push("/editor");
+  };
 
   return (
     <div className="flex-1 min-h-full p-8 lg:p-12 bg-zinc-50/50 flex flex-col items-center overflow-y-auto scrollbar-hide">
@@ -90,7 +89,7 @@ export default function TemplatesPage() {
               简历模板仓库
             </h1>
             <p className="text-zinc-500 font-medium text-lg">
-              从 10+ 款精心设计的专业模板中，挑选最契合您职业气质的一款。
+              从 3 款精心设计的专业模板中，挑选最契合职业气质的一款。
             </p>
           </div>
 
@@ -113,7 +112,7 @@ export default function TemplatesPage() {
 
         {/* Categories Tab */}
         <div className="flex flex-wrap items-center gap-3 mb-10 overflow-x-auto pb-2 scrollbar-hide">
-          {["All", "Classic", "Modern", "Creative", "Elegant"].map((tab) => (
+          {["All", "Classic", "Split", "Tech"].map((tab) => (
             <button
               key={tab}
               onClick={() => setActiveTab(tab)}
@@ -158,12 +157,7 @@ export default function TemplatesPage() {
                     快速预览
                   </button>
                 </div>
-                {!template.isFree && (
-                  <div className="absolute top-4 left-4 px-3 py-1.5 bg-amber-400 text-amber-950 text-[10px] font-bold uppercase tracking-widest rounded-full shadow-lg shadow-amber-400/20 flex items-center gap-1.5 border border-amber-300">
-                    <Crown size={12} /> Pro
-                  </div>
-                )}
-                {template.id === "classic" && (
+                {template.id === selectedTemplateId && (
                   <div className="absolute top-4 right-4 w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center shadow-lg shadow-emerald-500/30">
                     <CheckCircle2 size={18} />
                   </div>
@@ -197,8 +191,11 @@ export default function TemplatesPage() {
                 </p>
 
                 <div className="mt-auto flex items-center gap-3">
-                  <button className="flex-1 h-12 bg-zinc-900 text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-zinc-800 hover:shadow-lg hover:shadow-zinc-200 transition-all active:scale-95">
-                    立即使用
+                  <button
+                    onClick={() => handleUseTemplate(template.id)}
+                    className="flex-1 h-12 bg-zinc-900 text-white rounded-2xl text-[10px] font-bold uppercase tracking-widest hover:bg-zinc-800 hover:shadow-lg hover:shadow-zinc-200 transition-all active:scale-95"
+                  >
+                    {template.id === selectedTemplateId ? "当前模板" : "立即使用"}
                   </button>
                   <button className="w-12 h-12 flex items-center justify-center bg-zinc-50 border border-zinc-100 text-zinc-400 hover:text-zinc-900 hover:bg-zinc-100 rounded-2xl transition-all">
                     <ExternalLink size={18} />
