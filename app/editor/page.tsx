@@ -3356,7 +3356,7 @@ function ResumeEditorContent() {
                               transform: `translateY(-${pageIdx * EFFECTIVE_H}px)`,
                               fontFamily:
                                 templateId === "tech"
-                                  ? "var(--font-geist-mono), var(--font-family)"
+                                  ? "var(--font-mono), var(--font-family)"
                                   : "var(--font-family)",
                               lineHeight: "var(--line-height)",
                               fontSize: `${typography.fontSize}px`,

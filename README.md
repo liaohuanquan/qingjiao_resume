@@ -6,7 +6,7 @@
 
 <p align="center">
   <img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js" />
-  <img src="https://img.shields.io/badge/React-19-blue?logo=react" />
+  <img src="https://img.shields.io/badge/React-19-20232A?logo=react" />
   <img src="https://img.shields.io/badge/Tailwind_CSS-4-38B2AC?logo=tailwind-css" />
   <img src="https://img.shields.io/badge/License-MIT-green" />
 </p>
@@ -75,6 +75,15 @@ AI_MODEL=gpt-4o-mini
 ## 部署说明
 
 项目使用 Next.js 服务端输出模式，支持 `app/api/ai/optimize` 动态接口。生产环境需要使用 Node 服务或支持 Next.js 服务器能力的平台部署，不能再按纯静态站点托管。
+
+### 本地生产预览
+
+```bash
+npm run build
+npm run start
+```
+
+`npm run start` 会启动 `.next/standalone/server.js`，与 `next.config.ts` 中的 `output: "standalone"` 保持一致。
 
 ### Docker 部署
 
