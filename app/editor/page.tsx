@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
+import { useAppLocale, type AppLocale } from "@/app/hooks/useAppLocale";
 import {
   DownloadCloud,
   Code,
@@ -235,6 +236,206 @@ const RESUME_TEMPLATES: Array<{
   { id: "split", name: "左右分栏", description: "信息密度更高，适合管理与运营" },
   { id: "tech", name: "技术岗版", description: "突出技能和项目，适合研发岗位" },
 ];
+
+const EDITOR_COPY = {
+  "zh-CN": {
+    editorMode: "Editor Mode",
+    saving: "保存中",
+    saved: "已保存",
+    importConfig: "导入配置",
+    aiAnalysis: "AI 分析",
+    backupJson: "备份 JSON",
+    downloadPdf: "下载 PDF",
+    downloadingPdf: "正在生成 PDF...",
+    download: "下载",
+    sourceViewTitle: "源视图暂未开启",
+    switchLanguage: "切换语言",
+    lang: "EN",
+    templateTitle: "简历模板",
+    templates: {
+      classic: {
+        name: "极简经典",
+        description: "稳重单栏，适合通用岗位",
+      },
+      split: {
+        name: "左右分栏",
+        description: "信息密度更高，适合管理与运营",
+      },
+      tech: {
+        name: "技术岗版",
+        description: "突出技能和项目，适合研发岗位",
+      },
+    },
+    moduleManager: "模块管理（拖动排序）",
+    basicInfo: "基本信息",
+    fixed: "固定",
+    mobileManage: "管理",
+    mobileEdit: "编辑",
+    mobilePreview: "预览",
+    exportTitle: "导出前检查",
+    exportDesc: "确认文件名与 A4 页数后生成 PDF",
+    close: "关闭",
+    pdfFilename: "PDF 文件名",
+    checkResult: "检查结果",
+    noWarnings: "未发现明显问题，可以导出。",
+    warningEmptyName: "姓名为空，建议补充后再导出。",
+    warningEmptyTitle: "求职意向为空，建议补充后再导出。",
+    warningNoContact: "没有可见联系方式，建议至少保留电话或邮箱。",
+    warningMultiplePages: (pages: number) =>
+      `当前预览为 ${pages} 页，导出 PDF 将包含多页。`,
+    defaultFilename: (name: string) => `青椒简历-${name || "未命名"}`,
+    exportPreparing: "正在准备文档...",
+    exportRendering: (current: number, total: number) =>
+      `正在渲染第 ${current} / ${total} 页...`,
+    exportPacking: "正在打包下载...",
+    previewNotFound: "未找到预览页面",
+    cancel: "取消",
+    generating: "正在生成",
+    confirmExport: "确认导出",
+    aiReportTitle: "AI 简历分析",
+    aiReportDesc: "支持 JD 匹配优化与简历评分",
+    aiAnalysisFailed: "AI 分析失败",
+    jdLabel: "招聘 JD",
+    jdPlaceholder: "粘贴招聘岗位描述，用于分析匹配度...",
+    jdMatch: "JD 匹配",
+    resumeScore: "简历评分",
+    reportTitle: "分析报告",
+    analyzing: "分析中...",
+    reportEmpty: "点击 JD 匹配或简历评分后，分析结果会显示在这里。",
+    aiOptimizeTitle: "AI 优化结果",
+    originalText: "原文",
+    optimizedText: "优化后",
+    keepOriginal: "保留原文",
+    applyResult: "应用结果",
+    backToEdit: "返回编辑",
+  },
+  "en-US": {
+    editorMode: "Editor Mode",
+    saving: "Saving",
+    saved: "Saved",
+    importConfig: "Import config",
+    aiAnalysis: "AI analysis",
+    backupJson: "Backup JSON",
+    downloadPdf: "Download PDF",
+    downloadingPdf: "Generating PDF...",
+    download: "Download",
+    sourceViewTitle: "Source view is not available",
+    switchLanguage: "Switch language",
+    lang: "中文",
+    templateTitle: "Resume template",
+    templates: {
+      classic: {
+        name: "Minimal Classic",
+        description: "Stable single-column layout for general roles",
+      },
+      split: {
+        name: "Split Layout",
+        description: "Denser layout for management and operations",
+      },
+      tech: {
+        name: "Engineering Focus",
+        description: "Highlights skills and projects for technical roles",
+      },
+    },
+    moduleManager: "Module manager",
+    basicInfo: "Basic info",
+    fixed: "Fixed",
+    mobileManage: "Manage",
+    mobileEdit: "Edit",
+    mobilePreview: "Preview",
+    exportTitle: "Pre-export check",
+    exportDesc: "Confirm filename and A4 pages before generating PDF",
+    close: "Close",
+    pdfFilename: "PDF filename",
+    checkResult: "Check result",
+    noWarnings: "No obvious issues found. Ready to export.",
+    warningEmptyName: "Name is empty. Add it before exporting.",
+    warningEmptyTitle: "Target role is empty. Add it before exporting.",
+    warningNoContact: "No visible contact method. Keep at least phone or email.",
+    warningMultiplePages: (pages: number) =>
+      `Current preview has ${pages} pages. The PDF will include multiple pages.`,
+    defaultFilename: (name: string) => `QingJiao-Resume-${name || "Untitled"}`,
+    exportPreparing: "Preparing document...",
+    exportRendering: (current: number, total: number) =>
+      `Rendering page ${current} / ${total}...`,
+    exportPacking: "Packaging download...",
+    previewNotFound: "Preview page not found",
+    cancel: "Cancel",
+    generating: "Generating",
+    confirmExport: "Export",
+    aiReportTitle: "AI resume analysis",
+    aiReportDesc: "Supports JD matching and resume scoring",
+    aiAnalysisFailed: "AI analysis failed",
+    jdLabel: "Job description",
+    jdPlaceholder: "Paste a job description to analyze matching...",
+    jdMatch: "JD match",
+    resumeScore: "Resume score",
+    reportTitle: "Analysis report",
+    analyzing: "Analyzing...",
+    reportEmpty: "Run JD matching or resume scoring to show results here.",
+    aiOptimizeTitle: "AI optimization result",
+    originalText: "Original",
+    optimizedText: "Optimized",
+    keepOriginal: "Keep original",
+    applyResult: "Apply result",
+    backToEdit: "Back to edit",
+  },
+} satisfies Record<AppLocale, {
+  editorMode: string;
+  saving: string;
+  saved: string;
+  importConfig: string;
+  aiAnalysis: string;
+  backupJson: string;
+  downloadPdf: string;
+  downloadingPdf: string;
+  download: string;
+  sourceViewTitle: string;
+  switchLanguage: string;
+  lang: string;
+  templateTitle: string;
+  templates: Record<ResumeTemplateId, { name: string; description: string }>;
+  moduleManager: string;
+  basicInfo: string;
+  fixed: string;
+  mobileManage: string;
+  mobileEdit: string;
+  mobilePreview: string;
+  exportTitle: string;
+  exportDesc: string;
+  close: string;
+  pdfFilename: string;
+  checkResult: string;
+  noWarnings: string;
+  warningEmptyName: string;
+  warningEmptyTitle: string;
+  warningNoContact: string;
+  warningMultiplePages: (pages: number) => string;
+  defaultFilename: (name: string) => string;
+  exportPreparing: string;
+  exportRendering: (current: number, total: number) => string;
+  exportPacking: string;
+  previewNotFound: string;
+  cancel: string;
+  generating: string;
+  confirmExport: string;
+  aiReportTitle: string;
+  aiReportDesc: string;
+  aiAnalysisFailed: string;
+  jdLabel: string;
+  jdPlaceholder: string;
+  jdMatch: string;
+  resumeScore: string;
+  reportTitle: string;
+  analyzing: string;
+  reportEmpty: string;
+  aiOptimizeTitle: string;
+  originalText: string;
+  optimizedText: string;
+  keepOriginal: string;
+  applyResult: string;
+  backToEdit: string;
+}>;
 
 // --- 基础 UI 组件 ---
 
@@ -566,6 +767,8 @@ SortableContactItem.displayName = "SortableContactItem";
 function ResumeEditorContent() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const { locale, toggleLocale } = useAppLocale();
+  const copy = EDITOR_COPY[locale];
   const resumeId = searchParams.get("id") || "default-1";
 
   const [activeTab, setActiveTab] = useState("basic");
@@ -682,7 +885,7 @@ function ResumeEditorContent() {
         name: "青椒简历 (QingJiao Resume)",
         role: "核心开发",
         date: "2023.01 - 至今",
-        desc: "基于 Next.js 15 和 Tailwind CSS 4 开发的现代化简历编辑器。",
+        desc: "基于 Next.js 16 和 Tailwind CSS 4 开发的现代化简历编辑器。",
       },
     ],
     skills: [
@@ -1040,12 +1243,12 @@ function ResumeEditorContent() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data?.error || "AI 分析失败");
+        throw new Error(data?.error || copy.aiAnalysisFailed);
       }
 
       setAiAnalysisResult(data.result);
     } catch (error) {
-      setAiError(error instanceof Error ? error.message : "AI 分析失败");
+      setAiError(error instanceof Error ? error.message : copy.aiAnalysisFailed);
     } finally {
       setIsAiAnalyzing(false);
     }
@@ -1201,23 +1404,23 @@ function ResumeEditorContent() {
 
   const getExportWarnings = () => {
     const warnings: string[] = [];
-    if (!resumeData.name.trim()) warnings.push("姓名为空，建议补充后再导出。");
+    if (!resumeData.name.trim()) warnings.push(copy.warningEmptyName);
     if (!resumeData.title.trim())
-      warnings.push("求职意向为空，建议补充后再导出。");
+      warnings.push(copy.warningEmptyTitle);
     if (
       resumeData.contacts.filter((item) => item.isVisible && item.value)
         .length === 0
     ) {
-      warnings.push("没有可见联系方式，建议至少保留电话或邮箱。");
+      warnings.push(copy.warningNoContact);
     }
     if (numPages > 1) {
-      warnings.push(`当前预览为 ${numPages} 页，导出 PDF 将包含多页。`);
+      warnings.push(copy.warningMultiplePages(numPages));
     }
     return warnings;
   };
 
   const openExportDialog = () => {
-    setExportFilename(`青椒简历-${resumeData.name || "未命名"}`);
+    setExportFilename(copy.defaultFilename(resumeData.name));
     setExportWarnings(getExportWarnings());
     setIsExportDialogOpen(true);
   };
@@ -1225,18 +1428,18 @@ function ResumeEditorContent() {
   // 1. PDF 导出逻辑：深度集成 jsPDF 与 html-to-image
   const exportToPdf = async () => {
     setIsExporting(true);
-    setExportProgress("正在准备文档...");
+    setExportProgress(copy.exportPreparing);
     try {
       // 这里的尺寸为 A4 标准: 210mm x 297mm
       const pdf = new jsPDF("p", "mm", "a4");
       const pages = document.querySelectorAll(".group\\/page");
 
       if (pages.length === 0) {
-        throw new Error("未找到预览页面");
+        throw new Error(copy.previewNotFound);
       }
 
       for (let i = 0; i < pages.length; i++) {
-        setExportProgress(`正在渲染第 ${i + 1} / ${pages.length} 页...`);
+        setExportProgress(copy.exportRendering(i + 1, pages.length));
 
         // 使用 toJpeg 将 DOM 转换为高清晰度图片
         const imgData = await toJpeg(pages[i] as HTMLElement, {
@@ -1252,10 +1455,10 @@ function ResumeEditorContent() {
         pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
       }
 
-      setExportProgress("正在打包下载...");
+      setExportProgress(copy.exportPacking);
       const safeName =
         exportFilename.trim().replace(/[\\/:*?"<>|]/g, "-") ||
-        `青椒简历-${resumeData.name || "未命名"}`;
+        copy.defaultFilename(resumeData.name);
       pdf.save(`${safeName}.pdf`);
       setIsExportDialogOpen(false);
     } catch (err) {
@@ -1375,14 +1578,14 @@ function ResumeEditorContent() {
               青椒简历
             </span>
             <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wider">
-              Editor Mode
+              {copy.editorMode}
             </span>
           </div>
           <Badge
             className={cn(
               "ml-2 flex items-center gap-2 transition-all duration-300",
               isExporting
-                ? "bg-blue-50 text-blue-600"
+                ? "bg-zinc-100 text-zinc-600"
                 : isSaving
                   ? "bg-amber-50 text-amber-600"
                   : "bg-emerald-50 text-emerald-600",
@@ -1414,7 +1617,11 @@ function ResumeEditorContent() {
               />
             )}
             <span className="font-mono text-[10px] font-bold tracking-wider uppercase">
-              {isExporting ? exportProgress : isSaving ? "保存中" : "已保存"}
+              {isExporting
+                ? exportProgress
+                : isSaving
+                  ? copy.saving
+                  : copy.saved}
             </span>
           </Badge>
         </div>
@@ -1424,10 +1631,19 @@ function ResumeEditorContent() {
             QingJiao Resume
           </span>
           <Button
+            variant="outline"
+            size="sm"
+            className="text-xs font-black"
+            title={copy.switchLanguage}
+            onClick={toggleLocale}
+          >
+            {copy.lang}
+          </Button>
+          <Button
             variant="ghost"
             size="icon"
             className="rounded-full"
-            title="源视图暂未开启"
+            title={copy.sourceViewTitle}
           >
             <Sun size={18} />
           </Button>
@@ -1438,7 +1654,7 @@ function ResumeEditorContent() {
               className="gap-2 text-xs font-bold hidden md:flex"
               onClick={() => importInputRef.current?.click()}
             >
-              <Rocket size={14} /> 导入配置
+              <Rocket size={14} /> {copy.importConfig}
               <input
                 type="file"
                 ref={importInputRef}
@@ -1453,7 +1669,7 @@ function ResumeEditorContent() {
               className="gap-2 text-xs font-bold hidden sm:flex"
               onClick={() => setIsAiAnalysisOpen(true)}
             >
-              <Target size={14} /> AI 分析
+              <Target size={14} /> {copy.aiAnalysis}
             </Button>
             <Button
               variant="outline"
@@ -1469,7 +1685,7 @@ function ResumeEditorContent() {
               className="gap-2 text-xs font-bold hidden sm:flex"
               onClick={exportToJson}
             >
-              <Code size={14} /> 备份 JSON
+              <Code size={14} /> {copy.backupJson}
             </Button>
             <Button
               size="sm"
@@ -1479,9 +1695,11 @@ function ResumeEditorContent() {
             >
               <DownloadCloud size={14} />
               <span className="hidden sm:inline">
-                {isExporting ? "正在生成 PDF..." : "下载 PDF"}
+                {isExporting ? copy.downloadingPdf : copy.downloadPdf}
               </span>
-              <span className="sm:hidden">{isExporting ? "..." : "下载"}</span>
+              <span className="sm:hidden">
+                {isExporting ? "..." : copy.download}
+              </span>
             </Button>
           </div>
         </div>
@@ -1500,7 +1718,7 @@ function ResumeEditorContent() {
         >
           <section>
             <h3 className="text-sm font-semibold mb-3 text-zinc-900 flex items-center gap-2">
-              <Layout size={14} /> 简历模板
+              <Layout size={14} /> {copy.templateTitle}
             </h3>
             <div className="space-y-2">
               {RESUME_TEMPLATES.map((template) => (
@@ -1516,14 +1734,14 @@ function ResumeEditorContent() {
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-bold text-zinc-800">
-                      {template.name}
+                      {copy.templates[template.id].name}
                     </span>
                     {templateId === template.id && (
                       <Check size={14} className="text-emerald-600" />
                     )}
                   </div>
                   <p className="mt-1 text-xs font-medium text-zinc-400">
-                    {template.description}
+                    {copy.templates[template.id].description}
                   </p>
                 </button>
               ))}
@@ -1532,7 +1750,7 @@ function ResumeEditorContent() {
 
           <section>
             <h3 className="text-sm font-semibold mb-3 text-zinc-900 flex items-center gap-2">
-              <Settings2 size={14} /> 模块管理（拖动排序）
+              <Settings2 size={14} /> {copy.moduleManager}
             </h3>
             <div className="space-y-2 mb-2">
               <Card
@@ -1547,10 +1765,10 @@ function ResumeEditorContent() {
                   <div className="w-1.5 h-1.5 rounded-full bg-zinc-300" />
                 </div>
                 <span className="text-sm text-zinc-600 flex-1 ml-1">
-                  基本信息
+                  {copy.basicInfo}
                 </span>
                 <Badge className="bg-zinc-100 text-zinc-400 font-normal ml-auto">
-                  固定
+                  {copy.fixed}
                 </Badge>
               </Card>
             </div>
@@ -3056,7 +3274,7 @@ function ResumeEditorContent() {
             )}
           >
             <Settings2 size={16} />
-            <span className="text-[10px] font-bold">管理</span>
+            <span className="text-[10px] font-bold">{copy.mobileManage}</span>
           </button>
           <button
             onClick={() => setActiveMobileTab("edit")}
@@ -3068,7 +3286,7 @@ function ResumeEditorContent() {
             )}
           >
             <User size={16} />
-            <span className="text-[10px] font-bold">编辑</span>
+            <span className="text-[10px] font-bold">{copy.mobileEdit}</span>
           </button>
           <button
             onClick={() => setActiveMobileTab("preview")}
@@ -3080,7 +3298,7 @@ function ResumeEditorContent() {
             )}
           >
             <Eye size={16} />
-            <span className="text-[10px] font-bold">预览</span>
+            <span className="text-[10px] font-bold">{copy.mobilePreview}</span>
           </button>
         </div>
       </main>
@@ -3103,16 +3321,16 @@ function ResumeEditorContent() {
               <div className="flex items-center justify-between border-b border-zinc-100 p-6">
                 <div>
                   <h3 className="text-lg font-bold text-zinc-900">
-                    导出前检查
+                    {copy.exportTitle}
                   </h3>
                   <p className="text-xs font-medium text-zinc-400">
-                    确认文件名与 A4 页数后生成 PDF
+                    {copy.exportDesc}
                   </p>
                 </div>
                 <button
                   onClick={() => setIsExportDialogOpen(false)}
                   className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
-                  title="关闭"
+                  title={copy.close}
                 >
                   <X size={18} />
                 </button>
@@ -3121,7 +3339,7 @@ function ResumeEditorContent() {
               <div className="space-y-5 p-6">
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-                    PDF 文件名
+                    {copy.pdfFilename}
                   </label>
                   <input
                     className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 text-sm font-medium outline-none transition-colors focus:border-zinc-400"
@@ -3132,7 +3350,7 @@ function ResumeEditorContent() {
 
                 <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
                   <div className="mb-2 text-xs font-bold uppercase tracking-widest text-zinc-400">
-                    检查结果
+                    {copy.checkResult}
                   </div>
                   {exportWarnings.length > 0 ? (
                     <ul className="space-y-2 text-sm font-medium text-amber-700">
@@ -3142,7 +3360,7 @@ function ResumeEditorContent() {
                     </ul>
                   ) : (
                     <p className="text-sm font-medium text-emerald-600">
-                      未发现明显问题，可以导出。
+                      {copy.noWarnings}
                     </p>
                   )}
                 </div>
@@ -3154,7 +3372,7 @@ function ResumeEditorContent() {
                   className="h-11"
                   onClick={() => setIsExportDialogOpen(false)}
                 >
-                  取消
+                  {copy.cancel}
                 </Button>
                 <Button
                   className="h-11 gap-2"
@@ -3162,7 +3380,7 @@ function ResumeEditorContent() {
                   onClick={exportToPdf}
                 >
                   <DownloadCloud size={16} />
-                  {isExporting ? "正在生成" : "确认导出"}
+                  {isExporting ? copy.generating : copy.confirmExport}
                 </Button>
               </div>
             </motion.div>
@@ -3192,17 +3410,17 @@ function ResumeEditorContent() {
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-zinc-900">
-                      AI 简历分析
+                      {copy.aiReportTitle}
                     </h3>
                     <p className="text-xs font-medium text-zinc-400">
-                      支持 JD 匹配优化与简历评分
+                      {copy.aiReportDesc}
                     </p>
                   </div>
                 </div>
                 <button
                   onClick={() => setIsAiAnalysisOpen(false)}
                   className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
-                  title="关闭"
+                  title={copy.close}
                 >
                   <X size={18} />
                 </button>
@@ -3212,11 +3430,11 @@ function ResumeEditorContent() {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-                      招聘 JD
+                      {copy.jdLabel}
                     </label>
                     <textarea
                       className="h-72 w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm leading-relaxed text-zinc-700 outline-none transition-colors focus:border-zinc-400"
-                      placeholder="粘贴招聘岗位描述，用于分析匹配度..."
+                      placeholder={copy.jdPlaceholder}
                       value={jdText}
                       onChange={(e) => setJdText(e.target.value)}
                     />
@@ -3228,7 +3446,7 @@ function ResumeEditorContent() {
                       disabled={isAiAnalyzing}
                       onClick={() => analyzeResumeWithAi("jd_match")}
                     >
-                      <Target size={15} /> JD 匹配
+                      <Target size={15} /> {copy.jdMatch}
                     </Button>
                     <Button
                       type="button"
@@ -3237,7 +3455,7 @@ function ResumeEditorContent() {
                       disabled={isAiAnalyzing}
                       onClick={() => analyzeResumeWithAi("score")}
                     >
-                      <Award size={15} /> 简历评分
+                      <Award size={15} /> {copy.resumeScore}
                     </Button>
                   </div>
                   {aiError && (
@@ -3250,17 +3468,17 @@ function ResumeEditorContent() {
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-                      分析报告
+                      {copy.reportTitle}
                     </div>
                     {isAiAnalyzing && (
                       <span className="text-xs font-bold text-emerald-600">
-                        分析中...
+                        {copy.analyzing}
                       </span>
                     )}
                   </div>
                   <div className="h-[352px] overflow-auto whitespace-pre-wrap rounded-xl border border-zinc-200 bg-white p-4 text-sm leading-relaxed text-zinc-700">
                     {aiAnalysisResult ||
-                      "点击 JD 匹配或简历评分后，分析结果会显示在这里。"}
+                      copy.reportEmpty}
                   </div>
                 </div>
               </div>
@@ -3291,7 +3509,7 @@ function ResumeEditorContent() {
                   </div>
                   <div>
                     <h3 className="text-lg font-bold text-zinc-900">
-                      AI 优化结果
+                      {copy.aiOptimizeTitle}
                     </h3>
                     <p className="text-xs font-medium text-zinc-400">
                       {aiDraft.context}
@@ -3301,7 +3519,7 @@ function ResumeEditorContent() {
                 <button
                   onClick={() => setAiDraft(null)}
                   className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
-                  title="关闭"
+                  title={copy.close}
                 >
                   <X size={18} />
                 </button>
@@ -3310,7 +3528,7 @@ function ResumeEditorContent() {
               <div className="grid gap-4 p-6 md:grid-cols-2">
                 <div className="space-y-2">
                   <div className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-                    原文
+                    {copy.originalText}
                   </div>
                   <div className="h-72 overflow-auto whitespace-pre-wrap rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm leading-relaxed text-zinc-500">
                     {aiDraft.sourceText}
@@ -3318,7 +3536,7 @@ function ResumeEditorContent() {
                 </div>
                 <div className="space-y-2">
                   <div className="text-xs font-bold uppercase tracking-widest text-emerald-600">
-                    优化后
+                    {copy.optimizedText}
                   </div>
                   <div className="h-72 overflow-auto whitespace-pre-wrap rounded-xl border border-emerald-100 bg-emerald-50/40 p-4 text-sm leading-relaxed text-zinc-800">
                     {aiDraft.result}
@@ -3332,10 +3550,10 @@ function ResumeEditorContent() {
                   className="h-11"
                   onClick={() => setAiDraft(null)}
                 >
-                  保留原文
+                  {copy.keepOriginal}
                 </Button>
                 <Button className="h-11 gap-2" onClick={applyAiDraft}>
-                  <Check size={16} /> 应用结果
+                  <Check size={16} /> {copy.applyResult}
                 </Button>
               </div>
             </motion.div>
@@ -3370,7 +3588,7 @@ function ResumeEditorContent() {
                 <button
                   onClick={() => setTempAvatar(null)}
                   className="w-10 h-10 flex items-center justify-center hover:bg-zinc-50 rounded-full text-zinc-400 transition-colors"
-                  title="关闭"
+                  title={copy.close}
                 >
                   <X size={20} />
                 </button>
@@ -3444,7 +3662,7 @@ function ResumeEditorContent() {
                     className="flex-1 h-12"
                     onClick={() => setTempAvatar(null)}
                   >
-                    返回编辑
+                    {copy.backToEdit}
                   </Button>
                   <Button
                     variant="primary"

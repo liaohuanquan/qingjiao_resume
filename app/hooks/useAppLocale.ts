@@ -21,7 +21,9 @@ function subscribeLocale(onStoreChange: () => void) {
 
   window.addEventListener("storage", handleStorage);
   window.addEventListener(APP_LOCALE_EVENT, handleLocaleChange);
+  const timer = window.setTimeout(onStoreChange, 0);
   return () => {
+    window.clearTimeout(timer);
     window.removeEventListener("storage", handleStorage);
     window.removeEventListener(APP_LOCALE_EVENT, handleLocaleChange);
   };
