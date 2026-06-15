@@ -36,6 +36,8 @@ import {
   Calendar,
   MessageCircle,
   Sparkles,
+  History,
+  RotateCcw,
 } from "lucide-react";
 
 import {
@@ -205,6 +207,21 @@ interface ResumeMetadata {
   templateId?: ResumeTemplateId;
 }
 
+interface ResumeConfig {
+  resumeData: ResumeData;
+  modules: ModuleItem[];
+  themeColor: string;
+  typography: TypographyConfig;
+  templateId: ResumeTemplateId;
+}
+
+interface ResumeSnapshot {
+  id: string;
+  label: string;
+  createdAt: string;
+  config: ResumeConfig;
+}
+
 type ResumeTemplateId = "classic" | "split" | "tech";
 type AiOptimizeMode = "polish" | "quantify" | "concise";
 type AiAnalyzeMode = "jd_match" | "score";
@@ -245,6 +262,7 @@ const EDITOR_COPY = {
     importConfig: "导入配置",
     aiAnalysis: "AI 分析",
     backupJson: "备份 JSON",
+    versionHistory: "版本历史",
     downloadPdf: "下载 PDF",
     downloadingPdf: "正在生成 PDF...",
     download: "下载",
@@ -307,6 +325,14 @@ const EDITOR_COPY = {
     optimizedText: "优化后",
     keepOriginal: "保留原文",
     applyResult: "应用结果",
+    historyTitle: "版本历史",
+    historyDesc: "保留最近 10 个本地快照，可随时恢复。",
+    saveCurrentVersion: "保存当前版本",
+    restoreVersion: "恢复",
+    noHistory: "暂无版本快照。",
+    currentVersionLabel: "手动保存",
+    beforeAiApplyLabel: "AI 应用前",
+    versionSaved: "版本已保存",
     backToEdit: "返回编辑",
   },
   "en-US": {
@@ -316,6 +342,7 @@ const EDITOR_COPY = {
     importConfig: "Import config",
     aiAnalysis: "AI analysis",
     backupJson: "Backup JSON",
+    versionHistory: "Version history",
     downloadPdf: "Download PDF",
     downloadingPdf: "Generating PDF...",
     download: "Download",
@@ -378,6 +405,14 @@ const EDITOR_COPY = {
     optimizedText: "Optimized",
     keepOriginal: "Keep original",
     applyResult: "Apply result",
+    historyTitle: "Version history",
+    historyDesc: "Keeps the latest 10 local snapshots for restore.",
+    saveCurrentVersion: "Save current version",
+    restoreVersion: "Restore",
+    noHistory: "No snapshots yet.",
+    currentVersionLabel: "Manual save",
+    beforeAiApplyLabel: "Before AI apply",
+    versionSaved: "Version saved",
     backToEdit: "Back to edit",
   },
 } satisfies Record<AppLocale, {
@@ -387,6 +422,7 @@ const EDITOR_COPY = {
   importConfig: string;
   aiAnalysis: string;
   backupJson: string;
+  versionHistory: string;
   downloadPdf: string;
   downloadingPdf: string;
   download: string;
@@ -434,6 +470,14 @@ const EDITOR_COPY = {
   optimizedText: string;
   keepOriginal: string;
   applyResult: string;
+  historyTitle: string;
+  historyDesc: string;
+  saveCurrentVersion: string;
+  restoreVersion: string;
+  noHistory: string;
+  currentVersionLabel: string;
+  beforeAiApplyLabel: string;
+  versionSaved: string;
   backToEdit: string;
 }>;
 
@@ -1196,6 +1240,83 @@ function ResumeEditorContent() {
   const [isAiAnalysisOpen, setIsAiAnalysisOpen] = useState(false);
   const [jdText, setJdText] = useState("");
   const [aiAnalysisResult, setAiAnalysisResult] = useState("");
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [versionSnapshots, setVersionSnapshots] = useState<ResumeSnapshot[]>(
+    [],
+  );
+  const [versionNotice, setVersionNotice] = useState<string | null>(null);
+
+  const historyKey = `resume_history_${resumeId}`;
+
+  const buildResumeConfig = useCallback(
+    (): ResumeConfig => ({
+      resumeData,
+      modules,
+      themeColor,
+      typography,
+      templateId,
+    }),
+    [resumeData, modules, themeColor, typography, templateId],
+  );
+
+  const loadVersionSnapshots = useCallback(() => {
+    try {
+      const saved = localStorage.getItem(historyKey);
+      setVersionSnapshots(saved ? JSON.parse(saved) : []);
+    } catch (error) {
+      console.error("[loadVersionSnapshots] 加载版本历史失败:", error);
+      setVersionSnapshots([]);
+    }
+  }, [historyKey]);
+
+  const saveVersionSnapshot = useCallback(
+    (label: string, config = buildResumeConfig()) => {
+      try {
+        const saved = localStorage.getItem(historyKey);
+        const snapshots = saved ? (JSON.parse(saved) as ResumeSnapshot[]) : [];
+        const currentConfigText = JSON.stringify(config);
+        const latestConfigText = snapshots[0]
+          ? JSON.stringify(snapshots[0].config)
+          : "";
+
+        if (latestConfigText === currentConfigText) {
+          setVersionNotice(copy.versionSaved);
+          return;
+        }
+
+        const nextSnapshots = [
+          {
+            id: `${Date.now()}`,
+            label,
+            createdAt: new Date().toISOString(),
+            config,
+          },
+          ...snapshots,
+        ].slice(0, 10);
+
+        localStorage.setItem(historyKey, JSON.stringify(nextSnapshots));
+        setVersionSnapshots(nextSnapshots);
+        setVersionNotice(copy.versionSaved);
+      } catch (error) {
+        console.error("[saveVersionSnapshot] 保存版本历史失败:", error);
+      }
+    },
+    [buildResumeConfig, copy.versionSaved, historyKey],
+  );
+
+  const restoreVersionSnapshot = (snapshot: ResumeSnapshot) => {
+    setResumeData(normalizeResumeData(snapshot.config.resumeData));
+    setModules(snapshot.config.modules);
+    setThemeColor(snapshot.config.themeColor);
+    setTypography(snapshot.config.typography);
+    setTemplateId(snapshot.config.templateId);
+    setVersionNotice(`${copy.restoreVersion}: ${snapshot.label}`);
+    setIsHistoryOpen(false);
+  };
+
+  React.useEffect(() => {
+    loadVersionSnapshots();
+  }, [loadVersionSnapshots]);
 
   const buildResumeText = () =>
     [
@@ -1342,6 +1463,8 @@ function ResumeEditorContent() {
 
   const applyAiDraft = () => {
     if (!aiDraft) return;
+
+    saveVersionSnapshot(copy.beforeAiApplyLabel);
 
     if (aiDraft.target.type === "work") {
       updateListItem("work", aiDraft.target.id, "desc", aiDraft.result);
@@ -1681,11 +1804,34 @@ function ResumeEditorContent() {
             </Button>
             <Button
               variant="outline"
+              size="icon"
+              className="sm:hidden"
+              title={copy.versionHistory}
+              onClick={() => {
+                loadVersionSnapshots();
+                setIsHistoryOpen(true);
+              }}
+            >
+              <History size={14} />
+            </Button>
+            <Button
+              variant="outline"
               size="sm"
               className="gap-2 text-xs font-bold hidden sm:flex"
               onClick={exportToJson}
             >
               <Code size={14} /> {copy.backupJson}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-2 text-xs font-bold hidden md:flex"
+              onClick={() => {
+                loadVersionSnapshots();
+                setIsHistoryOpen(true);
+              }}
+            >
+              <History size={14} /> {copy.versionHistory}
             </Button>
             <Button
               size="sm"
@@ -3302,6 +3448,97 @@ function ResumeEditorContent() {
           </button>
         </div>
       </main>
+
+      {/* 版本历史弹窗 */}
+      <AnimatePresence>
+        {isHistoryOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96, y: 16 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.96, y: 16 }}
+              className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+            >
+              <div className="flex items-center justify-between border-b border-zinc-100 p-6">
+                <div>
+                  <h3 className="text-lg font-bold text-zinc-900">
+                    {copy.historyTitle}
+                  </h3>
+                  <p className="text-xs font-medium text-zinc-400">
+                    {copy.historyDesc}
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsHistoryOpen(false)}
+                  className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
+                  title={copy.close}
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              <div className="space-y-4 p-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <Button
+                    className="h-11 gap-2"
+                    onClick={() =>
+                      saveVersionSnapshot(copy.currentVersionLabel)
+                    }
+                  >
+                    <History size={16} />
+                    {copy.saveCurrentVersion}
+                  </Button>
+                  {versionNotice && (
+                    <span className="text-xs font-bold text-emerald-600">
+                      {versionNotice}
+                    </span>
+                  )}
+                </div>
+
+                <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
+                  {versionSnapshots.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-zinc-200 bg-zinc-50 p-6 text-center text-sm font-medium text-zinc-400">
+                      {copy.noHistory}
+                    </div>
+                  ) : (
+                    versionSnapshots.map((snapshot) => (
+                      <div
+                        key={snapshot.id}
+                        className="flex flex-col gap-3 rounded-xl border border-zinc-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between"
+                      >
+                        <div>
+                          <div className="text-sm font-bold text-zinc-800">
+                            {snapshot.label}
+                          </div>
+                          <div className="mt-1 text-xs font-medium text-zinc-400">
+                            {new Date(snapshot.createdAt).toLocaleString(
+                              locale === "en-US" ? "en-US" : "zh-CN",
+                            )}
+                          </div>
+                        </div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-2 text-xs font-bold"
+                          onClick={() => restoreVersionSnapshot(snapshot)}
+                        >
+                          <RotateCcw size={14} />
+                          {copy.restoreVersion}
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Export Check Modal */}
       <AnimatePresence>
