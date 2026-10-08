@@ -75,7 +75,7 @@ export function listResumesWithLegacy(locale: string): ResumeMetadata[] {
   return listResumes();
 }
 
-export function createResume(title: string, config = blankResume(), id = crypto.randomUUID()): ResumeMetadata {
+export function createResume(title: string, config = blankResume(), id: string = crypto.randomUUID()): ResumeMetadata {
   const list = listResumes();
   if (list.some(item => item.id === id) || localStorage.getItem(dataKey(id)) !== null) throw new Error("resume already exists");
   const valid = parseResumeConfig(config);

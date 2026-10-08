@@ -2549,23 +2549,6 @@ function ResumeEditorContent() {
             </div>
           </div>
         </section>
-                                ))}
-                            </div>
-                          </div>
-                        </div>
-
-                        <div className="absolute bottom-6 right-8 text-[10px] text-zinc-300 font-mono tracking-widest uppercase pointer-events-none">
-                          Page {pageIdx + 1} / {numPages}
-                        </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
-
         {/* 移动端底部切换导航栏 */}
         <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 h-14 bg-zinc-900/90 backdrop-blur-md rounded-2xl flex items-center px-2 gap-1 border border-white/10 shadow-2xl z-[100]">
           <button
