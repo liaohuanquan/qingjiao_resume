@@ -1,115 +1,48 @@
-<p align="center">
-  <img src="public/images/qinfjiao_resume.png" width="120" height="120" style="border-radius: 50%" />
-</p>
+# 青椒简历
 
-<h1 align="center">青椒简历 (QingJiao Resume)</h1>
+免登录的简历编辑器，使用 Next.js 16、React 19 和 Tailwind CSS 4。
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js" />
-  <img src="https://img.shields.io/badge/React-19-20232A?logo=react" />
-  <img src="https://img.shields.io/badge/Tailwind_CSS-4-38B2AC?logo=tailwind-css" />
-  <img src="https://img.shields.io/badge/License-MIT-green" />
-</p>
+## 使用
 
-<p align="center">
-  <b>简体中文</b> | <a href="README_EN.md">English</a>
-</p>
+- 在“简历”中新建、重命名、复制或删除简历。
+- 编辑器支持模块排序、显隐、自定义内容、头像裁剪和三种模板。
+- 内容保存在当前浏览器，编辑后自动保存。保存失败时保留当前页面，并下载备份。
+- JSON 和文本导入先展示预览，确认后替换当前内容。导入、AI 应用和恢复历史前保存快照，最多保留十份。
+- “设置”提供全部简历备份与恢复。恢复会新建简历，不覆盖现有内容；备份包含版本历史，不包含密钥。
 
-一个极简、极其流畅且现代化的在线简历编辑器。基于 **Next.js 16**、**Tailwind CSS 4** 和 **Framer Motion** 构建，旨在通过 AI 辅助与极致的 UI 交互，让写简历变成一种享受。
+## 打印 PDF
 
-![1774840569061](image/README/1774840569061.png)![1774840556914](image/README/1774840556914.png)
+点击“打印简历”，在系统打印窗口选择“保存为 PDF”。使用 A4 纵向；可关闭浏览器页眉页脚，并启用背景图形以保留模板颜色。
 
-![1774874377182](image/README/1774874377182.png)
+PDF 使用文本排版。编辑器页数为预估，最终分页和文件名以打印窗口为准。取消打印不会显示保存成功。
 
-![1774840542395](image/README/1774840542395.png)
+## AI 设置
 
-## 核心特性
+在“AI 设置”填写服务地址、模型和自己的密钥。仅支持 OpenAI-compatible Chat Completions 协议。
 
-- **极致响应式布局**：三栏式设计，左侧管理、中间编辑、右侧实时预览，支持自适应屏幕缩放。
-- **模块化自由管理**：支持“基本信息”、“教育背景”、“工作经历”、“项目经验”与“专业技能”等模块的自由排序与显隐切换。
-- **实时 A4 预览**：高保真的 A4 纸张比例预览，所见即所得，支持 1:1 比例导出。
-- **现代化头像处理**：内置 `react-easy-crop`，上传头像后可自由框选范围与缩放。
-- **高级排版控制**：
-  - **主题色配置**：支持预设方案与自定义 RGB 取值。
-  - **字体系统**：内置 Inter、Roboto、Outfit 以及传统宋体。
-  - **精细调节**：支持以 0.5px 为单位的字号调节及 0.05px 步长的行高调节。
-- **本地存储持久化**：头像与数据自动保存至浏览器本地存储，无须注册即可随用随走。
+服务地址示例为 `https://example.com/v1`。浏览器会直接向服务商的 `/chat/completions` 发送请求，服务必须允许本站来源、`Authorization` 和 `Content-Type` 的跨域请求。不提供服务器代理；跨域不兼容时仍可使用编辑、保存和打印。
 
-## 技术栈
+地址和模型可保存到本机。密钥只存在于当前页面会话内存中，刷新后需重新输入；不会进入备份或服务器配置。历史版本中持久保存的密钥会被清理。
 
-- **框架**: [Next.js 16 (App Router)](https://nextjs.org/)
-- **UI 逻辑**: [React 19](https://react.dev/)
-- **样式**: [Tailwind CSS 4](https://tailwindcss.com/)
-- **动画**: [Framer Motion](https://www.framer.com/motion/)
-- **图片处理**: [react-easy-crop](https://github.com/ValentinH/react-easy-crop)
-- **图标**: [Lucide React](https://lucide.dev/)
+“测试连接”会发送真实的最小请求。业务请求可取消，超时为 60 秒。AI 修改先预览，确认后应用；原文变化时需重新生成。整份分析仅使用可见模块，默认排除联系方式和头像。生成描述需要先填写实际职责或成果。
 
-## 快速开始
-
-### 1. 安装依赖
+## 本地开发
 
 ```bash
 npm install
-```
-
-### 2. 启动开发服务器
-
-```bash
 npm run dev
 ```
 
-### 3. 配置 AI 服务端能力
+访问 `http://localhost:3000/qingjiao_resume/`。执行安装前请遵循本机工具安装约定。
 
-如需使用 AI 优化功能，请在 `.env.local` 中配置 OpenAI-compatible 服务：
+现有生产脚本与 Docker 配置保留；本次编码未运行安装、测试、构建、浏览器验收或真实 AI 请求，也未修改 CI、Docker 或托管配置。
 
-```bash
-AI_BASE_URL=https://api.openai.com/v1
-AI_API_KEY=your_api_key
-AI_MODEL=gpt-4o-mini
-```
+## 数据边界
 
-### 4. 开始创作
+简历数据属于当前浏览器及站点来源。清除浏览器数据、更换设备或更换站点来源不会自动迁移简历，请使用备份。损坏数据可通过“原始备份”下载，应用不会以空白内容自动覆盖。
 
-访问 `http://localhost:3000/qingjiao_resume/editor` 即可开始编辑您的简历。
+当前仍保留 Node standalone 输出；既有 GitHub Pages 工作流使用 `out` 目录，两者的部署配置不一致尚未在本轮处理。
 
-## 部署说明
+## 许可证
 
-项目使用 Next.js 服务端输出模式，支持 `app/api/ai/optimize` 动态接口。生产环境需要使用 Node 服务或支持 Next.js 服务器能力的平台部署，不能再按纯静态站点托管。
-
-### 本地生产预览
-
-```bash
-npm run build
-npm run start
-```
-
-`npm run start` 会启动 `.next/standalone/server.js`，与 `next.config.ts` 中的 `output: "standalone"` 保持一致。
-
-### Docker 部署
-
-```bash
-docker build -t qingjiao_resume .
-docker run -p 3000:3000 \
-  -e AI_BASE_URL=https://api.openai.com/v1 \
-  -e AI_API_KEY=your_api_key \
-  -e AI_MODEL=gpt-4o-mini \
-  qingjiao_resume
-```
-
-部署后访问 `http://localhost:3000/qingjiao_resume/editor`。
-
-## 🤝 贡献与支持 (Contribution)
-
-欢迎任何形式的贡献！无论是修复 Bug、改进 UI，还是增加新的模板和功能特性。
-
-1. **Fork** 本项目
-2. **Create** 您的特性分支 (`git checkout -b feature/AmazingFeature`)
-3. **Commit** 您的提交 (`git commit -m 'Add some AmazingFeature'`)
-4. **Push** 到分支 (`git push origin feature/AmazingFeature`)
-5. **Open** 一个 Pull Request
-
-如果您觉得这个项目对你有帮助，欢迎点一个 **Star** ⭐️，这是对作者最大的鼓励！
-
-## ⚖️ 许可证
-
-MIT License.
+MIT。

@@ -1,44 +1,13 @@
-# Resume Editor Design Specification
+# 简历编辑器设计约定
 
-## Overview
-A modern, minimalist, yet feature-rich online resume editor with a three-pane layout.
+保留三栏布局：模块与样式、内容编辑、简历预览。移动端通过管理、编辑、预览切换。界面沿用浅色底、圆角卡片、青绿色重点色；深色主题只影响编辑环境。
 
-## Aesthetics & Core Theme
-- **Background**: `bg-zinc-50` (Extreme light gray)
-- **Typography**: Google Fonts (Inter/Roboto/Outfit recommended), using Lucide icons.
-- **Colors**:
-  - Main titles: `#18181b` (`zinc-900`)
-  - Body & Icons: `#71717a` (`zinc-500`) or `#52525b` (`zinc-600`)
-  - Status badges: Emerald (e.g., `text-emerald-600`, `bg-emerald-50`)
-- **Components**: Everything rounded (`rounded-xl` or `rounded-lg`).
+页面只保留操作需要的标题、标签、状态和提示。首页提供简历及模板入口；管理页支持新建、独立命名、复制和删除。导航为简历、模板、AI 设置、设置。
 
-## Layout Structure (H-screen, W-screen, no overflow)
+简历预览与打印共用 ResumeDocument，自然文档流不裁切正文。经典单栏、左右分栏和技术模板保留。打印使用 A4 纵向、15 毫米页边距，隐藏编辑器控件、阴影、模板标识和占位内容。屏幕页数是预估，系统打印预览决定最终分页。
 
-### 1. Header (~60px)
-- `flex items-center justify-between px-6 bg-white border-b border-zinc-200 shadow-sm z-10`
-- **Left**: "青椒简历" Logo + Badge ("保存已配置")
-- **Right**: Username ("QingJiao") + Theme Switch + "Export" button (Black, Shadcn Default).
+保存状态为未保存、保存中、已保存、保存失败；仅写入成功后显示已保存。导入、AI 应用和恢复历史前保留快照。错误不得以空白数据覆盖已有内容。
 
-### 2. Main Content (Three-Column Layout)
-#### Column 1: Config & Module Management (280px)
-- `bg-white border-r border-zinc-100 p-4 overflow-y-auto`
-- **Draggable Sections**: Cards with drag handles, hide/delete icons.
-- **Theme Color**: Circle color picker with ring-2 ring-offset-2.
-- **Typography Settings**: Font selection, line-height slider, base font size.
+AI 使用用户自己的兼容服务，浏览器直接请求，密钥仅在页面会话内存中。建议先预览再应用，原文变化后禁止直接覆盖。界面不承诺评分对应录用结果。
 
-#### Column 2: Form Editor (380px)
-- `bg-zinc-50/50 border-r border-zinc-200 p-6 overflow-y-auto`
-- **Current Module**: e.g., "Basic Info" with icon.
-- **Layout Selector**: Align left/center/split distribution.
-- **Form Controls**: Minimalist inputs, drag handles for list items, visibility/delete toggles.
-- **Avatar**: Upload component with preview and replace action.
-
-#### Column 3: Preview Canvas (flex-1)
-- `bg-zinc-100 flex items-center justify-center p-8 overflow-auto`
-- **A4 Paper**: `bg-white aspect-[1/1.414]` with `shadow-2xl ring-1 ring-zinc-900/5`.
-- **Floating Toolbar**: Right-aligned vertical capsule (`absolute right-6 top-1/2`). Contains icons for Template, Text, Layout, Download, Code, Help.
-
-## Interactions
-- Framer Motion for transitions and interactions.
-- Lucide Icons for all symbology.
-- All cards/inputs use high-quality ronded corners.
+所有入口须有实际操作结果。弹窗支持键盘焦点、Tab 循环和 Escape；必要文案支持中英文。无需补充文案的区域直接删除容器。

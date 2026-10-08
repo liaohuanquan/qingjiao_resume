@@ -6,6 +6,8 @@ export type AppLocale = "zh-CN" | "en-US";
 
 const APP_LOCALE_KEY = "app_locale";
 const APP_LOCALE_EVENT = "app-locale-change";
+let sessionLocale: AppLocale = "zh-CN";
+let temporaryLocale: AppLocale | null = null;
 
 function normalizeLocale(value: string | null): AppLocale {
   return value === "en-US" ? "en-US" : "zh-CN";
@@ -30,11 +32,21 @@ function subscribeLocale(onStoreChange: () => void) {
 }
 
 function getLocaleSnapshot() {
-  return normalizeLocale(localStorage.getItem(APP_LOCALE_KEY));
+  if (temporaryLocale) return temporaryLocale;
+  try { const stored = localStorage.getItem(APP_LOCALE_KEY); return stored === null ? sessionLocale : normalizeLocale(stored); }
+  catch { return sessionLocale; }
 }
+
+export const getCurrentLocale = getLocaleSnapshot;
 
 function getServerLocaleSnapshot() {
   return "zh-CN" as AppLocale;
+}
+
+export function resetLocale() {
+  sessionLocale = "zh-CN";
+  temporaryLocale = null;
+  window.dispatchEvent(new Event(APP_LOCALE_EVENT));
 }
 
 export function useAppLocale() {
@@ -45,7 +57,9 @@ export function useAppLocale() {
   );
 
   const setLocale = useCallback((nextLocale: AppLocale) => {
-    localStorage.setItem(APP_LOCALE_KEY, nextLocale);
+    sessionLocale = nextLocale;
+    try { localStorage.setItem(APP_LOCALE_KEY, nextLocale); temporaryLocale = null; }
+    catch { temporaryLocale = nextLocale; }
     window.dispatchEvent(
       new CustomEvent<AppLocale>(APP_LOCALE_EVENT, { detail: nextLocale }),
     );

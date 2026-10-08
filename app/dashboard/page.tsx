@@ -1,460 +1,63 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import { useCallback, useEffect, useState, type MouseEvent } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAppLocale, type AppLocale } from "@/app/hooks/useAppLocale";
-import {
-  Plus,
-  Trash2,
-  FileEdit,
-  ShieldCheck,
-  Copy,
-  LayoutDashboard,
-  Search,
-  X,
-  AlertCircle,
-} from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-
-// --- 类型定义 ---
-interface ResumeMetadata {
-  id: string;
-  title: string;
-  lastModified: string;
-  theme: string;
-}
-
-const COPY = {
-  "zh-CN": {
-    defaultResumeTitle: "我的第一份简历",
-    untitledResume: "未命名简历",
-    copySuffix: "副本",
-    loading: "正在准备仪表盘...",
-    securityTitle: "数据本地安全存储",
-    securityDesc: "简历数据存储在本地浏览器中，确保隐私与安全。",
-    resumeCount: "份简历文档",
-    eyebrow: "Dashboard",
-    title: "简历中心",
-    subtitle: "管理求职文档，点击卡片即可开始编辑。",
-    searchPlaceholder: "搜索简历标题...",
-    create: "新建简历",
-    createDesc1: "创建一个全新的简历配置",
-    createDesc2: "开始职业新篇章",
-    edit: "编辑简历",
-    updated: "更新",
-    duplicateTitle: "复制简历",
-    deleteTitle: "删除简历文档",
-    emptyTitle: "未找到相关简历",
-    emptyDesc: "换个关键词试试，或者新建一份简历。",
-    deleteConfirmTitle: "确定删除简历？",
-    deleteConfirmDesc1: "此操作将永久移除该简历配置",
-    deleteConfirmDesc2: "及其所有编辑内容，且无法撤销。",
-    cancel: "取消",
-    confirmDelete: "确定删除",
-  },
-  "en-US": {
-    defaultResumeTitle: "My First Resume",
-    untitledResume: "Untitled Resume",
-    copySuffix: "Copy",
-    loading: "Preparing dashboard...",
-    securityTitle: "Local data storage",
-    securityDesc: "Resume data is stored in the local browser for privacy.",
-    resumeCount: "resume documents",
-    eyebrow: "Dashboard",
-    title: "Resume Hub",
-    subtitle: "Manage job documents and open any card to start editing.",
-    searchPlaceholder: "Search resume title...",
-    create: "New Resume",
-    createDesc1: "Create a fresh resume profile",
-    createDesc2: "Start a new career draft",
-    edit: "Edit resume",
-    updated: "Updated",
-    duplicateTitle: "Duplicate resume",
-    deleteTitle: "Delete resume",
-    emptyTitle: "No matching resumes",
-    emptyDesc: "Try another keyword or create a new resume.",
-    deleteConfirmTitle: "Delete this resume?",
-    deleteConfirmDesc1: "This will permanently remove the resume profile",
-    deleteConfirmDesc2: "and all related editing content.",
-    cancel: "Cancel",
-    confirmDelete: "Delete",
-  },
-} satisfies Record<AppLocale, Record<string, string>>;
+import { Plus, Search, Copy, Pencil, Trash2 } from "lucide-react";
+import { useAppLocale } from "../hooks/useAppLocale";
+import type { ResumeMetadata } from "../lib/resume";
+import { blankResume } from "../lib/resume-schema";
+import { createResume, deleteResume, downloadRawStorage, duplicateResume, listResumesWithLegacy, renameResume } from "../lib/resume-storage";
+import { Modal } from "../components/Modal";
 
 export default function DashboardPage() {
   const router = useRouter();
   const { locale } = useAppLocale();
-  const copy = COPY[locale];
-  const [resumes, setResumes] = useState<ResumeMetadata[]>(() => {
-    if (typeof window === "undefined") return [];
-    const saved = localStorage.getItem("resume_list");
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch {
-        return [];
-      }
-    }
-    const defaultResume: ResumeMetadata = {
-      id: "default-1",
-      title: copy.defaultResumeTitle,
-      lastModified: new Date().toLocaleDateString(),
-      theme: "#10b981",
-    };
-    return [defaultResume];
-  });
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isLoaded, setIsLoaded] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
-
-  // 1. 初始化后的副作用
+  const t = (zh: string, en: string) => locale === "en-US" ? en : zh;
+  const [resumes, setResumes] = useState<ResumeMetadata[]>([]);
+  const [loaded, setLoaded] = useState(false);
+  const [query, setQuery] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [renaming, setRenaming] = useState<ResumeMetadata | null>(null);
+  const [title, setTitle] = useState("");
+  const load = useCallback(() => {
+    try {
+      setResumes(listResumesWithLegacy(locale)); setError(null);
+    } catch { setError(locale === "en-US" ? "Unable to read saved data. Download recovery data." : "数据读取失败，可下载原始数据"); }
+    setLoaded(true);
+  }, [locale]);
   useEffect(() => {
-    // 首次加载后确保同步到本地存储（针对首次访问的情况）
-    if (localStorage.getItem("resume_list") === null) {
-      localStorage.setItem("resume_list", JSON.stringify(resumes));
-    }
-    // 仅在初始挂载且未加载时执行
-    if (!isLoaded) {
-      const timer = window.setTimeout(() => setIsLoaded(true), 0);
-      return () => window.clearTimeout(timer);
-    }
-  }, [resumes, isLoaded]);
-
-  // 2. 持久化存储
-  const saveToStorage = (list: ResumeMetadata[]) => {
-    setResumes(list);
-    localStorage.setItem("resume_list", JSON.stringify(list));
+    load();
+    const onStorage = (event: StorageEvent) => { if (event.key === "resume_list") load(); };
+    window.addEventListener("storage", onStorage);
+    return () => window.removeEventListener("storage", onStorage);
+  }, [load]);
+  const act = (action: () => void) => {
+    try { action(); load(); }
+    catch { setError(t("操作失败，原有内容未被主动清空", "Operation failed. Existing content was not cleared.")); }
   };
-
-  // 3. 功能函数：新建简历
-  const handleCreate = () => {
-    const newId = crypto.randomUUID();
-    const newResume: ResumeMetadata = {
-      id: newId,
-      title: copy.untitledResume,
-      lastModified: new Date().toLocaleDateString(),
-      theme: "#10b981",
-    };
-    const newList = [newResume, ...resumes];
-    saveToStorage(newList);
-    router.push(`/editor?id=${newId}`);
+  const create = () => act(() => {
+    const metadata = createResume(t("未命名简历", "Untitled resume"), blankResume(locale));
+    router.push(`/editor?id=${metadata.id}`);
+  });
+  const duplicate = (event: MouseEvent, resume: ResumeMetadata) => {
+    event.preventDefault();
+    act(() => { duplicateResume(resume.id, `${resume.title} (${t("副本", "Copy")})`); });
   };
-
-  // 4. 功能函数：准备删除简历 (触发弹窗)
-  const handleDeleteTrigger = (e: React.MouseEvent, id: string) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDeleteTarget(id);
-  };
-
-  // 4b. 确认删除逻辑
-  const handleConfirmDelete = async () => {
-    if (!deleteTarget) return;
-    setIsDeleting(true);
-
-    // 模拟微小延迟增强反馈
-    await new Promise((r) => setTimeout(r, 400));
-
-    const newList = resumes.filter((r) => r.id !== deleteTarget);
-    saveToStorage(newList);
-    localStorage.removeItem(`resume_data_${deleteTarget}`);
-
-    setDeleteTarget(null);
-    setIsDeleting(false);
-  };
-
-  // 5. 功能函数：克隆简历
-  const handleDuplicate = (e: React.MouseEvent, resume: ResumeMetadata) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const newId = crypto.randomUUID();
-    const newResume: ResumeMetadata = {
-      ...resume,
-      id: newId,
-      title: `${resume.title} (${copy.copySuffix})`,
-      lastModified: new Date().toLocaleDateString(),
-    };
-
-    // 获取原文档数据并复制一份
-    const originalData = localStorage.getItem(`resume_data_${resume.id}`);
-    if (originalData) {
-      localStorage.setItem(`resume_data_${newId}`, originalData);
-    }
-
-    const newList = [newResume, ...resumes];
-    saveToStorage(newList);
-  };
-
-  // 过滤后的简历列表
-  const filteredResumes = resumes.filter((r) =>
-    r.title.toLowerCase().includes(searchQuery.toLowerCase()),
-  );
-
-  if (!isLoaded) {
-    return (
-      <div className="flex-1 flex items-center justify-center bg-zinc-50">
-        <div className="flex flex-col items-center gap-4">
-          <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin" />
-          <p className="text-sm font-medium text-zinc-400">
-            {copy.loading}
-          </p>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex-1 min-h-full flex flex-col p-8 lg:p-12 bg-zinc-50/50">
-      {/* 1. 顶部提示横幅 */}
-      <div className="flex items-center justify-between p-4 bg-emerald-50/80 backdrop-blur-sm border border-emerald-200 rounded-2xl shadow-sm mb-10 overflow-hidden relative">
-        <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-full bg-emerald-500/20 flex items-center justify-center">
-            <ShieldCheck size={18} className="text-emerald-600" />
-          </div>
-          <div>
-            <p className="text-sm font-bold text-emerald-900 leading-tight">
-              {copy.securityTitle}
-            </p>
-            <p className="text-xs text-emerald-600/80">
-              {copy.securityDesc}
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="hidden md:block h-8 w-px bg-emerald-200" />
-          <p className="hidden md:block text-[10px] font-bold text-emerald-600 uppercase tracking-widest">
-            {resumes.length} {copy.resumeCount}
-          </p>
-        </div>
-      </div>
-
-      {/* 2. 页面标题与操作栏 */}
-      <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-10 pb-8 border-b border-zinc-200/50">
-        <div>
-          <div className="flex items-center gap-2 mb-2 text-emerald-600">
-            <LayoutDashboard size={18} />
-            <span className="text-xs font-bold uppercase tracking-widest">
-              {copy.eyebrow}
-            </span>
-          </div>
-          <h1 className="text-3xl font-black tracking-tight text-zinc-900 mb-1">
-            {copy.title}
-          </h1>
-          <p className="text-zinc-500 text-sm font-medium">
-            {copy.subtitle}
-          </p>
-        </div>
-
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-4 shrink-0">
-          <div className="relative group">
-            <Search
-              size={16}
-              className="absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-zinc-900 transition-colors"
-            />
-            <input
-              type="text"
-              placeholder={copy.searchPlaceholder}
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-10 pr-4 py-2.5 bg-white border border-zinc-200 rounded-xl text-sm font-medium text-zinc-700 w-full sm:w-64 focus:outline-none focus:ring-2 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all"
-            />
-          </div>
-          <button
-            onClick={handleCreate}
-            className="flex items-center justify-center gap-2 px-6 py-2.5 bg-zinc-900 border border-zinc-900 rounded-xl text-sm font-bold text-white hover:bg-zinc-800 transition-all shadow-lg shadow-zinc-200 hover:-translate-y-0.5 active:translate-y-0"
-          >
-            <Plus size={18} strokeWidth={3} /> {copy.create}
-          </button>
-        </div>
-      </header>
-
-      {/* 3. 简历卡片网格区 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-        {/* A. 新建简历占位卡 */}
-        <button
-          onClick={handleCreate}
-          className="group relative flex flex-col items-center justify-center h-[340px] bg-white border-2 border-dashed border-zinc-200 rounded-3xl hover:border-emerald-400 hover:bg-emerald-50/10 hover:shadow-2xl hover:shadow-emerald-100/50 transition-all duration-500 ease-out"
-        >
-          <div className="w-14 h-14 bg-zinc-50 border border-zinc-100 rounded-full flex items-center justify-center text-zinc-400 group-hover:bg-emerald-500 group-hover:text-white group-hover:scale-110 transition-all duration-300 shadow-sm group-hover:shadow-lg group-hover:rotate-90">
-            <Plus size={24} strokeWidth={3} />
-          </div>
-          <div className="mt-5 text-center px-6">
-            <p className="text-base font-bold text-zinc-900 mb-1">
-              {copy.create}
-            </p>
-            <p className="text-xs text-zinc-500 leading-relaxed font-medium">
-              {copy.createDesc1}
-              <br />
-              {copy.createDesc2}
-            </p>
-          </div>
-        </button>
-
-        {/* B. 已存在简历卡列表 */}
-        {filteredResumes.map((resume) => (
-          <div
-            key={resume.id}
-            className="group relative bg-white border border-zinc-200 rounded-2xl overflow-hidden shadow-sm hover:shadow-2xl hover:shadow-zinc-200 transition-all duration-500 hover:-translate-y-2 flex flex-col h-[340px]"
-          >
-            {/* 缩略图区 - A4 比例预览容器 */}
-            <Link
-              href={`/editor?id=${resume.id}`}
-              className="flex-1 bg-zinc-50 flex items-center justify-center p-8 border-b border-zinc-100 relative overflow-hidden cursor-pointer"
-            >
-              <div className="w-full aspect-[21/29.7] max-h-full bg-white border border-zinc-100 shadow-[0_8px_30px_rgb(0,0,0,0.06)] rounded-sm transform group-hover:scale-[1.08] transition-transform duration-700 ease-out p-4 space-y-3">
-                {/* 模拟纸张视觉 */}
-                <div className="flex items-center gap-3 mb-4">
-                  <div
-                    className="w-8 h-8 rounded-full opacity-20"
-                    style={{ backgroundColor: resume.theme }}
-                  />
-                  <div className="space-y-1.5 flex-1">
-                    <div className="h-2 w-full bg-zinc-100 rounded-full" />
-                    <div className="h-1.5 w-3/4 bg-zinc-50 rounded-full" />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="h-1.5 w-full bg-zinc-100/80 rounded-full" />
-                  <div className="h-1.5 w-full bg-zinc-50 rounded-full" />
-                  <div className="h-1.5 w-5/6 bg-zinc-50 rounded-full" />
-                </div>
-                <div className="pt-2 space-y-2">
-                  <div className="h-1 w-full bg-zinc-100/50 rounded-full" />
-                  <div className="h-1 w-4/5 bg-zinc-50 rounded-full" />
-                </div>
-              </div>
-
-              {/* 悬浮的操作层 */}
-              <div className="absolute inset-0 bg-zinc-900/40 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-center justify-center">
-                <div className="flex items-center gap-3 translate-y-4 group-hover:translate-y-0 transition-transform duration-300">
-                  <div className="px-5 py-2.5 bg-white rounded-full text-zinc-900 font-bold text-sm shadow-xl flex items-center gap-2 hover:scale-105 transition-transform">
-                    <FileEdit size={16} /> {copy.edit}
-                  </div>
-                </div>
-              </div>
-            </Link>
-
-            {/* 信息与操作区 */}
-            <div className="p-6">
-              <div className="flex items-start justify-between gap-4 mb-3">
-                <div>
-                  <h3 className="font-bold text-zinc-900 text-base mb-1 line-clamp-1 group-hover:text-emerald-600 transition-colors">
-                    {resume.title}
-                  </h3>
-                  <div className="flex items-center gap-2">
-                    <div
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{ backgroundColor: resume.theme }}
-                    />
-                    <span className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest">
-                      {resume.lastModified} {copy.updated}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-1 opacity-100 md:opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button
-                    onClick={(e) => handleDuplicate(e, resume)}
-                    className="p-2 bg-zinc-50 rounded-xl text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900 transition-all"
-                    title={copy.duplicateTitle}
-                  >
-                    <Copy size={16} />
-                  </button>
-                  <button
-                    onClick={(e) => handleDeleteTrigger(e, resume.id)}
-                    className="p-2 bg-zinc-50 rounded-xl text-zinc-500 hover:bg-red-50 hover:text-red-500 transition-all font-bold"
-                    title={copy.deleteTitle}
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        ))}
-
-        {/* 空搜索状态 */}
-        {filteredResumes.length === 0 && searchQuery && (
-          <div className="col-span-full py-20 flex flex-col items-center justify-center text-center">
-            <div className="w-16 h-16 bg-zinc-100 rounded-full flex items-center justify-center text-zinc-400 mb-4">
-              <Search size={32} />
-            </div>
-            <h3 className="text-lg font-bold text-zinc-900">
-              {copy.emptyTitle}
-            </h3>
-            <p className="text-zinc-500 text-sm mt-1">
-              {copy.emptyDesc}
-            </p>
-          </div>
-        )}
-      </div>
-
-      {/* 4. 确认删除弹窗 (Modal) */}
-      <AnimatePresence>
-        {deleteTarget && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-            {/* 遮罩层 */}
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => !isDeleting && setDeleteTarget(null)}
-              className="absolute inset-0 bg-zinc-950/40 backdrop-blur-sm"
-            />
-
-            {/* 弹窗内容 */}
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.9, y: 20 }}
-              className="relative w-full max-w-sm bg-white rounded-[2rem] shadow-2xl overflow-hidden"
-            >
-              <div className="p-8 text-center">
-                <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center text-red-500 mx-auto mb-6">
-                  <AlertCircle size={32} />
-                </div>
-                <h3 className="text-xl font-bold text-zinc-900 mb-2">
-                  {copy.deleteConfirmTitle}
-                </h3>
-                <p className="text-zinc-500 text-sm leading-relaxed mb-8">
-                  {copy.deleteConfirmDesc1}
-                  <br />
-                  {copy.deleteConfirmDesc2}
-                </p>
-                <div className="flex gap-3">
-                  <button
-                    disabled={isDeleting}
-                    onClick={() => setDeleteTarget(null)}
-                    className="flex-1 px-6 py-3 bg-zinc-100 rounded-2xl text-sm font-bold text-zinc-600 hover:bg-zinc-200 transition-all disabled:opacity-50"
-                  >
-                    {copy.cancel}
-                  </button>
-                  <button
-                    disabled={isDeleting}
-                    onClick={handleConfirmDelete}
-                    className="flex-1 px-6 py-3 bg-red-500 rounded-2xl text-sm font-bold text-white hover:bg-red-600 shadow-lg shadow-red-200 transition-all disabled:opacity-50 flex items-center justify-center gap-2"
-                  >
-                    {isDeleting ? (
-                      <div className="w-4 h-4 border-2 border-white/20 border-t-white rounded-full animate-spin" />
-                    ) : (
-                      copy.confirmDelete
-                    )}
-                  </button>
-                </div>
-              </div>
-              <button
-                disabled={isDeleting}
-                onClick={() => setDeleteTarget(null)}
-                className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-zinc-900 transition-colors"
-              >
-                <X size={20} />
-              </button>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+  const filtered = resumes.filter(resume => resume.title.toLowerCase().includes(query.toLowerCase()));
+  return <main className="flex-1 overflow-y-auto bg-zinc-50/50 p-6 lg:p-12">
+    <div className="mx-auto max-w-6xl space-y-8">
+      <header className="flex flex-wrap items-center justify-between gap-4"><h1 className="text-3xl font-bold">{t("简历", "Resumes")}</h1><button onClick={create} disabled={!loaded || Boolean(error)} className="flex items-center gap-2 rounded-xl bg-zinc-900 px-5 py-3 text-sm font-bold text-white disabled:opacity-50"><Plus size={18} />{t("新建简历", "New resume")}</button></header>
+      {error && <div role="alert" className="rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 space-x-4"><span>{error}</span><button onClick={load}>{t("重试", "Retry")}</button><button onClick={() => { try { downloadRawStorage(); } catch { setError(t("存储无法读取", "Storage is unavailable.")); } }}>{t("原始备份", "Recovery data")}</button></div>}
+      <label className="relative block max-w-sm"><span className="sr-only">{t("搜索简历", "Search resumes")}</span><Search className="absolute left-3 top-3 text-zinc-400" size={18} /><input value={query} onChange={event => setQuery(event.target.value)} placeholder={t("搜索简历", "Search resumes")} className="h-11 w-full rounded-xl border border-zinc-200 bg-white pl-10 pr-3 text-sm" /></label>
+      {!loaded ? <p role="status">{t("加载中", "Loading")}</p> : <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-3">{filtered.map(resume => <article key={resume.id} className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm">
+        <Link href={`/editor?id=${resume.id}`} className="block"><div className="mb-5 h-24 rounded-xl border-l-4 bg-zinc-50" style={{ borderLeftColor: resume.theme }} /><h2 className="truncate text-lg font-bold">{resume.title || t("未命名简历", "Untitled resume")}</h2><p className="mt-2 text-xs text-zinc-500">{t("更新", "Updated")} {Number.isNaN(Date.parse(resume.lastModified)) ? resume.lastModified : new Date(resume.lastModified).toLocaleDateString(locale)}</p></Link>
+        <div className="mt-5 flex justify-end gap-2"><button aria-label={t("重命名", "Rename")} onClick={() => { setRenaming(resume); setTitle(resume.title); }} className="rounded-lg p-2 hover:bg-zinc-100"><Pencil size={17} /></button><button aria-label={t("复制简历", "Duplicate resume")} onClick={event => duplicate(event, resume)} className="rounded-lg p-2 hover:bg-zinc-100"><Copy size={17} /></button><button aria-label={t("删除简历", "Delete resume")} onClick={() => setDeleteId(resume.id)} className="rounded-lg p-2 text-red-600 hover:bg-red-50"><Trash2 size={17} /></button></div>
+      </article>)}</div>}
+      {loaded && !error && !filtered.length && <p className="text-sm text-zinc-500">{query ? t("未找到简历", "No matching resumes") : t("暂无简历", "No resumes")}</p>}
     </div>
-  );
+    {renaming && <Modal title={t("重命名", "Rename")} close={() => setRenaming(null)} closeLabel={t("关闭", "Close")}><form onSubmit={event => { event.preventDefault(); act(() => { renameResume(renaming.id, title.trim() || t("未命名简历", "Untitled resume")); setRenaming(null); }); }} className="space-y-4"><label className="block text-sm">{t("简历名称", "Resume name")}<input value={title} onChange={event => setTitle(event.target.value)} className="mt-2 w-full rounded-xl border p-3" /></label><button type="submit" className="rounded-xl bg-zinc-900 px-5 py-2 text-white">{t("保存", "Save")}</button>{error && <p role="alert" className="text-red-600">{error}</p>}</form></Modal>}
+    {deleteId && <Modal title={t("删除简历", "Delete resume")} close={() => setDeleteId(null)} closeLabel={t("关闭", "Close")}><p className="mb-5 text-sm">{t("将删除内容和版本历史，无法撤销", "Content and version history will be deleted permanently.")}</p><div className="flex justify-end gap-3"><button onClick={() => setDeleteId(null)} className="rounded-xl border px-5 py-2">{t("取消", "Cancel")}</button><button onClick={() => act(() => { deleteResume(deleteId); setDeleteId(null); })} className="rounded-xl bg-red-600 px-5 py-2 text-white">{t("删除", "Delete")}</button></div>{error && <p role="alert" className="text-red-600">{error}</p>}</Modal>}
+  </main>;
 }
