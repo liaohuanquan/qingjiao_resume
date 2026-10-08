@@ -1,75 +1,46 @@
 # QingJiao Resume
 
-A minimalist, ultra-smooth, and modern online resume builder. Built with **Next.js 16**, **Tailwind CSS 4**, and **Framer Motion**, designed to make resume writing enjoyable through AI assistance and ultimate UI interaction.
+A resume editor without accounts, built with Next.js 16, React 19, and Tailwind CSS 4.
 
-<p align="center">
-  <img src="public/images/qinfjiao_resume.png" width="120" height="120" style="border-radius: 50%" />
-</p>
+## Usage
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Next.js-16-black?logo=next.js" />
-  <img src="https://img.shields.io/badge/React-19-blue?logo=react" />
-  <img src="https://img.shields.io/badge/Tailwind_CSS-4-38B2AC?logo=tailwind-css" />
-  <img src="https://img.shields.io/badge/License-MIT-green" />
-</p>
+Create, rename, duplicate, and delete resumes. The editor supports three templates, section order and visibility, custom sections, and avatar cropping. Changes are saved in the current browser. If saving fails, keep the page open and download a backup.
 
-<p align="center">
-  <a href="README.md">简体中文</a> | <b>English</b>
-</p>
+JSON and text imports show a preview before replacing content. Snapshots are saved before importing, applying AI suggestions, or restoring a version; the latest ten are retained. Settings can export all resumes with their histories. Restoring a backup creates new resumes and leaves existing content intact. Keys are excluded from backups.
 
-<pre class="vditor-reset" placeholder="" contenteditable="true" spellcheck="false"><p data-block="0"><img src="https://file+.vscode-resource.vscode-cdn.net/e%3A/code/demo/qingjiao_resume/image/README/1774840569061.png" alt="1774840569061"/><img src="https://file+.vscode-resource.vscode-cdn.net/e%3A/code/demo/qingjiao_resume/image/README/1774840556914.png" alt="1774840556914"/></p><p data-block="0"><img src="https://file+.vscode-resource.vscode-cdn.net/e%3A/code/demo/qingjiao_resume/image/README/1774840542395.png" alt="1774840542395"/></p></pre>
+## Print PDF
 
-## Core Features
+Choose “Print resume”, then “Save as PDF” in the system print dialog. Use portrait A4. Disable browser headers and footers, and enable background graphics to retain template colors.
 
-- **Extreme Responsive Layout**: Three-column design: Management on the left, Editing in the middle, Real-time preview on the right. Supports adaptive screen scaling.
-- **Modular Management**: Flexible sorting and visibility toggling for modules like "Basic Info", "Education", "Work Experience", "Projects", and "Skills".
-- **Real-time A4 Preview**: High-fidelity A4 paper ratio preview (WYSIWYG), supporting 1:1 ratio export.
-- **Modern Avatar Processing**: Built-in `react-easy-crop` for free cropping and scaling of uploaded avatars.
-- **Advanced Typography Control**:
-  - **Theme Color**: Supports preset schemes and custom RGB values.
-  - **Font System**: Built-in Inter, Roboto, Outfit, and traditional SimSun.
-  - **Fine-grained Adjustment**: Font size adjustment in 0.5px increments and line height in 0.05px steps.
-- **Local Storage Persistence**: Avatars and data are automatically saved to local storage—no registration required.
+The document is printed as text. Page counts in the editor are estimates; the print dialog determines final pagination and filename. Cancelling does not report a successful save.
 
-## Tech Stack
+## AI Settings
 
-- **Framework**: [Next.js 16 (App Router)](https://nextjs.org/)
-- **UI Logic**: [React 19](https://react.dev/)
-- **Styling**: [Tailwind CSS 4](https://tailwindcss.com/)
-- **Animation**: [Framer Motion](https://www.framer.com/motion/)
-- **Image Processing**: [react-easy-crop](https://github.com/ValentinH/react-easy-crop)
-- **Icons**: [Lucide React](https://lucide.dev/)
+Enter your own service address, model, and key. Only OpenAI-compatible Chat Completions endpoints are supported. For an address such as `https://example.com/v1`, requests go directly from the browser to `/chat/completions` at the provider.
 
-## Getting Started
+The provider must allow CORS requests from the site's origin, including the `Authorization` and `Content-Type` headers. There is no server proxy. Editing, saving, and printing work independently of AI availability.
 
-### 1. Install Dependencies
+The address and model may be saved locally. The key stays only in memory for the current page session and must be entered again after refresh. Persisted keys from older provider drafts are removed. Keys are excluded from backups and server configuration.
+
+“Check connection” sends a real minimal request. Requests can be cancelled and time out after 60 seconds. Suggestions are reviewed before applying, and changes to the original prevent replacement. Resume analysis uses visible sections and excludes contact details and avatars by default. Describe actual responsibilities or outcomes before generating text.
+
+## Development
 
 ```bash
 npm install
-```
-
-### 2. Start Development Server
-
-```bash
 npm run dev
 ```
 
-### 3. Start Creating
+Open `http://localhost:3000/qingjiao_resume/`. Follow local installation policies before installing dependencies.
 
-Visit `http://localhost:3000/qingjiao_resume/editor` to start editing your resume.
+Existing production scripts and Docker configuration are retained. This coding update did not run dependency installation, tests, builds, browser acceptance, or live AI calls, and did not change CI, Docker, or hosting configuration.
 
-## 🤝 Contributing
+## Storage
 
-Contributions of all kinds are welcome! Whether it's fixing bugs, improving UI, adding new templates, or making new features.
+Data belongs to the current browser and site origin. Use backups when changing devices or origins, or before clearing browser data. Recovery downloads preserve raw damaged data rather than overwriting it with an empty resume.
 
-1. **Fork** the Project
-2. **Create** your Feature Branch (`git checkout -b feature/AmazingFeature`)
-3. **Commit** your Changes (`git commit -m 'Add some AmazingFeature'`)
-4. **Push** to the Branch (`git push origin feature/AmazingFeature`)
-5. **Open** a Pull Request
+The project still uses Node standalone output, while the existing GitHub Pages workflow expects `out`. That deployment mismatch is outside this coding update.
 
-If you find this project helpful, please give it a **Star** ⭐️. It means a lot to the author!
+## License
 
-## ⚖️ License
-
-MIT License.
+MIT.

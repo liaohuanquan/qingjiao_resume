@@ -11,7 +11,6 @@ import {
   Eye,
   Trash2,
   Type,
-  Sun,
   Palette,
   Maximize,
   EyeOff,
@@ -24,17 +23,8 @@ import {
   Minus,
   X,
   Check,
-  Mail,
-  Phone,
-  MapPin,
-  UserCheck,
-  Globe,
-  School,
   Award,
   Target,
-  Link,
-  Calendar,
-  MessageCircle,
   Sparkles,
   History,
   RotateCcw,
@@ -63,8 +53,17 @@ import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import Cropper, { Area } from "react-easy-crop";
-import jsPDF from "jspdf";
-import { toJpeg } from "html-to-image";
+import type { ContactItem, ResumeData, TypographyConfig, ModuleItem, ResumeConfig, ResumeSnapshot, ResumeTemplateId } from "@/app/lib/resume";
+import { fontFamilies, parseResumeConfig, visibleResumeText } from "@/app/lib/resume-schema";
+import { previewTextImport } from "@/app/lib/resume-import";
+import { downloadFile, downloadRawStorage, readHistory, saveSnapshot } from "@/app/lib/resume-storage";
+import { ICON_MAP } from "@/app/lib/contact-icons";
+import { ResumeDocument } from "@/app/components/ResumeDocument";
+import { useResumePersistence } from "@/app/hooks/useResumePersistence";
+import { useModalFocus } from "@/app/hooks/useModalFocus";
+import { useAIRequest } from "@/app/hooks/useAIRequest";
+import { aiMessages } from "@/app/lib/ai-prompts";
+import { CONTENT_HEIGHT, PAPER_HEIGHT, PAPER_MARGIN, PAPER_WIDTH } from "@/app/lib/resume-layout";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -112,117 +111,6 @@ async function getCroppedImg(
 
 // --- 类型定义 ---
 
-interface ContactItem {
-  id: string;
-  type: string; // e.g., 'email', 'phone', 'city', 'custom'
-  iconName: string; // Lucide 图标名
-  label: string;
-  value: string;
-  isVisible: boolean;
-  isCustom: boolean;
-  showLabel?: boolean;
-}
-
-interface ResumeData {
-  name: string;
-  nameVisible: boolean;
-  title: string;
-  titleVisible: boolean;
-  // --- 旧字段保留用于兼容性，初始化后将迁移至 contacts ---
-  phone?: string;
-  email?: string;
-  city?: string;
-  birthday?: string;
-  experience?: string;
-  hometown?: string;
-  politics?: string;
-  github?: string;
-  blog?: string;
-  // --- 动态字段 ---
-  contacts: ContactItem[];
-  // -------------------
-  avatar?: string;
-  avatarAspect?: number;
-  avatarBorderRadius?: number; // 圆角百分比 0-50
-  education: EducationItem[];
-  workExperiences: WorkItem[];
-  projects: ProjectItem[];
-  skills: string[];
-}
-
-interface EducationItem {
-  id: string;
-  school: string;
-  major: string;
-  date: string;
-}
-
-interface WorkItem {
-  id: string;
-  company: string;
-  role: string;
-  date: string;
-  desc: string;
-}
-
-interface ProjectItem {
-  id: string;
-  name: string;
-  role: string;
-  date: string;
-  link?: string;
-  desc: string;
-}
-
-interface TypographyConfig {
-  fontFamily: string;
-  lineHeight: number;
-  fontSize: number;
-  skillStyle?: "dot" | "tag";
-  skillTagRadius?: number;
-  skillTagColor?: string;
-  skillTagUseTheme?: boolean;
-  // --- 版块独立样式 ---
-  sectionStyles?: {
-    [key: string]: {
-      fontSize?: number;
-      spacing?: number;
-    };
-  };
-}
-
-interface ModuleItem {
-  id: string;
-  title: string;
-  visible: boolean;
-  type?: "standard" | "custom";
-  content?: string;
-}
-
-interface ResumeMetadata {
-  id: string;
-  title: string;
-  lastModified: string;
-  theme: string;
-  templateId?: ResumeTemplateId;
-}
-
-interface ResumeConfig {
-  resumeData: ResumeData;
-  modules: ModuleItem[];
-  themeColor: string;
-  typography: TypographyConfig;
-  templateId: ResumeTemplateId;
-}
-
-interface ResumeSnapshot {
-  id: string;
-  label: string;
-  createdAt: string;
-  config: ResumeConfig;
-}
-
-type ResumeTemplateId = "classic" | "split" | "tech";
 type AiOptimizeMode = "polish" | "quantify" | "concise";
 type AiAnalyzeMode = "jd_match" | "score";
 
@@ -236,11 +124,13 @@ interface AiDraft {
   sourceText: string;
   result: string;
   context: string;
+  sourceSignature: string;
+  kind: "optimize" | "generate";
 }
 
 const AI_MODE_LABELS: Record<AiOptimizeMode, string> = {
   polish: "润色表达",
-  quantify: "量化成果",
+  quantify: "成果表达",
   concise: "压缩语气",
 };
 
@@ -254,248 +144,28 @@ const RESUME_TEMPLATES: Array<{
   { id: "tech", name: "技术岗版", description: "突出技能和项目，适合研发岗位" },
 ];
 
-type ImportSectionKey =
-  | "intro"
-  | "contact"
-  | "education"
-  | "work"
-  | "project"
-  | "skill";
-
-const IMPORT_SECTION_KEYWORDS: Record<
-  Exclude<ImportSectionKey, "intro">,
-  string[]
-> = {
-  contact: [
-    "联系",
-    "联系方式",
-    "contact",
-    "contacts",
-    "contact information",
-  ],
-  education: ["教育", "教育背景", "education", "education background"],
-  work: [
-    "工作",
-    "工作经历",
-    "实习经历",
-    "经历",
-    "experience",
-    "work",
-    "work experience",
-    "professional experience",
-    "employment history",
-  ],
-  project: [
-    "项目",
-    "项目经验",
-    "projects",
-    "project",
-    "project experience",
-    "personal projects",
-  ],
-  skill: [
-    "技能",
-    "专业技能",
-    "skills",
-    "skill",
-    "technical skills",
-    "professional skills",
-    "core skills",
-  ],
-};
-
-const stripImportLine = (line: string) =>
-  line
-    .replace(/^#{1,6}\s*/, "")
-    .replace(/^[-*•]\s*/, "")
-    .replace(/^\d+[.)、]\s*/, "")
-    .replace(/\*\*/g, "")
-    .trim();
-
-const getImportSectionKey = (line: string): ImportSectionKey | null => {
-  const normalized = stripImportLine(line).replace(/[:：]$/, "").toLowerCase();
-  const match = Object.entries(IMPORT_SECTION_KEYWORDS).find(([, keywords]) =>
-    keywords.some((keyword) => normalized === keyword.toLowerCase()),
-  );
-  return (match?.[0] as ImportSectionKey | undefined) ?? null;
-};
-
-const splitImportBlocks = (lines: string[]) => {
-  const blocks: string[][] = [];
-  let current: string[] = [];
-
-  lines.forEach((line) => {
-    if (!line.trim()) {
-      if (current.length > 0) {
-        blocks.push(current);
-        current = [];
-      }
-      return;
-    }
-    current.push(stripImportLine(line));
-  });
-
-  if (current.length > 0) blocks.push(current);
-  return blocks;
-};
-
-const findImportDate = (lines: string[]) => {
-  const datePattern =
-    /((?:19|20)\d{2}(?:[./-]\d{1,2})?\s*(?:-|–|—|至|到|~)\s*(?:至今|present|now|(?:19|20)\d{2}(?:[./-]\d{1,2})?)|(?:19|20)\d{2}(?:[./-]\d{1,2})?)/i;
-  return lines.find((line) => datePattern.test(line))?.match(datePattern)?.[0] ?? "";
-};
-
-const removeImportDate = (line: string, date: string) =>
-  date ? line.replace(date, "").replace(/[|｜·,，-]+$/g, "").trim() : line;
-
-const parseImportContacts = (text: string, contactLines: string[]) => {
-  const contacts: ContactItem[] = [];
-  const pushContact = (
-    type: string,
-    iconName: string,
-    label: string,
-    value: string,
-  ) => {
-    if (!value || contacts.some((item) => item.value === value)) return;
-    contacts.push({
-      id: `import-contact-${contacts.length + 1}`,
-      type,
-      iconName,
-      label,
-      value,
-      isVisible: true,
-      isCustom: false,
-      showLabel: type === "custom",
-    });
-  };
-
-  const email = text.match(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i)?.[0] ?? "";
-  const phone =
-    text.match(/(?:\+?\d[\d\s-]{7,}\d)/)?.[0]?.replace(/\s+/g, "") ?? "";
-  pushContact("phone", "phone", "电话", phone);
-  pushContact("email", "email", "邮箱", email);
-
-  contactLines.forEach((line) => {
-    const value = stripImportLine(line);
-    if (!value) return;
-    if (/城市|地址|所在地|location|city/i.test(value)) {
-      pushContact("city", "city", "城市", value.split(/[:：]/).pop()?.trim() ?? value);
-    } else if (/github/i.test(value)) {
-      pushContact("github", "github", "GitHub", value.split(/[:：]/).pop()?.trim() ?? value);
-    } else if (/博客|blog|website|网站/i.test(value)) {
-      pushContact("blog", "blog", "博客", value.split(/[:：]/).pop()?.trim() ?? value);
-    }
-  });
-
-  return contacts;
-};
-
-const parseResumeTextDraft = (text: string): ResumeData => {
-  const sections: Record<ImportSectionKey, string[]> = {
-    intro: [],
-    contact: [],
-    education: [],
-    work: [],
-    project: [],
-    skill: [],
-  };
-  let currentSection: ImportSectionKey = "intro";
-
-  text.split(/\r?\n/).forEach((rawLine) => {
-    const sectionKey = getImportSectionKey(rawLine);
-    if (sectionKey) {
-      currentSection = sectionKey;
-      return;
-    }
-    sections[currentSection].push(rawLine);
-  });
-
-  const introLines = sections.intro.map(stripImportLine).filter(Boolean);
-  const contactLines = sections.contact.map(stripImportLine).filter(Boolean);
-  const contacts = parseImportContacts(text, [...introLines, ...contactLines]);
-  const introWithoutContacts = introLines.filter(
-    (line) =>
-      !/@/.test(line) &&
-      !/(电话|手机|邮箱|email|phone|城市|地址|location|city)/i.test(line),
-  );
-
-  const educationBlocks = splitImportBlocks(sections.education);
-  const workBlocks = splitImportBlocks(sections.work);
-  const projectBlocks = splitImportBlocks(sections.project);
-  const skillLines = sections.skill.map(stripImportLine).filter(Boolean);
-
-  return {
-    name: introWithoutContacts[0] || "",
-    nameVisible: true,
-    title: introWithoutContacts[1] || "",
-    titleVisible: true,
-    contacts,
-    avatarAspect: 1,
-    avatarBorderRadius: 12,
-    education: educationBlocks.map((block, index) => {
-      const date = findImportDate(block);
-      const withoutDate = block.map((line) => removeImportDate(line, date)).filter(Boolean);
-      return {
-        id: `import-edu-${index + 1}`,
-        school: withoutDate[0] || "",
-        major: withoutDate.slice(1).join(" ") || "",
-        date,
-      };
-    }),
-    workExperiences: workBlocks.map((block, index) => {
-      const date = findImportDate(block);
-      const withoutDate = block.map((line) => removeImportDate(line, date)).filter(Boolean);
-      return {
-        id: `import-work-${index + 1}`,
-        company: withoutDate[0] || "",
-        role: withoutDate[1] || "",
-        date,
-        desc: withoutDate.slice(2).join("\n"),
-      };
-    }),
-    projects: projectBlocks.map((block, index) => {
-      const date = findImportDate(block);
-      const withoutDate = block.map((line) => removeImportDate(line, date)).filter(Boolean);
-      return {
-        id: `import-project-${index + 1}`,
-        name: withoutDate[0] || "",
-        role: withoutDate[1] || "",
-        date,
-        desc: withoutDate.slice(2).join("\n"),
-      };
-    }),
-    skills:
-      skillLines
-        .join(",")
-        .split(/[,，、|｜/]/)
-        .map((skill) => skill.trim())
-        .filter(Boolean) || [],
-  };
-};
-
 const EDITOR_COPY = {
   "zh-CN": {
     editorMode: "Editor Mode",
     saving: "保存中",
     saved: "已保存",
-    importConfig: "导入配置",
+    importConfig: "导入简历",
     importTitle: "数据导入",
-    importDesc: "支持 JSON 配置文件，以及 Markdown / 纯文本简历草稿。",
+    importDesc: "支持 JSON 与文本简历",
     importJson: "导入 JSON",
     pasteResumeText: "粘贴简历文本",
     importTextPlaceholder:
       "可粘贴 Markdown、LinkedIn 风格文本或普通简历文本。\n\n示例：\n张三\n前端工程师\n电话：13800000000\n邮箱：demo@example.com\n\n教育背景\n某某大学\n计算机科学 本科\n2020 - 2024\n\n工作经历\n某某科技\n前端工程师\n2024 - 至今\n- 负责后台系统重构\n- 优化首屏加载性能\n\n专业技能\nReact, Next.js, TypeScript",
-    applyTextImport: "解析并导入",
+    applyTextImport: "解析文本",
     importEmptyError: "请先粘贴简历文本。",
     importFailed: "导入失败，请检查内容格式。",
     beforeImportLabel: "导入前",
     aiAnalysis: "AI 分析",
-    backupJson: "备份 JSON",
+    backupJson: "备份简历",
     versionHistory: "版本历史",
-    downloadPdf: "下载 PDF",
-    downloadingPdf: "正在生成 PDF...",
-    download: "下载",
-    sourceViewTitle: "源视图暂未开启",
+    downloadPdf: "打印简历",
+    downloadingPdf: "准备打印",
+    download: "打印",
     switchLanguage: "切换语言",
     lang: "EN",
     templateTitle: "简历模板",
@@ -513,32 +183,29 @@ const EDITOR_COPY = {
         description: "突出技能和项目，适合研发岗位",
       },
     },
-    moduleManager: "模块管理（拖动排序）",
+    moduleManager: "模块管理",
     basicInfo: "基本信息",
     fixed: "固定",
     mobileManage: "管理",
     mobileEdit: "编辑",
     mobilePreview: "预览",
-    exportTitle: "导出前检查",
-    exportDesc: "确认文件名与 A4 页数后生成 PDF",
+    exportTitle: "打印简历",
+    exportDesc: "在打印窗口选择保存为 PDF",
     close: "关闭",
-    pdfFilename: "PDF 文件名",
+    pdfFilename: "建议文件名",
     checkResult: "检查结果",
-    noWarnings: "未发现明显问题，可以导出。",
+    noWarnings: "就绪",
     warningEmptyName: "姓名为空，建议补充后再导出。",
     warningEmptyTitle: "求职意向为空，建议补充后再导出。",
     warningNoContact: "没有可见联系方式，建议至少保留电话或邮箱。",
     warningMultiplePages: (pages: number) =>
-      `当前预览为 ${pages} 页，导出 PDF 将包含多页。`,
+      `约 ${pages} 页，以打印预览为准`,
     defaultFilename: (name: string) => `青椒简历-${name || "未命名"}`,
     exportPreparing: "正在准备文档...",
-    exportRendering: (current: number, total: number) =>
-      `正在渲染第 ${current} / ${total} 页...`,
-    exportPacking: "正在打包下载...",
     previewNotFound: "未找到预览页面",
     cancel: "取消",
-    generating: "正在生成",
-    confirmExport: "确认导出",
+    generating: "准备中",
+    confirmExport: "开始打印",
     aiReportTitle: "AI 简历分析",
     aiReportDesc: "支持 JD 匹配优化与简历评分",
     aiAnalysisFailed: "AI 分析失败",
@@ -583,10 +250,9 @@ const EDITOR_COPY = {
     aiAnalysis: "AI analysis",
     backupJson: "Backup JSON",
     versionHistory: "Version history",
-    downloadPdf: "Download PDF",
-    downloadingPdf: "Generating PDF...",
-    download: "Download",
-    sourceViewTitle: "Source view is not available",
+    downloadPdf: "Print resume",
+    downloadingPdf: "Preparing print",
+    download: "Print",
     switchLanguage: "Switch language",
     lang: "中文",
     templateTitle: "Resume template",
@@ -610,26 +276,23 @@ const EDITOR_COPY = {
     mobileManage: "Manage",
     mobileEdit: "Edit",
     mobilePreview: "Preview",
-    exportTitle: "Pre-export check",
-    exportDesc: "Confirm filename and A4 pages before generating PDF",
+    exportTitle: "Print resume",
+    exportDesc: "Choose Save as PDF in the print dialog",
     close: "Close",
-    pdfFilename: "PDF filename",
+    pdfFilename: "Suggested filename",
     checkResult: "Check result",
-    noWarnings: "No obvious issues found. Ready to export.",
+    noWarnings: "Ready",
     warningEmptyName: "Name is empty. Add it before exporting.",
     warningEmptyTitle: "Target role is empty. Add it before exporting.",
     warningNoContact: "No visible contact method. Keep at least phone or email.",
     warningMultiplePages: (pages: number) =>
-      `Current preview has ${pages} pages. The PDF will include multiple pages.`,
+      `About ${pages} pages. Check the print preview.`,
     defaultFilename: (name: string) => `QingJiao-Resume-${name || "Untitled"}`,
     exportPreparing: "Preparing document...",
-    exportRendering: (current: number, total: number) =>
-      `Rendering page ${current} / ${total}...`,
-    exportPacking: "Packaging download...",
     previewNotFound: "Preview page not found",
     cancel: "Cancel",
-    generating: "Generating",
-    confirmExport: "Export",
+    generating: "Preparing",
+    confirmExport: "Print",
     aiReportTitle: "AI resume analysis",
     aiReportDesc: "Supports JD matching and resume scoring",
     aiAnalysisFailed: "AI analysis failed",
@@ -675,7 +338,6 @@ const EDITOR_COPY = {
   downloadPdf: string;
   downloadingPdf: string;
   download: string;
-  sourceViewTitle: string;
   switchLanguage: string;
   lang: string;
   templateTitle: string;
@@ -698,8 +360,6 @@ const EDITOR_COPY = {
   warningMultiplePages: (pages: number) => string;
   defaultFilename: (name: string) => string;
   exportPreparing: string;
-  exportRendering: (current: number, total: number) => string;
-  exportPacking: string;
   previewNotFound: string;
   cancel: string;
   generating: string;
@@ -758,6 +418,8 @@ const Button = ({
   className,
   ...props
 }: ButtonProps) => {
+  const { locale } = useAppLocale();
+  const iconLabel = React.isValidElement(children) && children.type === Minus ? (locale === "en-US" ? "Decrease" : "减小") : React.isValidElement(children) && children.type === Plus ? (locale === "en-US" ? "Increase" : "增大") : undefined;
   const variants = {
     primary:
       "bg-zinc-900 text-white hover:bg-zinc-800 disabled:bg-zinc-100 disabled:text-zinc-400",
@@ -776,6 +438,7 @@ const Button = ({
   };
   return (
     <button
+      aria-label={iconLabel}
       className={cn(
         "inline-flex items-center justify-center rounded-lg font-medium transition-colors focus-visible:outline-none",
         variants[variant],
@@ -794,8 +457,12 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   onClick?: () => void;
 }
 
-const Card = ({ children, className, ...props }: CardProps) => (
+const Card = ({ children, className, onClick, ...props }: CardProps) => (
   <div
+    role={onClick ? "button" : undefined}
+    tabIndex={onClick ? 0 : undefined}
+    onClick={onClick}
+    onKeyDown={event => { if (onClick && event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); event.currentTarget.click(); } }}
     className={cn(
       "rounded-xl border border-zinc-300 p-3 bg-white shadow-sm",
       className,
@@ -810,7 +477,10 @@ interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
 }
 
-const Input = ({ label, id, ...props }: InputProps) => (
+const Input = ({ label, id, ...props }: InputProps) => {
+  const generatedId = React.useId();
+  id = id || generatedId;
+  return (
   <div className="space-y-1.5 w-full text-left">
     {label && (
       <label htmlFor={id} className="text-xs font-medium text-zinc-500 pl-1">
@@ -824,27 +494,9 @@ const Input = ({ label, id, ...props }: InputProps) => (
     />
   </div>
 );
+};
 
 // --- 增强型基础字段组件 ---
-
-const ICON_MAP: Record<string, React.ElementType> = {
-  phone: Phone,
-  email: Mail,
-  city: MapPin,
-  birthday: UserCheck,
-  experience: Briefcase,
-  hometown: MapPin,
-  politics: UserCheck,
-  github: Code,
-  blog: Globe,
-  school: School,
-  custom: User,
-  award: Award,
-  target: Target,
-  link: Link,
-  calendar: Calendar,
-  message: MessageCircle,
-};
 
 const Switch = ({
   checked,
@@ -854,9 +506,12 @@ const Switch = ({
   checked: boolean;
   onChange: (v: boolean) => void;
   label?: string;
-}) => (
+}) => {
+  const { locale } = useAppLocale();
+  return (
   <div className="flex items-center gap-2">
     <button
+      type="button" role="switch" aria-checked={checked} aria-label={label || (locale === "en-US" ? "Visibility" : "显示")}
       onClick={() => onChange(!checked)}
       className={cn(
         "w-9 h-5 rounded-full relative transition-colors duration-200 outline-none flex items-center shrink-0",
@@ -877,6 +532,7 @@ const Switch = ({
     )}
   </div>
 );
+};
 
 const ICON_LIST = Object.keys(ICON_MAP);
 
@@ -887,15 +543,19 @@ function IconPicker({
   currentIcon: string;
   onSelect: (name: string) => void;
 }) {
+  const { locale } = useAppLocale();
+  const local = (zh: string, en: string) => locale === "en-US" ? en : zh;
   const [isOpen, setIsOpen] = useState(false);
   const IconComp = ICON_MAP[currentIcon] || User;
+  useModalFocus(isOpen, () => setIsOpen(false), "[data-icon-picker]");
 
   return (
     <div className="relative">
       <button
+        aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
         className="p-1.5 rounded-lg border border-zinc-200 bg-white hover:bg-zinc-50 transition-colors flex items-center justify-center text-zinc-500"
-        title="选择图标"
+        title={local("选择图标", "Choose icon")}
       >
         <IconComp size={16} />
       </button>
@@ -906,12 +566,13 @@ function IconPicker({
             className="fixed inset-0 z-[60]"
             onClick={() => setIsOpen(false)}
           />
-          <div className="absolute top-full left-0 mt-2 p-2 bg-white border border-zinc-200 rounded-xl shadow-2xl z-[70] grid grid-cols-6 gap-1 w-48">
+          <div data-icon-picker role="dialog" aria-label={local("选择图标", "Choose icon")} className="absolute top-full left-0 mt-2 p-2 bg-white border border-zinc-200 rounded-xl shadow-2xl z-[70] grid grid-cols-6 gap-1 w-48">
             {ICON_LIST.map((iconName) => {
               const ItemIcon = ICON_MAP[iconName];
               return (
                 <button
                   key={iconName}
+                  aria-label={iconName}
                   onClick={() => {
                     onSelect(iconName);
                     setIsOpen(false);
@@ -950,6 +611,8 @@ const SortableContactItem = React.memo(
     onToggleVisibility: () => void;
     onToggleShowLabel?: () => void;
   }) => {
+    const { locale } = useAppLocale();
+    const local = (zh: string, en: string) => locale === "en-US" ? en : zh;
     const {
       attributes,
       listeners,
@@ -983,6 +646,7 @@ const SortableContactItem = React.memo(
         <button
           {...attributes}
           {...listeners}
+          aria-label={local("移动字段", "Move field")}
           className="cursor-grab active:cursor-grabbing p-1.5 text-zinc-300 hover:text-zinc-600 transition-colors shrink-0 mt-0.5"
         >
           <GripVertical size={16} />
@@ -1001,7 +665,8 @@ const SortableContactItem = React.memo(
                   className="flex-1 min-w-0 bg-transparent text-xs font-bold text-zinc-600 outline-none border-b border-zinc-100 focus:border-zinc-400 focus:text-zinc-900 transition-all font-mono py-0.5"
                   value={item.label}
                   onChange={(e) => onUpdate(item.value, e.target.value)}
-                  placeholder="字段名"
+                  aria-label={local("字段名", "Field name")}
+                  placeholder={local("字段名", "Field name")}
                 />
               ) : (
                 <span className="text-xs font-bold text-zinc-500 uppercase tracking-tight ml-1 truncate">
@@ -1010,12 +675,12 @@ const SortableContactItem = React.memo(
               )}
             </div>
 
-            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity shrink-0">
               {item.isCustom && (
                 <Switch
                   checked={item.showLabel || false}
                   onChange={onToggleShowLabel || (() => {})}
-                  label="显示标签"
+                  label={local("显示标签", "Show label")}
                 />
               )}
               <button
@@ -1030,6 +695,7 @@ const SortableContactItem = React.memo(
                 {item.isVisible ? <Eye size={16} /> : <EyeOff size={16} />}
               </button>
               <button
+                aria-label={local("删除字段", "Delete field")}
                 onClick={onDelete}
                 className="p-1.5 text-zinc-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
               >
@@ -1042,9 +708,10 @@ const SortableContactItem = React.memo(
           <div className="relative min-w-0">
             <input
               className="w-full bg-white border border-zinc-200 rounded-xl h-10 px-4 text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 transition-all font-medium placeholder:text-zinc-300 min-w-0"
+              aria-label={item.label}
               value={item.value}
               onChange={(e) => onUpdate(e.target.value)}
-              placeholder={`请输入${item.label}...`}
+              placeholder={locale === "en-US" ? `Enter ${item.label}` : `请输入${item.label}`}
             />
           </div>
         </div>
@@ -1065,8 +732,18 @@ function ResumeEditorContent() {
   const resumeId = searchParams.get("id") || "default-1";
 
   const [activeTab, setActiveTab] = useState("basic");
-  const [themeColor, setThemeColor] = useState("#10b981");
-  const [templateId, setTemplateId] = useState<ResumeTemplateId>("classic");
+  const persistence = useResumePersistence(resumeId, searchParams.has("id"), locale);
+  const { config: resumeConfig, setConfig } = persistence;
+  const { resumeData, modules, themeColor, typography, templateId } = resumeConfig;
+  const updateConfig = useCallback(<K extends keyof ResumeConfig,>(key: K, value: React.SetStateAction<ResumeConfig[K]>) => {
+    setConfig(previous => ({ ...previous, [key]: typeof value === "function" ? (value as (old: ResumeConfig[K]) => ResumeConfig[K])(previous[key]) : value }));
+  }, [setConfig]);
+  const setResumeData = (value: React.SetStateAction<ResumeData>) => updateConfig("resumeData", value);
+  const setModules = (value: React.SetStateAction<ModuleItem[]>) => updateConfig("modules", value);
+  const setThemeColor = (value: React.SetStateAction<string>) => updateConfig("themeColor", value);
+  const setTemplateId = (value: React.SetStateAction<ResumeTemplateId>) => updateConfig("templateId", value);
+  const setTypography = (value: React.SetStateAction<TypographyConfig>) => updateConfig("typography", value);
+  const [documentHeight, setDocumentHeight] = useState(PAPER_HEIGHT);
   const [zoomScale, setZoomScale] = useState(0.8);
   const [numPages, setNumPages] = useState(1);
   const previewContainerRef = React.useRef<HTMLDivElement>(null);
@@ -1074,21 +751,11 @@ function ResumeEditorContent() {
 
   // 头像裁剪状态
   const [tempAvatar, setTempAvatar] = useState<string | null>(null);
+  const [cropError, setCropError] = useState<string | null>(null);
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [aspect, setAspect] = useState(1); // 默认 1:1
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
-
-  // 排版控制
-  const [typography, setTypography] = useState<TypographyConfig>({
-    fontFamily: "Inter, sans-serif",
-    lineHeight: 1.6,
-    fontSize: 14.5,
-    skillStyle: "dot",
-    skillTagRadius: 6,
-    skillTagColor: "#71717a",
-    skillTagUseTheme: true,
-  });
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -1111,86 +778,6 @@ function ResumeEditorContent() {
     }
   };
 
-  const [modules, setModules] = useState<ModuleItem[]>([
-    { id: "basic", title: "基本信息", visible: true },
-    { id: "edu", title: "教育背景", visible: true },
-    { id: "work", title: "工作经历", visible: true },
-    { id: "project", title: "项目经验", visible: true },
-    { id: "skill", title: "专业技能", visible: true },
-  ]);
-
-  const [resumeData, setResumeData] = useState<ResumeData>({
-    name: "QingJiao",
-    nameVisible: true,
-    title: "AI全栈工程师 / 青椒简历核心开发",
-    titleVisible: true,
-    contacts: [
-      {
-        id: "c1",
-        type: "phone",
-        iconName: "phone",
-        label: "电话",
-        value: "13800000000",
-        isVisible: true,
-        isCustom: false,
-      },
-      {
-        id: "c2",
-        type: "email",
-        iconName: "email",
-        label: "邮箱",
-        value: "example@gmail.com",
-        isVisible: true,
-        isCustom: false,
-      },
-      {
-        id: "c3",
-        type: "city",
-        iconName: "city",
-        label: "城市",
-        value: "广东",
-        isVisible: true,
-        isCustom: false,
-      },
-    ],
-    avatarAspect: 1,
-    avatarBorderRadius: 12,
-    education: [
-      {
-        id: "e1",
-        school: "五邑大学",
-        major: "通信工程 (本科)",
-        date: "2022 - 2026",
-      },
-    ],
-    workExperiences: [
-      {
-        id: "w1",
-        company: "青椒简历实验室",
-        role: "核心作者 / 开发者",
-        date: "2024 - 至今",
-        desc: "1. 负责核心编辑器的架构设计与性能优化。\n2. 实现极速本地 PDF 预览与导出引擎。",
-      },
-    ],
-    projects: [
-      {
-        id: "p1",
-        name: "青椒简历 (QingJiao Resume)",
-        role: "核心开发",
-        date: "2023.01 - 至今",
-        desc: "基于 Next.js 16 和 Tailwind CSS 4 开发的现代化简历编辑器。",
-      },
-    ],
-    skills: [
-      "Javascript",
-      "TypeScript",
-      "React",
-      "Next.js",
-      "Tailwind CSS",
-      "Node.js",
-    ],
-  });
-
   const presetColors = ["#10b981", "#3b82f6", "#ef4444", "#f59e0b", "#18181b"];
 
   const onCropComplete = useCallback(
@@ -1204,20 +791,21 @@ function ResumeEditorContent() {
     if (tempAvatar && croppedAreaPixels) {
       try {
         const croppedImage = await getCroppedImg(tempAvatar, croppedAreaPixels);
+        if (!croppedImage) throw new Error("crop failed");
         if (croppedImage) {
           setResumeData((prev) => ({
             ...prev,
             avatar: croppedImage,
             avatarAspect: aspect,
           }));
-          localStorage.setItem("resume_avatar", croppedImage);
-          localStorage.setItem("resume_avatar_aspect", aspect.toString());
+
         }
-      } catch (e) {
-        console.error("Error cropping image:", e);
+      } catch {
+        setCropError(locale === "en-US" ? "Unable to crop this image." : "图片裁剪失败");
+        return;
       }
     }
-    setTempAvatar(null);
+    setCropError(null); setTempAvatar(null);
   };
 
   const toggleModuleVisibility = (id: string) => {
@@ -1323,169 +911,50 @@ function ResumeEditorContent() {
     }));
   };
 
-  // 数据规格化：将旧版本的扁平化字段迁移到 contacts 数组
-  const normalizeResumeData = useCallback((data: unknown): ResumeData => {
-    if (!data || typeof data !== "object") return data as ResumeData;
-
-    // 使用 Record 类型进行安全的动态访问，规避 directly cast to any
-    const d = data as Record<string, unknown>;
-
-    // 如果没有 contacts 数组，说明是旧版本数据或刚初始化的数据
-    const contactsExist =
-      Array.isArray(d.contacts) && (d.contacts as unknown[]).length > 0;
-
-    if (!contactsExist) {
-      const contacts: ContactItem[] = [];
-      const legacyMap = [
-        { key: "phone", label: "电话", type: "phone" },
-        { key: "email", label: "邮箱", type: "email" },
-        { key: "city", label: "地址", type: "city" },
-        { key: "birthday", label: "状态", type: "birthday" },
-        { key: "experience", label: "经验", type: "experience" },
-        { key: "hometown", label: "籍贯", type: "hometown" },
-        { key: "politics", label: "面貌", type: "politics" },
-        { key: "github", label: "GitHub", type: "github" },
-        { key: "blog", label: "博客", type: "blog" },
-      ];
-
-      legacyMap.forEach((item, idx) => {
-        const val = d[item.key];
-        if (val && typeof val === "string") {
-          contacts.push({
-            id: `legacy-${idx}-${Date.now()}`,
-            type: item.type,
-            iconName: item.type,
-            label: item.label,
-            value: val,
-            isVisible: true,
-            isCustom: false,
-          });
-        }
-      });
-
-      return {
-        ...(d as unknown as ResumeData),
-        nameVisible: (d.nameVisible as boolean | undefined) ?? true,
-        titleVisible: (d.titleVisible as boolean | undefined) ?? true,
-        contacts:
-          contacts.length > 0
-            ? contacts
-            : [
-                {
-                  id: "c1",
-                  type: "phone",
-                  iconName: "phone",
-                  label: "电话",
-                  value: "13417531009",
-                  isVisible: true,
-                  isCustom: false,
-                },
-                {
-                  id: "c2",
-                  type: "email",
-                  iconName: "email",
-                  label: "邮箱",
-                  value: "qingjiao@gmail.com",
-                  isVisible: true,
-                  isCustom: false,
-                },
-              ],
-      } as ResumeData;
-    }
-    return d as unknown as ResumeData;
-  }, []);
-
   // 自动适配缩放比例，使预览区刚好填满容器宽度
   const autoFit = useCallback(() => {
     if (previewContainerRef.current) {
       const containerWidth = previewContainerRef.current.clientWidth - 64;
-      const scale = Math.min(1, containerWidth / 820);
+      const scale = Math.max(0.1, Math.min(1, containerWidth / PAPER_WIDTH));
       setZoomScale(Number(scale.toFixed(2)));
     }
   }, []);
 
   React.useEffect(() => {
-    // 1. 初始化加载本地存储
-    try {
-      const dataKey = `resume_data_${resumeId}`;
-      const savedFullData = localStorage.getItem(dataKey);
-
-      if (savedFullData) {
-        const config = JSON.parse(savedFullData);
-        if (config.resumeData)
-          setResumeData(normalizeResumeData(config.resumeData));
-        if (config.modules) setModules(config.modules);
-        if (config.themeColor) setThemeColor(config.themeColor);
-        if (config.typography) setTypography(config.typography);
-        if (config.templateId) setTemplateId(config.templateId);
-      } else {
-        // 兼容旧版本数据或加载默认值
-        const savedData = localStorage.getItem("resume_v2_data");
-        if (savedData && resumeId === "default-1") {
-          setResumeData(normalizeResumeData(JSON.parse(savedData)));
-          const savedModules = localStorage.getItem("resume_v2_modules");
-          const savedTheme = localStorage.getItem("resume_v2_theme");
-          const savedTypo = localStorage.getItem("resume_v2_typography");
-          if (savedModules) setModules(JSON.parse(savedModules));
-          if (savedTheme) setThemeColor(savedTheme);
-          if (savedTypo) setTypography(JSON.parse(savedTypo));
-        }
-      }
-
-      const selectedTemplate = localStorage.getItem("selected_template_id");
-      if (selectedTemplate) {
-        setTemplateId(selectedTemplate as ResumeTemplateId);
-        localStorage.removeItem("selected_template_id");
-      }
-
-      // 处理头像
-      const legacyAvatar = localStorage.getItem("resume_avatar");
-      if (legacyAvatar && resumeId === "default-1") {
-        setResumeData((prev) => ({ ...prev, avatar: legacyAvatar }));
-      }
-    } catch (e) {
-      console.error("加载本地数据失败:", e);
-    }
-
+    if (!persistence.ready) return;
     autoFit();
     window.addEventListener("resize", autoFit);
-
-    // 2. 分页观察逻辑
-    const observer = new ResizeObserver((entries) => {
-      for (const entry of entries) {
-        const height = entry.target.scrollHeight;
-        const EFFECTIVE_H = 1160 - 128; // 常量对齐
-        setNumPages(Math.max(1, Math.ceil(height / EFFECTIVE_H)));
-      }
+    const observer = new ResizeObserver(() => {
+      const height = resumeContentRef.current?.scrollHeight || PAPER_HEIGHT;
+      setDocumentHeight(Math.max(PAPER_HEIGHT, height));
+      setNumPages(Math.max(1, Math.ceil((height - PAPER_MARGIN * 2) / CONTENT_HEIGHT)));
     });
+    if (resumeContentRef.current) observer.observe(resumeContentRef.current);
+    return () => { window.removeEventListener("resize", autoFit); observer.disconnect(); };
+  }, [persistence.ready, autoFit]);
 
-    if (resumeContentRef.current) {
-      observer.observe(resumeContentRef.current);
-    }
-
-    return () => {
-      window.removeEventListener("resize", autoFit);
-      observer.disconnect();
-    };
-  }, [resumeId, normalizeResumeData, autoFit]);
-
-  const [isSaving, setIsSaving] = useState(false); // 是否正在保存
-  const [isExporting, setIsExporting] = useState(false); // 是否正在导出 PDF
-  const [exportProgress, setExportProgress] = useState<string | null>(null); // 导出进度提示
+  const isSaving = persistence.status === "saving" || persistence.status === "unsaved";
+  const [isExporting, setIsExporting] = useState(false); // 是否正在准备打印
+  const [exportProgress, setExportProgress] = useState<string | null>(null); // 打印准备状态
   const [isExportDialogOpen, setIsExportDialogOpen] = useState(false);
   const [exportFilename, setExportFilename] = useState("");
   const [exportWarnings, setExportWarnings] = useState<string[]>([]);
   const [isImportDialogOpen, setIsImportDialogOpen] = useState(false);
   const [importText, setImportText] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
+  const [importPreview, setImportPreview] = useState<{ config: ResumeConfig; unrecognized: string[]; source: string } | null>(null);
+  const [printError, setPrintError] = useState<string | null>(null);
   const [isPanning, setIsPanning] = useState(false); // 预览区是否正在按下鼠标拖拽平移
   // 移动端底部 Tab 激活状态：管理、编辑、预览
   const [activeMobileTab, setActiveMobileTab] = useState<
     "manage" | "edit" | "preview"
   >("edit");
   const scrollStart = React.useRef({ scrollLeft: 0, scrollTop: 0, x: 0, y: 0 }); // 记录拖拽起始位置
+  const importReaderRef = React.useRef<FileReader | null>(null);
+  const printCleanupRef = React.useRef<(() => void) | null>(null);
+  React.useEffect(() => () => { importReaderRef.current?.abort(); printCleanupRef.current?.(); }, []);
   const importInputRef = React.useRef<HTMLInputElement>(null); // JSON 导入隐藏 Input Ref
-  const [isAiOptimizing, setIsAiOptimizing] = useState(false);
+  const aiRequest = useAIRequest(locale);
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [aiDraft, setAiDraft] = useState<AiDraft | null>(null);
@@ -1498,225 +967,74 @@ function ResumeEditorContent() {
   );
   const [versionNotice, setVersionNotice] = useState<string | null>(null);
 
-  const historyKey = `resume_history_${resumeId}`;
-
-  const buildResumeConfig = useCallback(
-    (): ResumeConfig => ({
-      resumeData,
-      modules,
-      themeColor,
-      typography,
-      templateId,
-    }),
-    [resumeData, modules, themeColor, typography, templateId],
-  );
-
+  const buildResumeConfig = useCallback(() => resumeConfig, [resumeConfig]);
   const loadVersionSnapshots = useCallback(() => {
-    try {
-      const saved = localStorage.getItem(historyKey);
-      setVersionSnapshots(saved ? JSON.parse(saved) : []);
-    } catch (error) {
-      console.error("[loadVersionSnapshots] 加载版本历史失败:", error);
-      setVersionSnapshots([]);
-    }
-  }, [historyKey]);
-
-  const saveVersionSnapshot = useCallback(
-    (label: string, config = buildResumeConfig()) => {
-      try {
-        const saved = localStorage.getItem(historyKey);
-        const snapshots = saved ? (JSON.parse(saved) as ResumeSnapshot[]) : [];
-        const currentConfigText = JSON.stringify(config);
-        const latestConfigText = snapshots[0]
-          ? JSON.stringify(snapshots[0].config)
-          : "";
-
-        if (latestConfigText === currentConfigText) {
-          setVersionNotice(copy.versionSaved);
-          return;
-        }
-
-        const nextSnapshots = [
-          {
-            id: `${Date.now()}`,
-            label,
-            createdAt: new Date().toISOString(),
-            config,
-          },
-          ...snapshots,
-        ].slice(0, 10);
-
-        localStorage.setItem(historyKey, JSON.stringify(nextSnapshots));
-        setVersionSnapshots(nextSnapshots);
-        setVersionNotice(copy.versionSaved);
-      } catch (error) {
-        console.error("[saveVersionSnapshot] 保存版本历史失败:", error);
-      }
-    },
-    [buildResumeConfig, copy.versionSaved, historyKey],
-  );
-
+    try { setVersionSnapshots(readHistory(resumeId)); }
+    catch { setVersionNotice(locale === "en-US" ? "History cannot be read. Download recovery data." : "历史读取失败，可下载原始数据"); }
+  }, [resumeId, locale]);
+  const saveVersionSnapshot = useCallback((label: string, config = buildResumeConfig()) => {
+    try { setVersionSnapshots(saveSnapshot(resumeId, label, config)); setVersionNotice(copy.versionSaved); return true; }
+    catch { setVersionNotice(locale === "en-US" ? "Snapshot could not be saved." : "快照保存失败"); return false; }
+  }, [resumeId, buildResumeConfig, copy.versionSaved, locale]);
   const restoreVersionSnapshot = (snapshot: ResumeSnapshot) => {
-    setResumeData(normalizeResumeData(snapshot.config.resumeData));
-    setModules(snapshot.config.modules);
-    setThemeColor(snapshot.config.themeColor);
-    setTypography(snapshot.config.typography);
-    setTemplateId(snapshot.config.templateId);
-    setVersionNotice(`${copy.restoreVersion}: ${snapshot.label}`);
-    setIsHistoryOpen(false);
+    try {
+      const restored = parseResumeConfig(snapshot.config);
+      if (!saveVersionSnapshot(locale === "en-US" ? "Before restore" : "恢复前")) return;
+      setConfig(restored);
+      setVersionNotice(`${copy.restoreVersion}: ${snapshot.label}`);
+      setIsHistoryOpen(false);
+    } catch { setVersionNotice(locale === "en-US" ? "Invalid snapshot." : "快照格式错误"); }
   };
+  React.useEffect(() => { if (persistence.ready) loadVersionSnapshots(); }, [persistence.ready, loadVersionSnapshots]);
 
-  React.useEffect(() => {
-    loadVersionSnapshots();
-  }, [loadVersionSnapshots]);
+  const buildResumeText = () => visibleResumeText(resumeConfig);
 
-  const buildResumeText = () =>
-    [
-      resumeData.name,
-      resumeData.title,
-      resumeData.contacts
-        .filter((item) => item.isVisible && item.value)
-        .map((item) => `${item.label}: ${item.value}`)
-        .join("\n"),
-      "教育背景",
-      ...resumeData.education.map(
-        (item) => `${item.school} ${item.major} ${item.date}`,
-      ),
-      "工作经历",
-      ...resumeData.workExperiences.map(
-        (item) => `${item.company} ${item.role} ${item.date}\n${item.desc}`,
-      ),
-      "项目经验",
-      ...resumeData.projects.map(
-        (item) => `${item.name} ${item.role} ${item.date}\n${item.desc}`,
-      ),
-      "专业技能",
-      resumeData.skills.join(", "),
-    ]
-      .filter(Boolean)
-      .join("\n\n");
-
+  const sourceSignature = (target: AiTarget, kind: "optimize" | "generate" = "optimize") => {
+    if (target.type === "skills") return JSON.stringify(resumeData.skills);
+    const item = target.type === "work" ? resumeData.workExperiences.find(item => item.id === target.id) : resumeData.projects.find(item => item.id === target.id);
+    return kind === "generate" ? JSON.stringify({ item, skills: resumeData.skills }) : JSON.stringify(item ? { description: item.desc } : null);
+  };
   const analyzeResumeWithAi = async (mode: AiAnalyzeMode) => {
-    setIsAiAnalyzing(true);
-    setAiError(null);
-    setAiAnalysisResult("");
+    if (aiRequest.pending) return;
+    const content = buildResumeText();
+    if (!content.trim() || (mode === "jd_match" && !jdText.trim())) { setAiError(locale === "en-US" ? "Enter resume content and a job description." : "请填写简历内容或岗位描述"); return; }
+    setIsAiAnalyzing(true); setAiError(null); setAiAnalysisResult("");
     try {
-      const apiBasePath = window.location.pathname.startsWith("/qingjiao_resume")
-        ? "/qingjiao_resume"
-        : "";
-      const response = await fetch(`${apiBasePath}/api/ai/analyze`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          mode,
-          resumeText: buildResumeText(),
-          jdText,
-        }),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.error || copy.aiAnalysisFailed);
-      }
-
-      setAiAnalysisResult(data.result);
-    } catch (error) {
-      setAiError(error instanceof Error ? error.message : copy.aiAnalysisFailed);
-    } finally {
-      setIsAiAnalyzing(false);
-    }
+      const task = mode === "jd_match" ? "对照岗位描述列出匹配点、缺失信息，以及具体到简历条目的修改建议。评分仅为参考，不推测录用概率。" : "从完整性、事实依据、成果表达和关键词四个维度给出参考评分及具体修改建议，不评价无法看到的排版。";
+      const result = await aiRequest.request(aiMessages(task, `${content}\n${mode === "jd_match" ? `岗位描述：\n${jdText}` : ""}`, locale));
+      setAiAnalysisResult(result);
+    } catch (error) { setAiError(error instanceof Error ? error.message : copy.aiAnalysisFailed); }
+    finally { setIsAiAnalyzing(false); }
   };
-
-  const optimizeWithAi = async ({
-    text,
-    target,
-    context,
-    mode,
-  }: {
-    text: string;
-    target: AiTarget;
-    context: string;
-    mode: AiOptimizeMode;
-  }) => {
-    const sourceText = text.trim();
-    if (!sourceText) {
-      setAiError("待优化文本不能为空。");
-      return;
-    }
-
-    setIsAiOptimizing(true);
+  const optimizeWithAi = async ({ text, target, context, mode }: { text: string; target: AiTarget; context: string; mode: AiOptimizeMode }) => {
+    if (aiRequest.pending) return;
+    if (!text.trim()) { setAiError(locale === "en-US" ? "Enter text first." : "请先填写内容"); return; }
+    const signature = sourceSignature(target);
     setAiError(null);
     try {
-      const apiBasePath = window.location.pathname.startsWith("/qingjiao_resume")
-        ? "/qingjiao_resume"
-        : "";
-      const response = await fetch(`${apiBasePath}/api/ai/optimize`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: sourceText, mode, context }),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.error || "AI 优化失败");
-      }
-
-      setAiDraft({
-        target,
-        sourceText,
-        result: data.result,
-        context: `${context} · ${AI_MODE_LABELS[mode]}`,
-      });
-    } catch (error) {
-      setAiError(error instanceof Error ? error.message : "AI 优化失败");
-    } finally {
-      setIsAiOptimizing(false);
-    }
+      const tasks: Record<AiOptimizeMode, string> = { polish: "润色表达，保留事实，只返回修改后的正文。", quantify: "强化已有成果的表达，不编造指标或数字；缺少数据时保留保守表述。只返回正文。", concise: "精简为简历短句，保留事实，只返回正文。" };
+      const result = await aiRequest.request(aiMessages(tasks[mode], `${context}\n${text}`, locale));
+      setAiDraft({ target, sourceText: text, result, context, sourceSignature: signature, kind: "optimize" });
+    } catch (error) { setAiError(error instanceof Error ? error.message : copy.aiAnalysisFailed); }
   };
-
-  const generateAiDraft = async ({
-    target,
-    context,
-    payload,
-  }: {
-    target: Extract<AiTarget, { type: "work" | "project" }>;
-    context: string;
-    payload: Record<string, string | string[]>;
-  }) => {
-    setIsAiOptimizing(true);
+  const generateAiDraft = async ({ target, context, payload }: { target: Extract<AiTarget, { type: "work" | "project" }>; context: string; payload: Record<string, string | string[]> }) => {
+    if (aiRequest.pending) return;
+    const item = target.type === "work" ? resumeData.workExperiences.find(item => item.id === target.id) : resumeData.projects.find(item => item.id === target.id);
+    const sourceText = item?.desc || "";
+    if (!sourceText.trim()) { setAiError(locale === "en-US" ? "Describe your actual work before generating a draft." : "请先填写实际职责或成果"); return; }
+    const signature = sourceSignature(target, "generate");
     setAiError(null);
     try {
-      const apiBasePath = window.location.pathname.startsWith("/qingjiao_resume")
-        ? "/qingjiao_resume"
-        : "";
-      const response = await fetch(`${apiBasePath}/api/ai/generate`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.error || "AI 生成失败");
-      }
-
-      setAiDraft({
-        target,
-        sourceText: "根据当前填写的公司、岗位、时间与技能生成初稿。",
-        result: data.result,
-        context,
-      });
-    } catch (error) {
-      setAiError(error instanceof Error ? error.message : "AI 生成失败");
-    } finally {
-      setIsAiOptimizing(false);
-    }
+      const result = await aiRequest.request(aiMessages("根据已提供的职责与成果整理 2–4 条简历描述，只返回正文，不补造事实。", JSON.stringify({ ...payload, description: sourceText }), locale));
+      setAiDraft({ target, sourceText, result, context, sourceSignature: signature, kind: "generate" });
+    } catch (error) { setAiError(error instanceof Error ? error.message : copy.aiAnalysisFailed); }
   };
 
   const applyAiDraft = () => {
     if (!aiDraft) return;
 
-    saveVersionSnapshot(copy.beforeAiApplyLabel);
+    if (sourceSignature(aiDraft.target, aiDraft.kind) !== aiDraft.sourceSignature) { setAiError(locale === "en-US" ? "The original changed. Keep this result and request a new draft." : "原文已变化，请重新生成后应用"); return; }
+    if (!saveVersionSnapshot(copy.beforeAiApplyLabel)) { setAiError(locale === "en-US" ? "Snapshot could not be saved." : "快照保存失败，未替换内容"); return; }
 
     if (aiDraft.target.type === "work") {
       updateListItem("work", aiDraft.target.id, "desc", aiDraft.result);
@@ -1746,11 +1064,11 @@ function ResumeEditorContent() {
           variant="outline"
           size="sm"
           className="gap-1.5 text-[10px] font-bold"
-          disabled={isAiOptimizing}
+          disabled={aiRequest.pending}
           onClick={() => optimizeWithAi({ text, target, context, mode })}
         >
           <Sparkles size={12} />
-          {AI_MODE_LABELS[mode]}
+          {locale === "en-US" ? ({ polish: "Polish", quantify: "Outcomes", concise: "Shorten" })[mode] : AI_MODE_LABELS[mode]}
         </Button>
       ))}
     </div>
@@ -1770,10 +1088,10 @@ function ResumeEditorContent() {
       variant="secondary"
       size="sm"
       className="w-full gap-2 text-xs font-bold"
-      disabled={isAiOptimizing}
+      disabled={aiRequest.pending}
       onClick={() => generateAiDraft({ target, context, payload })}
     >
-      <Sparkles size={14} /> AI 生成初稿
+      <Sparkles size={14} /> {local("AI 生成初稿", "Generate draft")}
     </Button>
   );
 
@@ -1800,150 +1118,76 @@ function ResumeEditorContent() {
     setIsExportDialogOpen(true);
   };
 
-  // 1. PDF 导出逻辑：深度集成 jsPDF 与 html-to-image
   const exportToPdf = async () => {
-    setIsExporting(true);
-    setExportProgress(copy.exportPreparing);
+    setIsExporting(true); setPrintError(null); setExportProgress(copy.exportPreparing);
+    printCleanupRef.current?.();
+    const originalTitle = document.title;
+    const restoreTitle = () => { document.title = originalTitle; window.removeEventListener("afterprint", restoreTitle); printCleanupRef.current = null; };
     try {
-      // 这里的尺寸为 A4 标准: 210mm x 297mm
-      const pdf = new jsPDF("p", "mm", "a4");
-      const pages = document.querySelectorAll(".group\\/page");
-
-      if (pages.length === 0) {
-        throw new Error(copy.previewNotFound);
-      }
-
-      for (let i = 0; i < pages.length; i++) {
-        setExportProgress(copy.exportRendering(i + 1, pages.length));
-
-        // 使用 toJpeg 将 DOM 转换为高清晰度图片
-        const imgData = await toJpeg(pages[i] as HTMLElement, {
-          quality: 0.95,
-          pixelRatio: 3, // 3倍像素比足以支持 Retina 级别的清晰打印
-          backgroundColor: "#ffffff",
-          cacheBust: true, // 避免缓存干扰
-        });
-
-        if (i > 0) pdf.addPage();
-
-        // 将图片完美贴合到 PDF 的 A4 页面上
-        pdf.addImage(imgData, "JPEG", 0, 0, 210, 297, undefined, "FAST");
-      }
-
-      setExportProgress(copy.exportPacking);
-      const safeName =
-        exportFilename.trim().replace(/[\\/:*?"<>|]/g, "-") ||
-        copy.defaultFilename(resumeData.name);
-      pdf.save(`${safeName}.pdf`);
+      const root = resumeContentRef.current;
+      if (!root) throw new Error(copy.previewNotFound);
+      await document.fonts.ready;
+      await Promise.all([...root.querySelectorAll("img")].map(image => image.decode()));
+      if (!root.isConnected || resumeContentRef.current !== root) return;
+      document.title = exportFilename.trim().replace(/[\\/:*?"<>|]/g, "-") || copy.defaultFilename(resumeData.name);
+      printCleanupRef.current = restoreTitle;
+      window.addEventListener("afterprint", restoreTitle, { once: true });
+      window.print();
       setIsExportDialogOpen(false);
-    } catch (err) {
-      console.error("PDF 失败:", err);
-      alert("PDF 生成失败，请检查浏览器是否兼容。");
-    } finally {
-      setIsExporting(false);
-      setExportProgress(null);
-    }
+    } catch { restoreTitle(); setPrintError(locale === "en-US" ? "Unable to print. Check the image and try again." : "打印准备失败，请检查图片后重试"); }
+    finally { setIsExporting(false); setExportProgress(null); }
   };
 
-  // 2. JSON 配置导出与导入
-  const exportToJson = () => {
-    const config = { resumeData, modules, themeColor, typography, templateId };
-    const blob = new Blob([JSON.stringify(config, null, 2)], {
-      type: "application/json",
-    });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `resume-${resumeData.name || "config"}.json`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const handleImportJson = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const exportToJson = () => downloadFile(resumeConfig, `resume-${resumeData.name || "config"}.json`);
+  const handleImportJson = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
     if (!file) return;
+    importReaderRef.current?.abort();
     const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const config = JSON.parse(event.target?.result as string);
-        saveVersionSnapshot(copy.beforeImportLabel);
-        if (config.resumeData)
-          setResumeData(normalizeResumeData(config.resumeData));
-        if (config.modules) setModules(config.modules);
-        if (config.themeColor) setThemeColor(config.themeColor);
-        if (config.typography) setTypography(config.typography);
-        if (config.templateId) setTemplateId(config.templateId);
-        setIsImportDialogOpen(false);
-      } catch {
-        setImportError(copy.importFailed);
-      }
+    importReaderRef.current = reader;
+    reader.onerror = () => setImportError(copy.importFailed);
+    reader.onload = () => {
+      try { setImportPreview({ config: parseResumeConfig(JSON.parse(String(reader.result))), unrecognized: [], source: file.name }); setImportError(null); }
+      catch { setImportError(copy.importFailed); }
     };
     reader.readAsText(file);
-    e.target.value = "";
   };
-
   const applyTextImport = () => {
-    if (!importText.trim()) {
-      setImportError(copy.importEmptyError);
+    if (importPreview) {
+      try {
+        const config = parseResumeConfig(importPreview.config);
+        if (!saveVersionSnapshot(copy.beforeImportLabel)) { setImportError(locale === "en-US" ? "Save a snapshot before replacing content." : "快照保存失败，未替换内容"); return; }
+        setConfig(config); setImportPreview(null); setImportText(""); setImportError(null); setIsImportDialogOpen(false);
+      } catch { setImportError(copy.importFailed); }
       return;
     }
-
+    if (!importText.trim()) { setImportError(copy.importEmptyError); return; }
     try {
-      const parsed = parseResumeTextDraft(importText);
-      saveVersionSnapshot(copy.beforeImportLabel);
-      setResumeData(normalizeResumeData(parsed));
-      setIsImportDialogOpen(false);
-      setImportText("");
+      const parsed = previewTextImport(importText);
+      setImportPreview({ config: parseResumeConfig({ ...resumeConfig, resumeData: parsed.data }), unrecognized: parsed.unrecognized, source: locale === "en-US" ? "Text" : "文本" });
       setImportError(null);
-    } catch (error) {
-      console.log("[applyTextImport] 解析简历文本失败", error);
-      setImportError(copy.importFailed);
-    }
+    } catch { setImportError(copy.importFailed); }
   };
-
-  // 3. 自动保存逻辑：优化防抖机制
-  React.useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsSaving(true);
-
-      // 1. 保存详细数据
-      const config = { resumeData, modules, themeColor, typography, templateId };
-      localStorage.setItem(`resume_data_${resumeId}`, JSON.stringify(config));
-
-      // 2. 同步更新 Dashboard 列表元数据
-      const savedList = localStorage.getItem("resume_list");
-      if (savedList) {
-        try {
-          const list = JSON.parse(savedList);
-          const index = list.findIndex(
-            (item: ResumeMetadata) => item.id === resumeId,
-          );
-          if (index !== -1) {
-            list[index] = {
-              ...list[index],
-              title: resumeData.name
-                ? `${resumeData.name}的简历`
-                : list[index].title,
-              theme: themeColor,
-              templateId,
-              lastModified: new Date().toLocaleDateString(),
-            };
-            localStorage.setItem("resume_list", JSON.stringify(list));
-          }
-        } catch (e) {
-          console.error("同步列表失败:", e);
-        }
-      }
-
-      setTimeout(() => setIsSaving(false), 800);
-    }, 2000);
-
-    return () => clearTimeout(timer);
-  }, [resumeData, modules, themeColor, typography, templateId, resumeId]);
+  const closeModal = useCallback(() => {
+    if (tempAvatar) setTempAvatar(null);
+    else if (aiDraft) setAiDraft(null);
+    else if (isAiAnalysisOpen) setIsAiAnalysisOpen(false);
+    else if (isExportDialogOpen && !isExporting) setIsExportDialogOpen(false);
+    else if (isHistoryOpen) setIsHistoryOpen(false);
+    else if (isImportDialogOpen) setIsImportDialogOpen(false);
+  }, [tempAvatar, aiDraft, isAiAnalysisOpen, isExportDialogOpen, isExporting, isHistoryOpen, isImportDialogOpen]);
+  useModalFocus(Boolean(tempAvatar || aiDraft || isAiAnalysisOpen || isExportDialogOpen || isHistoryOpen || isImportDialogOpen), closeModal, "[data-editor-modal]");
+  const leaveEditor = () => { if (persistence.flush()) router.push("/dashboard"); };
+  const local = (zh: string, en: string) => locale === "en-US" ? en : zh;
+  if (persistence.error || !persistence.ready) return <main className="min-h-screen flex flex-col items-center justify-center gap-4 p-8">
+    <p role="status">{persistence.error === "missing" ? local("简历不存在", "Resume not found") : persistence.error ? local("数据读取失败", "Unable to read saved data") : local("加载中", "Loading")}</p>
+    {persistence.error && <><button onClick={persistence.reload}>{local("重试", "Retry")}</button><button onClick={() => { try { downloadRawStorage(); } catch { /* Storage itself is unavailable. */ } }}>{local("原始备份", "Recovery data")}</button><button onClick={() => router.push("/dashboard")}>{local("返回列表", "Resume list")}</button></>}
+  </main>;
 
   return (
     <div
-      className="h-screen w-screen overflow-hidden flex flex-col bg-zinc-50 font-sans text-zinc-900"
+      className="resume-editor h-screen w-screen overflow-hidden flex flex-col bg-zinc-50 font-sans text-zinc-900"
       /* 注入全局 CSS 变量以控制动态样式 */
       style={
         {
@@ -1959,7 +1203,8 @@ function ResumeEditorContent() {
       <header className="h-[60px] flex items-center justify-between px-6 bg-white border-b border-zinc-200 shadow-sm z-50">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => router.push("/dashboard")}
+            onClick={leaveEditor}
+            aria-label={local("返回列表", "Resume list")}
             className="w-8 h-8 overflow-hidden rounded-full shadow-sm hover:scale-105 transition-transform"
           >
             <NextImage
@@ -1985,7 +1230,7 @@ function ResumeEditorContent() {
                 ? "bg-zinc-100 text-zinc-600"
                 : isSaving
                   ? "bg-amber-50 text-amber-600"
-                  : "bg-emerald-50 text-emerald-600",
+                  : (persistence.status === "failed" ? "bg-red-50 text-red-600" : "bg-emerald-50 text-emerald-600"),
             )}
           >
             {isExporting ? (
@@ -2009,24 +1254,19 @@ function ResumeEditorContent() {
                 }}
                 className={cn(
                   "w-1.5 h-1.5 rounded-full",
-                  isSaving ? "bg-amber-500" : "bg-emerald-500",
+                  isSaving ? "bg-amber-500" : persistence.status === "failed" ? "bg-red-500" : "bg-emerald-500",
                 )}
               />
             )}
             <span className="font-mono text-[10px] font-bold tracking-wider uppercase">
               {isExporting
                 ? exportProgress
-                : isSaving
-                  ? copy.saving
-                  : copy.saved}
+                : ({ unsaved: local("未保存", "Unsaved"), saving: copy.saving, saved: copy.saved, failed: local("保存失败", "Save failed") })[persistence.status]}
             </span>
           </Badge>
         </div>
 
         <div className="flex items-center gap-3">
-          <span className="text-sm font-medium text-zinc-600 hidden sm:inline-block">
-            QingJiao Resume
-          </span>
           <Button
             variant="outline"
             size="sm"
@@ -2035,14 +1275,6 @@ function ResumeEditorContent() {
             onClick={toggleLocale}
           >
             {copy.lang}
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="rounded-full"
-            title={copy.sourceViewTitle}
-          >
-            <Sun size={18} />
           </Button>
           <div className="flex items-center gap-2 border-l border-zinc-200 pl-4 ml-1">
             <Button
@@ -2127,8 +1359,11 @@ function ResumeEditorContent() {
         </div>
       </header>
 
+      {(aiError || aiRequest.pending) && <div role="status" className="no-print flex items-center gap-3 px-4 py-2 text-sm"><span>{aiError || local("处理中", "Processing")}</span>{aiRequest.pending && <button onClick={aiRequest.cancel}>{local("取消请求", "Cancel request")}</button>}<button onClick={() => { if (persistence.flush()) router.push("/dashboard/ai"); }}>{local("AI 设置", "AI settings")}</button></div>}
+      {persistence.status === "failed" && <div role="alert" className="no-print flex items-center gap-3 bg-red-50 px-4 py-2 text-sm text-red-700"><span>{local("保存失败，内容仍在当前页面", "Save failed. Keep this page open.")}</span><button onClick={persistence.flush}>{local("重试", "Retry")}</button><button onClick={exportToJson}>{local("下载备份", "Download backup")}</button><button onClick={() => { try { downloadRawStorage(); } catch { setVersionNotice(local("备份读取失败", "Cannot read recovery data")); } }}>{local("原始备份", "Recovery data")}</button></div>}
+      {versionNotice && !isHistoryOpen && <div role="status" className="no-print px-4 py-2 text-sm">{versionNotice}</div>}
       {/* Main Content */}
-      <main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+      <main className="resume-editor-main flex-1 flex flex-col lg:flex-row overflow-hidden relative">
         {/* Column 1: Module Manager - Mobile Toggle */}
         <aside
           className={cn(
@@ -2162,9 +1397,7 @@ function ResumeEditorContent() {
                       <Check size={14} className="text-emerald-600" />
                     )}
                   </div>
-                  <p className="mt-1 text-xs font-medium text-zinc-400">
-                    {copy.templates[template.id].description}
-                  </p>
+
                 </button>
               ))}
             </div>
@@ -2199,7 +1432,7 @@ function ResumeEditorContent() {
               axis="y"
               values={modules.filter((m) => m.id !== "basic")}
               onReorder={(newModules) =>
-                setModules([modules[0], ...newModules])
+                setModules([...modules.filter(module => module.id === "basic"), ...newModules])
               }
               className="space-y-2"
             >
@@ -2223,24 +1456,34 @@ function ResumeEditorContent() {
                         size={16}
                         className="text-zinc-400 cursor-grab active:cursor-grabbing"
                       />
-                      <span className="text-sm text-zinc-600 flex-1">
+                      <button type="button" onClick={() => setActiveTab(m.id)} className="text-sm text-zinc-600 flex-1 text-left">
                         {m.title}
-                      </span>
+                      </button>
                       <div
                         className="flex gap-1"
                         onClick={(e) => e.stopPropagation()}
                       >
+                        <button aria-label={local("上移", "Move up")} disabled={modules.filter(module => module.id !== "basic")[0]?.id === m.id} onClick={() => setModules(previous => {
+                          const items = previous.filter(module => module.id !== "basic");
+                          const index = items.findIndex(module => module.id === m.id);
+                          return [...previous.filter(module => module.id === "basic"), ...arrayMove(items, index, Math.max(0, index - 1))];
+                        })} className="p-1 rounded text-zinc-400 disabled:opacity-30">↑</button>
+                        <button aria-label={local("下移", "Move down")} disabled={modules.filter(module => module.id !== "basic").slice(-1)[0]?.id === m.id} onClick={() => setModules(previous => {
+                          const items = previous.filter(module => module.id !== "basic");
+                          const index = items.findIndex(module => module.id === m.id);
+                          return [...previous.filter(module => module.id === "basic"), ...arrayMove(items, index, Math.min(items.length - 1, index + 1))];
+                        })} className="p-1 rounded text-zinc-400 disabled:opacity-30">↓</button>
                         <button
                           className="p-1 hover:bg-zinc-100 rounded text-zinc-400"
                           onClick={() => toggleModuleVisibility(m.id)}
-                          title={m.visible ? "隐藏" : "显示"}
+                          title={m.visible ? local("隐藏", "Hide") : local("显示", "Show")}
                         >
                           {m.visible ? <Eye size={14} /> : <EyeOff size={14} />}
                         </button>
                         <button
                           className="p-1 hover:bg-zinc-100 rounded text-zinc-400"
                           onClick={() => removeModule(m.id)}
-                          title="删除"
+                          title={local("删除", "Delete")}
                         >
                           <Trash2 size={14} />
                         </button>
@@ -2259,7 +1502,7 @@ function ResumeEditorContent() {
                   ...prev,
                   {
                     id,
-                    title: "自定义板块",
+                    title: local("自定义板块", "Custom section"),
                     visible: true,
                     type: "custom",
                     content: "",
@@ -2268,13 +1511,13 @@ function ResumeEditorContent() {
                 setActiveTab(id);
               }}
             >
-              <Plus size={14} /> 添加自定义板块
+              <Plus size={14} /> {local("新增模块", "Add section")}
             </Button>
           </section>
 
           <section>
             <h3 className="text-sm font-semibold mb-3 text-zinc-900 flex items-center gap-2">
-              <Palette size={14} /> 主题色（可自定义切换）
+              <Palette size={14} /> {local("主题色", "Theme color")}
             </h3>
             <div className="flex flex-wrap gap-3 px-1 items-center">
               {presetColors.map((c) => (
@@ -2293,7 +1536,7 @@ function ResumeEditorContent() {
                 <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-full border border-zinc-200 bg-white hover:border-zinc-300 hover:shadow-sm transition-all cursor-pointer">
                   <Palette size={14} className="text-zinc-500" />
                   <span className="text-xs font-semibold text-zinc-700">
-                    自定义
+                    {local("自定义", "Custom")}
                   </span>
                   <div
                     className="w-4 h-4 rounded-full border border-black/10 shadow-inner"
@@ -2305,7 +1548,7 @@ function ResumeEditorContent() {
                   className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
                   value={themeColor}
                   onChange={(e) => setThemeColor(e.target.value)}
-                  title="自定义主题色"
+                  title={local("自定义主题色", "Custom theme color")}
                 />
               </div>
             </div>
@@ -2313,7 +1556,7 @@ function ResumeEditorContent() {
 
           <section className="space-y-4">
             <h3 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
-              <Type size={14} /> 版式调节
+              <Type size={14} /> {local("排版", "Typography")}
             </h3>
             <div className="space-y-4">
               <div className="space-y-1.5">
@@ -2321,11 +1564,12 @@ function ResumeEditorContent() {
                   className="text-xs font-medium text-zinc-500"
                   htmlFor="font-fam"
                 >
-                  字体
+                  {local("字体", "Font")}
                 </label>
                 <select
                   id="font-fam"
                   className="w-full h-9 px-3 rounded-lg border border-zinc-300 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 transition-all font-medium"
+                  aria-label={local("字体", "Font")}
                   value={typography.fontFamily}
                   onChange={(e) =>
                     setTypography((prev) => ({
@@ -2334,32 +1578,17 @@ function ResumeEditorContent() {
                     }))
                   }
                 >
-                  <option value="Inter, sans-serif">Inter (通用)</option>
-                  <option value="'Roboto', sans-serif">Roboto (机械)</option>
-                  <option value="'Outfit', sans-serif">
-                    Outfit (现代精美)
-                  </option>
-                  <option value="'Songti SC', serif">宋体 (正式)</option>
+                  <option value={fontFamilies.sans}>{local("黑体", "Sans serif")}</option>
+                  <option value={fontFamilies.serif}>{local("宋体", "Serif")}</option>
+                  <option value={fontFamilies.mono}>{local("等宽", "Monospace")}</option>
                 </select>
               </div>
               <div className="space-y-1.5">
-                {/* <div className="flex justify-between">
-                  <label
-                    className="text-xs font-medium text-zinc-500"
-                    htmlFor="line-h"
-                  >
-                    行距
-                  </label>
-                  <span className="text-xs text-zinc-400">
-                    {typography.lineHeight}
-                  </span>
-                </div> */}
                 <div className="flex justify-between items-center">
                   <label
                     className="text-xs font-medium text-zinc-500"
-                    htmlFor="line-h"
                   >
-                    行距
+                    {local("行距", "Line height")}
                   </label>
                 </div>
                 <div className="flex items-center gap-3">
@@ -2400,7 +1629,7 @@ function ResumeEditorContent() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-zinc-500">
-                  主字号 (px)
+                  {local("主字号 (px)", "Font size (px)")}
                 </label>
                 <div className="flex items-center gap-3">
                   <Button
@@ -2447,11 +1676,6 @@ function ResumeEditorContent() {
               : "-translate-x-full lg:translate-x-0",
           )}
         >
-          {aiError && (
-            <div className="mb-4 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-medium text-red-600">
-              {aiError}
-            </div>
-          )}
           <AnimatePresence mode="wait">
             {activeTab === "basic" && (
               <motion.div
@@ -2465,7 +1689,7 @@ function ResumeEditorContent() {
                   <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600 shadow-sm">
                     <User size={20} />
                   </div>
-                  <h2 className="text-xl font-bold tracking-tight">基本信息</h2>
+                  <h2 className="text-xl font-bold tracking-tight">{local("基本信息", "Basic info")}</h2>
                 </header>
 
                 <section className="space-y-6">
@@ -2492,20 +1716,21 @@ function ResumeEditorContent() {
                       </div>
                       <label
                         className="absolute -bottom-2 -right-2 w-8 h-8 bg-zinc-900 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white hover:scale-110 transition-transform cursor-pointer"
-                        title="上传头像"
+                        title={local("上传头像", "Upload avatar")}
                       >
                         <Palette size={14} />
                         <input
                           type="file"
-                          className="hidden"
-                          aria-label="头像上传"
+                          className="sr-only"
+                          aria-label={local("头像上传", "Upload avatar")}
                           accept="image/*"
                           onChange={(e) => {
                             const file = e.target.files?.[0];
                             if (file) {
                               const reader = new FileReader();
-                              reader.onloadend = () =>
-                                setTempAvatar(reader.result as string);
+                              reader.onerror = () => setVersionNotice(locale === "en-US" ? "Cannot read image." : "图片读取失败");
+                              reader.onload = () => { setCropError(null); setTempAvatar(reader.result as string); };
+                              e.target.value = "";
                               reader.readAsDataURL(file);
                             }
                           }}
@@ -2515,13 +1740,16 @@ function ResumeEditorContent() {
                     <div className="flex-1 space-y-5">
                       <div className="flex items-center gap-3">
                         <Input
-                          placeholder="姓名"
+                          aria-label={local("姓名", "Name")}
+                          placeholder={local("姓名", "Name")}
                           value={resumeData.name}
                           onChange={(e) =>
                             updateBasicData("name", e.target.value)
                           }
                         />
                         <button
+                          aria-label={local("显示姓名", "Show name")}
+                          aria-pressed={resumeData.nameVisible}
                           onClick={() =>
                             updateBasicData(
                               "nameVisible",
@@ -2544,13 +1772,16 @@ function ResumeEditorContent() {
                       </div>
                       <div className="flex items-center gap-3">
                         <Input
-                          placeholder="职位/称号"
+                          aria-label={local("求职意向", "Target role")}
+                          placeholder={local("求职意向", "Target role")}
                           value={resumeData.title}
                           onChange={(e) =>
                             updateBasicData("title", e.target.value)
                           }
                         />
                         <button
+                          aria-label={local("显示意向", "Show target role")}
+                          aria-pressed={resumeData.titleVisible}
                           onClick={() =>
                             updateBasicData(
                               "titleVisible",
@@ -2576,7 +1807,7 @@ function ResumeEditorContent() {
 
                   <div className="space-y-4 pt-6 border-t border-zinc-100">
                     <h3 className="text-sm font-bold text-zinc-400 uppercase tracking-widest pl-1">
-                      联系信息 与 更多字段
+                      {local("联系信息", "Contacts")}
                     </h3>
                     <DndContext
                       sensors={sensors}
@@ -2661,7 +1892,7 @@ function ResumeEditorContent() {
                               id,
                               type: "custom",
                               iconName: "custom",
-                              label: "自定义",
+                              label: local("自定义", "Custom"),
                               value: "",
                               isVisible: true,
                               isCustom: true,
@@ -2672,17 +1903,17 @@ function ResumeEditorContent() {
                       }}
                       className="w-full bg-zinc-900 text-white flex items-center gap-2 mt-4"
                     >
-                      <Plus size={16} /> 添加自定义字段
+                      <Plus size={16} /> {local("新增字段", "Add field")}
                     </Button>
                   </div>
 
                   <div className="pt-6 border-t border-zinc-200">
                     <h4 className="text-[10px] font-bold text-zinc-400 uppercase tracking-widest pl-1 mb-4">
-                      头像样式
+                      {local("头像样式", "Avatar")}
                     </h4>
                     <div className="space-y-3">
                       <div className="flex justify-between items-center text-xs font-medium text-zinc-500">
-                        <span>头像圆角 (px)</span>
+                        <span>{local("头像圆角 (px)", "Avatar radius (px)")}</span>
                       </div>
                       <div className="flex items-center gap-3">
                         <Button
@@ -2692,7 +1923,7 @@ function ResumeEditorContent() {
                           onClick={() => {
                             const val = Math.max(
                               0,
-                              (resumeData.avatarBorderRadius || 12) - 2,
+                              (resumeData.avatarBorderRadius ?? 12) - 2,
                             );
                             setResumeData((prev) => ({
                               ...prev,
@@ -2703,7 +1934,7 @@ function ResumeEditorContent() {
                           <Minus size={14} />
                         </Button>
                         <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">
-                          {resumeData.avatarBorderRadius || 12}
+                          {resumeData.avatarBorderRadius ?? 12}
                         </div>
                         <Button
                           size="sm"
@@ -2712,7 +1943,7 @@ function ResumeEditorContent() {
                           onClick={() => {
                             const val = Math.min(
                               64,
-                              (resumeData.avatarBorderRadius || 12) + 2,
+                              (resumeData.avatarBorderRadius ?? 12) + 2,
                             );
                             setResumeData((prev) => ({
                               ...prev,
@@ -2741,7 +1972,7 @@ function ResumeEditorContent() {
                   <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600">
                     <GraduationCap size={20} />
                   </div>
-                  <h2 className="text-xl font-bold tracking-tight">教育背景</h2>
+                  <h2 className="text-xl font-bold tracking-tight">{local("教育背景", "Education")}</h2>
                 </header>
                 {resumeData.education.map((item) => (
                   <Card
@@ -2750,30 +1981,30 @@ function ResumeEditorContent() {
                   >
                     <button
                       onClick={() => deleteItem("edu", item.id)}
-                      className="absolute top-2 right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100 shadow-sm z-10"
-                      title="移除"
+                      className="absolute top-2 right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity border border-red-100 shadow-sm z-10"
+                      title={local("移除", "Remove")}
                     >
                       <Trash2 size={12} />
                     </button>
                     <Input
-                      label="学校名称"
-                      placeholder="例如：五邑大学"
+                      label={local("学校名称", "School")}
+                      placeholder={local("例如：五邑大学", "University")}
                       value={item.school}
                       onChange={(e) =>
                         updateListItem("edu", item.id, "school", e.target.value)
                       }
                     />
                     <Input
-                      label="专业科目"
-                      placeholder="例如：通信工程"
+                      label={local("专业科目", "Major")}
+                      placeholder={local("例如：通信工程", "Major")}
                       value={item.major}
                       onChange={(e) =>
                         updateListItem("edu", item.id, "major", e.target.value)
                       }
                     />
                     <Input
-                      label="入学起止日期"
-                      placeholder="例如：2022 - 2026"
+                      label={local("就读时间", "Dates")}
+                      placeholder={local("例如：2022 - 2026", "2022 - 2026")}
                       value={item.date}
                       onChange={(e) =>
                         updateListItem("edu", item.id, "date", e.target.value)
@@ -2786,7 +2017,7 @@ function ResumeEditorContent() {
                   className="w-full border-dashed"
                   onClick={() => addItem("edu")}
                 >
-                  + 新增教育
+                  {local("+ 新增教育", "Add education")}
                 </Button>
               </motion.div>
             )}
@@ -2803,7 +2034,7 @@ function ResumeEditorContent() {
                   <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600">
                     <Briefcase size={20} />
                   </div>
-                  <h2 className="text-xl font-bold tracking-tight">工作经历</h2>
+                  <h2 className="text-xl font-bold tracking-tight">{local("工作经历", "Work experience")}</h2>
                 </header>
                 {resumeData.workExperiences.map((item) => (
                   <Card
@@ -2812,14 +2043,14 @@ function ResumeEditorContent() {
                   >
                     <button
                       onClick={() => deleteItem("work", item.id)}
-                      className="absolute top-2 right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100 shadow-sm z-10"
-                      title="移除"
+                      className="absolute top-2 right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity border border-red-100 shadow-sm z-10"
+                      title={local("移除", "Remove")}
                     >
                       <Trash2 size={12} />
                     </button>
                     <Input
-                      label="公司平台"
-                      placeholder="例如：青椒实验室"
+                      label={local("公司名称", "Company")}
+                      placeholder={local("例如：青椒实验室", "Company")}
                       value={item.company}
                       onChange={(e) =>
                         updateListItem(
@@ -2831,16 +2062,16 @@ function ResumeEditorContent() {
                       }
                     />
                     <Input
-                      label="主要角色"
-                      placeholder="例如：高级前端开发"
+                      label={local("职位", "Role")}
+                      placeholder={local("例如：高级前端开发", "Role")}
                       value={item.role}
                       onChange={(e) =>
                         updateListItem("work", item.id, "role", e.target.value)
                       }
                     />
                     <Input
-                      label="在职期间"
-                      placeholder="例如：2020 - 至今"
+                      label={local("在职期间", "Dates")}
+                      placeholder={local("例如：2020 - 至今", "2020 - Present")}
                       value={item.date}
                       onChange={(e) =>
                         updateListItem("work", item.id, "date", e.target.value)
@@ -2848,10 +2079,10 @@ function ResumeEditorContent() {
                     />
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-zinc-500">
-                        关键成果描述
+                        {local("工作成果", "Responsibilities and outcomes")}
                       </label>
                       <textarea
-                        placeholder="请详细描述您的关键成果..."
+                        placeholder={local("请详细描述您的关键成果...", "Describe your actual responsibilities and outcomes")}
                         className="w-full h-32 p-3 text-sm border border-zinc-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
                         value={item.desc}
                         onChange={(e) =>
@@ -2866,11 +2097,11 @@ function ResumeEditorContent() {
                       {renderAiActions({
                         text: item.desc,
                         target: { type: "work", id: item.id },
-                        context: "工作经历关键成果描述",
+                        context: local("工作成果", "Work outcomes"),
                       })}
                       {renderGenerateButton({
                         target: { type: "work", id: item.id },
-                        context: "工作经历 · AI 生成初稿",
+                        context: local("工作经历", "Work experience"),
                         payload: {
                           type: "work",
                           company: item.company,
@@ -2887,7 +2118,7 @@ function ResumeEditorContent() {
                   className="w-full border-dashed"
                   onClick={() => addItem("work")}
                 >
-                  + 新增经历
+                  {local("+ 新增经历", "Add experience")}
                 </Button>
               </motion.div>
             )}
@@ -2904,7 +2135,7 @@ function ResumeEditorContent() {
                   <div className="w-10 h-10 bg-white rounded-xl border border-zinc-200 flex items-center justify-center text-zinc-600">
                     <Rocket size={20} />
                   </div>
-                  <h2 className="text-xl font-bold tracking-tight">项目经验</h2>
+                  <h2 className="text-xl font-bold tracking-tight">{local("项目经验", "Projects")}</h2>
                 </header>
                 {resumeData.projects.map((item) => (
                   <Card
@@ -2913,14 +2144,14 @@ function ResumeEditorContent() {
                   >
                     <button
                       onClick={() => deleteItem("project", item.id)}
-                      className="absolute top-2 right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity border border-red-100 shadow-sm z-10"
-                      title="移除项目"
+                      className="absolute top-2 right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity border border-red-100 shadow-sm z-10"
+                      title={local("移除项目", "Remove project")}
                     >
                       <Trash2 size={12} />
                     </button>
                     <Input
-                      label="项目主题"
-                      placeholder="例如：青椒简历编辑器"
+                      label={local("项目名称", "Project name")}
+                      placeholder={local("例如：青椒简历编辑器", "Project name")}
                       value={item.name}
                       onChange={(e) =>
                         updateListItem(
@@ -2932,8 +2163,8 @@ function ResumeEditorContent() {
                       }
                     />
                     <Input
-                      label="职责分工"
-                      placeholder="例如：核心开发"
+                      label={local("职责", "Role")}
+                      placeholder={local("例如：核心开发", "Role")}
                       value={item.role}
                       onChange={(e) =>
                         updateListItem(
@@ -2945,8 +2176,8 @@ function ResumeEditorContent() {
                       }
                     />
                     <Input
-                      label="时间段"
-                      placeholder="例如：2023.01 - 至今"
+                      label={local("项目时间", "Dates")}
+                      placeholder={local("例如：2023.01 - 至今", "2023.01 - Present")}
                       value={item.date}
                       onChange={(e) =>
                         updateListItem(
@@ -2959,10 +2190,10 @@ function ResumeEditorContent() {
                     />
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-zinc-500">
-                        项目核心亮点
+                        {local("项目成果", "Project outcomes")}
                       </label>
                       <textarea
-                        placeholder="请描述该项目的核心技术亮点..."
+                        placeholder={local("请描述该项目的核心技术亮点...", "Describe your actual project outcomes")}
                         className="w-full h-32 p-3 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
                         value={item.desc}
                         onChange={(e) =>
@@ -2977,11 +2208,11 @@ function ResumeEditorContent() {
                       {renderAiActions({
                         text: item.desc,
                         target: { type: "project", id: item.id },
-                        context: "项目经验核心亮点",
+                        context: local("项目成果", "Project outcomes"),
                       })}
                       {renderGenerateButton({
                         target: { type: "project", id: item.id },
-                        context: "项目经验 · AI 生成初稿",
+                        context: local("项目经验", "Projects"),
                         payload: {
                           type: "project",
                           projectName: item.name,
@@ -2998,7 +2229,7 @@ function ResumeEditorContent() {
                   className="w-full border-dashed"
                   onClick={() => addItem("project")}
                 >
-                  + 新增项目
+                  {local("+ 新增项目", "Add project")}
                 </Button>
               </motion.div>
             )}
@@ -3015,33 +2246,33 @@ function ResumeEditorContent() {
                   <div className="w-10 h-10 bg-white rounded-xl border border-zinc-300 flex items-center justify-center text-zinc-600">
                     <Type size={20} />
                   </div>
-                  <h2 className="text-xl font-bold tracking-tight">专业技能</h2>
+                  <h2 className="text-xl font-bold tracking-tight">{local("专业技能", "Skills")}</h2>
                 </header>
                 <div className="space-y-3">
                   <label className="text-xs font-medium text-zinc-500">
-                    技能清单 (逗号分隔)
+                    {local("技能清单 (逗号分隔)", "Skills (comma separated)")}
                   </label>
                   <textarea
                     className="w-full h-48 p-4 text-sm border border-zinc-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white leading-relaxed font-mono transition-colors"
                     value={resumeData.skills.join(", ")}
                     onChange={(e) => updateSkills(e.target.value)}
-                    title="列表键入"
+                    title={local("列表键入", "Skills")}
                   />
                   {renderAiActions({
                     text: resumeData.skills.join(", "),
                     target: { type: "skills" },
-                    context: "专业技能清单，结果使用逗号分隔",
+                    context: local("专业技能，结果使用逗号分隔", "Skills; return comma-separated text"),
                   })}
                 </div>
 
                 <div className="space-y-3 pt-4 border-t border-zinc-100">
                   <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
-                    样式调节
+                    {local("样式", "Style")}
                   </label>
                   <div className="grid grid-cols-2 gap-3">
                     {[
-                      { id: "dot", label: "标准圆点" },
-                      { id: "tag", label: "标签模式" },
+                      { id: "dot", label: local("圆点", "Bullets") },
+                      { id: "tag", label: local("标签", "Tags") },
                     ].map((style) => (
                       <button
                         key={style.id}
@@ -3067,7 +2298,7 @@ function ResumeEditorContent() {
                 {typography.skillStyle === "tag" && (
                   <div className="space-y-4 pt-4 border-t border-zinc-100 animate-in slide-in-from-top-2">
                     <div className="flex justify-between items-center text-xs font-bold text-zinc-400 uppercase tracking-widest">
-                      <span>标签圆角 (px)</span>
+                      <span>{local("标签圆角 (px)", "Tag radius (px)")}</span>
                     </div>
                     <div className="flex items-center gap-3">
                       <Button
@@ -3109,7 +2340,7 @@ function ResumeEditorContent() {
 
                     <div className="flex items-center justify-between pt-2">
                       <span className="text-xs font-semibold text-zinc-500">
-                        跟随主题色
+                        {local("跟随主题色", "Use theme color")}
                       </span>
                       <button
                         onClick={() =>
@@ -3139,7 +2370,7 @@ function ResumeEditorContent() {
                         <div className="flex items-center gap-2.5 px-3.5 py-2 rounded-full border border-zinc-200 bg-white hover:border-zinc-300 hover:shadow-sm transition-all cursor-pointer">
                           <Palette size={14} className="text-zinc-500" />
                           <span className="text-xs font-semibold text-zinc-700">
-                            自定义
+                            {local("自定义", "Custom")}
                           </span>
                           <div
                             className="w-4 h-4 rounded-full border border-black/10 shadow-inner"
@@ -3159,7 +2390,7 @@ function ResumeEditorContent() {
                             }))
                           }
                           className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
-                          title="自定义标签颜色"
+                          title={local("自定义标签颜色", "Custom tag color")}
                         />
                       </div>
                     )}
@@ -3182,13 +2413,13 @@ function ResumeEditorContent() {
                     <Settings2 size={20} />
                   </div>
                   <h2 className="text-xl font-bold tracking-tight">
-                    自定义内容
+                    {local("自定义内容", "Custom section")}
                   </h2>
                 </header>
 
                 <div className="space-y-4">
                   <Input
-                    label="板块标题"
+                    label={local("模块名称", "Section title")}
                     value={modules.find((m) => m.id === activeTab)?.title}
                     onChange={(e) => {
                       const newTitle = e.target.value;
@@ -3204,11 +2435,12 @@ function ResumeEditorContent() {
 
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-zinc-500">
-                      板块内容 (支持换行)
+                      {local("模块内容", "Section content")}
                     </label>
                     <textarea
+                      aria-label={local("模块内容", "Section content")}
                       className="w-full h-96 p-4 text-sm border border-zinc-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white leading-relaxed font-mono"
-                      placeholder="在这里输入内容..."
+                      placeholder={local("在这里输入内容...", "Enter content")}
                       value={
                         modules.find((m) => m.id === activeTab)?.content || ""
                       }
@@ -3232,6 +2464,7 @@ function ResumeEditorContent() {
 
         {/* 第 3 列：预览区 - 在移动端根据 Tab 状态切换可见性 */}
         <section
+          data-preview-section
           className={cn(
             "flex-1 bg-zinc-100 flex flex-col relative overflow-hidden group absolute inset-0 z-20 lg:relative lg:flex lg:translate-x-0 transition-transform duration-300",
             activeMobileTab === "preview"
@@ -3239,6 +2472,7 @@ function ResumeEditorContent() {
               : "translate-x-full lg:translate-x-0",
           )}
         >
+          <p className="no-print absolute bottom-5 left-5 z-30 rounded-lg bg-white px-3 py-2 text-xs text-zinc-500">{local(`约 ${numPages} 页`, `About ${numPages} pages`)}</p>
           {/* 右侧悬浮预览工具栏：缩放控制、自适应 */}
           <div className="absolute right-6 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2 bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-zinc-200 shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-4 group-hover:translate-x-0">
             <Button
@@ -3246,7 +2480,7 @@ function ResumeEditorContent() {
               size="icon"
               onClick={() => setZoomScale((prev) => Math.min(1.5, prev + 0.1))}
               className="w-10 h-10 hover:bg-zinc-100 rounded-xl"
-              title="放大"
+              title={local("放大", "Zoom in")}
             >
               <Plus size={18} />
             </Button>
@@ -3258,7 +2492,7 @@ function ResumeEditorContent() {
               size="icon"
               onClick={() => setZoomScale((prev) => Math.max(0.4, prev - 0.1))}
               className="w-10 h-10 hover:bg-zinc-100 rounded-xl"
-              title="缩小"
+              title={local("缩小", "Zoom out")}
             >
               <Minus size={18} />
             </Button>
@@ -3268,13 +2502,14 @@ function ResumeEditorContent() {
               size="icon"
               onClick={autoFit}
               className="w-10 h-10 hover:bg-zinc-100 rounded-xl text-zinc-500"
-              title="自适应宽度"
+              title={local("自适应宽度", "Fit width")}
             >
               <Maximize size={18} />
             </Button>
           </div>
 
           <div
+            data-preview-container
             ref={previewContainerRef}
             className={cn(
               "flex-1 overflow-auto p-12 pb-32 scrollbar-hide bg-zinc-200/50 select-none transition-colors",
@@ -3305,368 +2540,15 @@ function ResumeEditorContent() {
             onMouseUp={() => setIsPanning(false)}
             onMouseLeave={() => setIsPanning(false)}
           >
-            {/* 居中固定容器：确保内容在缩放小时居中，在放大于溢出时从左侧开始显示 */}
-            <div className="min-w-full min-h-full flex justify-center">
-              {/* 动态计算宽高的缩放容器，确保滚动条准确 */}
-              <div
-                className="relative"
-                style={{
-                  width: `${820 * zoomScale}px`,
-                  minHeight: `${(1160 * numPages + (numPages - 1) * 40) * zoomScale}px`,
-                  transition: "width 0.2s ease-out, min-height 0.2s ease-out",
-                }}
-              >
-                <div
-                  style={{
-                    transform: `scale(${zoomScale})`,
-                    transformOrigin: "top left",
-                    width: "820px",
-                  }}
-                  className="flex flex-col gap-10"
-                >
-                  {Array.from({ length: numPages }).map((_, pageIdx) => {
-                    const PAGE_H = 1160;
-                    const PADDING = 64;
-                    const EFFECTIVE_H = PAGE_H - PADDING * 2;
-                    const currentTemplate =
-                      RESUME_TEMPLATES.find((item) => item.id === templateId) ||
-                      RESUME_TEMPLATES[0];
-
-                    return (
-                      <motion.div
-                        key={pageIdx}
-                        className={cn(
-                          "w-[820px] h-[1160px] bg-white shadow-2xl relative overflow-hidden shrink-0 group/page",
-                          templateId === "tech" && "bg-zinc-50",
-                        )}
-                      >
-                        <div className="absolute right-8 top-7 z-10 rounded-full border border-zinc-200 bg-white/90 px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-zinc-400">
-                          {currentTemplate.name}
-                        </div>
-                        <div
-                          className="absolute left-[64px] right-[64px] overflow-hidden pointer-events-none"
-                          style={{
-                            top: `${PADDING}px`,
-                            bottom: `${PADDING}px`,
-                          }}
-                        >
-                          <div
-                            className="w-full"
-                            style={{
-                              transform: `translateY(-${pageIdx * EFFECTIVE_H}px)`,
-                              fontFamily:
-                                templateId === "tech"
-                                  ? "var(--font-mono), var(--font-family)"
-                                  : "var(--font-family)",
-                              lineHeight: "var(--line-height)",
-                              fontSize: `${typography.fontSize}px`,
-                            }}
-                            ref={pageIdx === 0 ? resumeContentRef : null}
-                          >
-                            <div
-                              className={cn(
-                                "flex items-center gap-10 mb-12 transition-none",
-                                templateId === "split" &&
-                                  "items-stretch gap-0 overflow-hidden rounded-2xl border border-zinc-100",
-                                templateId === "tech" &&
-                                  "border-b-2 border-zinc-900 pb-8",
-                                pageIdx > 0 && "invisible",
-                              )}
-                            >
-                              <div
-                                className={cn(
-                                  "w-28 bg-zinc-50 flex items-center justify-center overflow-hidden relative shadow-inner ring-1 ring-zinc-100",
-                                  templateId === "split" &&
-                                    "m-6 shrink-0 bg-zinc-800 ring-zinc-700",
-                                  templateId === "tech" &&
-                                    "rounded-none bg-white ring-zinc-300",
-                                )}
-                                style={{
-                                  height: `${112 / (resumeData.avatarAspect || 1)}px`,
-                                  borderRadius: `${resumeData.avatarBorderRadius}px`,
-                                }}
-                              >
-                                {resumeData.avatar ? (
-                                  <NextImage
-                                    src={resumeData.avatar}
-                                    alt="Avatar"
-                                    fill
-                                    className="object-cover"
-                                    unoptimized
-                                  />
-                                ) : (
-                                  <User
-                                    size={48}
-                                    className="text-zinc-200"
-                                    style={{ height: "48px" }}
-                                  />
-                                )}
-                              </div>
-                              <div
-                                className={cn(
-                                  "space-y-1.5 flex-1 text-zinc-900",
-                                  templateId === "split" &&
-                                    "bg-zinc-900 p-7 text-white",
-                                )}
-                              >
-                                {resumeData.nameVisible !== false && (
-                                  <h1
-                                    className={cn(
-                                      "text-4xl font-black tracking-tight text-[var(--theme-color)] transition-none drop-shadow-sm",
-                                      templateId === "split" && "text-white",
-                                      templateId === "tech" &&
-                                        "text-zinc-950 uppercase",
-                                    )}
-                                  >
-                                    {resumeData.name || "您的姓名"}
-                                  </h1>
-                                )}
-                                {resumeData.titleVisible !== false && (
-                                  <p
-                                    className={cn(
-                                      "text-lg text-zinc-500 font-bold tracking-tight opacity-90 mb-2",
-                                      templateId === "split" && "text-zinc-300",
-                                    )}
-                                  >
-                                    {resumeData.title || "求职目标"}
-                                  </p>
-                                )}
-                                <div className="text-[0.84em] text-zinc-400 flex flex-wrap gap-x-4 gap-y-1.5 font-medium leading-[1.3] pt-1">
-                                  {resumeData.contacts
-                                    .filter((c) => c.isVisible && c.value)
-                                    .map((c, idx, arr) => {
-                                      const Icon =
-                                        ICON_MAP[c.type] || ICON_MAP.custom;
-                                      return (
-                                        <span
-                                          key={c.id}
-                                          className="flex items-center gap-1.5 text-zinc-600 transition-none whitespace-nowrap"
-                                        >
-                                          <Icon
-                                            size={12}
-                                            className={cn(
-                                              "text-[var(--theme-color)] opacity-60 shrink-0",
-                                              templateId === "split" &&
-                                                "text-emerald-300 opacity-90",
-                                            )}
-                                          />
-                                          <div className="flex items-center gap-1 text-[0.98em]">
-                                            {(c.isCustom || c.showLabel) && (
-                                              <span
-                                                className={cn(
-                                                  "text-zinc-400 font-bold opacity-70",
-                                                  templateId === "split" &&
-                                                    "text-zinc-400",
-                                                )}
-                                              >
-                                                {c.label}:
-                                              </span>
-                                            )}
-                                            <span
-                                              className={cn(
-                                                "font-semibold",
-                                                templateId === "split" &&
-                                                  "text-zinc-100",
-                                              )}
-                                            >
-                                              {c.value}
-                                            </span>
-                                          </div>
-                                          {idx < arr.length - 1 && (
-                                            <span className="text-zinc-200 ml-2 select-none opacity-40">
-                                              /
-                                            </span>
-                                          )}
-                                        </span>
-                                      );
-                                    })}
-                                </div>
-                              </div>
-                            </div>
-
-                            <div
-                              className={cn(
-                                "space-y-12",
-                                templateId === "split" &&
-                                  "grid grid-cols-[220px_1fr] gap-x-8 gap-y-8 space-y-0",
-                                templateId === "tech" && "space-y-9",
-                              )}
-                            >
-                              {modules
-                                .filter((m) => m.visible && m.id !== "basic")
-                                .map((m) => (
-                                  <section
-                                    key={m.id}
-                                    className={cn(
-                                      templateId === "split" &&
-                                        (m.id === "edu" || m.id === "skill"
-                                          ? "col-start-1"
-                                          : "col-start-2"),
-                                      templateId === "split" &&
-                                        m.type === "custom" &&
-                                        "col-span-2",
-                                      templateId === "tech" &&
-                                        "rounded-xl border border-zinc-200 bg-white p-5",
-                                    )}
-                                  >
-                                    <div
-                                      className={cn(
-                                        "flex items-center gap-3 mb-6 border-b-2 border-zinc-900/10 pb-2.5",
-                                        templateId === "tech" &&
-                                          "border-zinc-900 pb-3",
-                                      )}
-                                    >
-                                      <div
-                                        className={cn(
-                                          "w-2 h-6 rounded-sm bg-[var(--theme-color)]",
-                                          templateId === "tech" &&
-                                            "h-4 w-4 rounded-full",
-                                        )}
-                                      />
-                                      <h3
-                                        className={cn(
-                                          "text-xl font-bold tracking-tight text-zinc-800 uppercase",
-                                          templateId === "split" && "text-base",
-                                          templateId === "tech" &&
-                                            "text-base tracking-widest text-zinc-950",
-                                        )}
-                                      >
-                                        {m.title}
-                                      </h3>
-                                    </div>
-                                    <div
-                                      className={cn(
-                                        "pl-1 space-y-6",
-                                        templateId === "split" &&
-                                          "space-y-4 pl-0",
-                                      )}
-                                    >
-                                      {m.type === "custom" && (
-                                        <div className="text-zinc-600 whitespace-pre-wrap leading-relaxed text-[0.95em]">
-                                          {m.content?.toString() || "暂无内容"}
-                                        </div>
-                                      )}
-                                      {m.id === "edu" &&
-                                        resumeData.education.map((item) => (
-                                          <div
-                                            key={item.id}
-                                            className="flex justify-between items-baseline"
-                                          >
-                                            <div className="space-y-0.5">
-                                              <div className="font-bold text-zinc-800 text-[1.1em]">
-                                                {item.school || "教育中心"}
-                                              </div>
-                                              <div className="text-zinc-500 font-medium">
-                                                {item.major}
-                                              </div>
-                                            </div>
-                                            <div className="text-[0.8em] font-bold text-zinc-400 tabular-nums">
-                                              {item.date}
-                                            </div>
-                                          </div>
-                                        ))}
-                                      {m.id === "work" &&
-                                        resumeData.workExperiences.map(
-                                          (item) => (
-                                            <div
-                                              key={item.id}
-                                              className="space-y-2.5"
-                                            >
-                                              <div className="flex justify-between font-bold items-center">
-                                                <span className="text-zinc-800 text-[1.1em]">
-                                                  {item.company}
-                                                </span>
-                                                <span className="text-[0.8em] font-bold text-zinc-400 tabular-nums">
-                                                  {item.date}
-                                                </span>
-                                              </div>
-                                              <div className="text-[0.95em] text-[var(--theme-color)] font-bold">
-                                                {item.role}
-                                              </div>
-                                              <div className="text-zinc-500 whitespace-pre-wrap leading-relaxed opacity-90">
-                                                {item.desc}
-                                              </div>
-                                            </div>
-                                          ),
-                                        )}
-                                      {m.id === "project" &&
-                                        resumeData.projects.map((item) => (
-                                          <div
-                                            key={item.id}
-                                            className="space-y-2.5"
-                                          >
-                                            <div className="flex justify-between font-bold items-center">
-                                              <span className="text-zinc-800 text-[1.1em]">
-                                                {item.name}
-                                              </span>
-                                              <span className="text-[0.8em] font-bold text-zinc-400 tabular-nums">
-                                                {item.date}
-                                              </span>
-                                            </div>
-                                            <div className="text-[0.95em] text-zinc-600 font-bold">
-                                              {item.role}
-                                            </div>
-                                            <div className="text-zinc-500 whitespace-pre-wrap leading-relaxed opacity-90">
-                                              {item.desc}
-                                            </div>
-                                          </div>
-                                        ))}
-                                      {m.id === "skill" && (
-                                        <div
-                                          className={cn(
-                                            "flex flex-wrap leading-relaxed",
-                                            typography.skillStyle === "tag"
-                                              ? "gap-2"
-                                              : "gap-x-6 gap-y-3",
-                                          )}
-                                        >
-                                          {resumeData.skills
-                                            .filter((s) => s)
-                                            .map((s, idx) => (
-                                              <span
-                                                key={idx}
-                                                className={cn(
-                                                  "flex items-center font-medium transition-all",
-                                                  typography.skillStyle ===
-                                                    "tag"
-                                                    ? ""
-                                                    : "gap-2 text-zinc-600",
-                                                )}
-                                                style={
-                                                  typography.skillStyle ===
-                                                  "tag"
-                                                    ? {
-                                                        borderRadius: `${typography.skillTagRadius}px`,
-                                                        backgroundColor:
-                                                          typography.skillTagUseTheme
-                                                            ? "var(--theme-color-5)"
-                                                            : `${typography.skillTagColor}10`,
-                                                        border: `1px solid ${
-                                                          typography.skillTagUseTheme
-                                                            ? "var(--theme-color-20)"
-                                                            : `${typography.skillTagColor}33`
-                                                        }`,
-                                                        color:
-                                                          typography.skillTagUseTheme
-                                                            ? "var(--theme-color)"
-                                                            : typography.skillTagColor,
-                                                        padding: "4px 12px",
-                                                        fontSize: "0.9em",
-                                                      }
-                                                    : {}
-                                                }
-                                              >
-                                                {typography.skillStyle !==
-                                                  "tag" && (
-                                                  <div className="w-1.5 h-1.5 rounded-full bg-[var(--theme-color)] opacity-40 shrink-0" />
-                                                )}
-                                                {s}
-                                              </span>
-                                            ))}
-                                        </div>
-                                      )}
-                                    </div>
-                                  </section>
+            <div className="resume-preview-center min-w-full min-h-full flex justify-center">
+              <div className="resume-preview-sizing relative" style={{ width: `${PAPER_WIDTH * zoomScale}px`, minHeight: `${documentHeight * zoomScale}px` }}>
+                <div className="resume-preview-scale" style={{ transform: `scale(${zoomScale})`, transformOrigin: "top left", width: PAPER_WIDTH }}>
+                  <ResumeDocument ref={resumeContentRef} config={resumeConfig} pageGuides avatarAlt={local("头像", "Avatar")} />
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
                                 ))}
                             </div>
                           </div>
@@ -3732,7 +2614,7 @@ function ResumeEditorContent() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            data-editor-modal role="dialog" aria-modal="true" aria-label={copy.importTitle} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 16 }}
@@ -3780,16 +2662,19 @@ function ResumeEditorContent() {
                     {copy.pasteResumeText}
                   </label>
                   <textarea
+                    aria-label={copy.pasteResumeText}
                     className="h-80 w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm leading-relaxed text-zinc-700 outline-none transition-colors focus:border-zinc-400"
                     placeholder={copy.importTextPlaceholder}
                     value={importText}
                     onChange={(event) => {
                       setImportText(event.target.value);
+                      setImportPreview(null);
                       setImportError(null);
                     }}
                   />
                 </div>
 
+                {importPreview && <div className="space-y-3"><p className="text-sm font-bold">{local("导入预览", "Import preview")}: {importPreview.source}</p><div className="max-h-72 overflow-auto rounded-xl border"><div style={{ width: PAPER_WIDTH, zoom: 0.65 }}><ResumeDocument config={importPreview.config} /></div></div>{importPreview.unrecognized.length > 0 && <div><p>{local("未识别内容", "Unrecognized content")}</p><pre className="whitespace-pre-wrap text-sm">{importPreview.unrecognized.join("\n")}</pre></div>}<button onClick={() => setImportPreview(null)}>{local("重新解析", "Parse again")}</button></div>}
                 {importError && (
                   <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
                     {importError}
@@ -3807,7 +2692,7 @@ function ResumeEditorContent() {
                 </Button>
                 <Button className="h-11 gap-2" onClick={applyTextImport}>
                   <Rocket size={16} />
-                  {copy.applyTextImport}
+                  {importPreview ? local("确认替换", "Replace content") : local("解析文本", "Parse text")}
                 </Button>
               </div>
             </motion.div>
@@ -3822,7 +2707,7 @@ function ResumeEditorContent() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            data-editor-modal role="dialog" aria-modal="true" aria-label={copy.historyTitle} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 16 }}
@@ -3913,7 +2798,7 @@ function ResumeEditorContent() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            data-editor-modal role="dialog" aria-modal="true" aria-label={copy.exportTitle} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 16 }}
@@ -3931,6 +2816,7 @@ function ResumeEditorContent() {
                   </p>
                 </div>
                 <button
+                  disabled={isExporting}
                   onClick={() => setIsExportDialogOpen(false)}
                   className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
                   title={copy.close}
@@ -3940,11 +2826,13 @@ function ResumeEditorContent() {
               </div>
 
               <div className="space-y-5 p-6">
+                {printError && <p role="alert" className="text-red-600">{printError}</p>}
                 <div className="space-y-2">
                   <label className="text-xs font-bold uppercase tracking-widest text-zinc-400">
                     {copy.pdfFilename}
                   </label>
                   <input
+                    aria-label={copy.pdfFilename}
                     className="h-11 w-full rounded-xl border border-zinc-200 bg-zinc-50 px-4 text-sm font-medium outline-none transition-colors focus:border-zinc-400"
                     value={exportFilename}
                     onChange={(e) => setExportFilename(e.target.value)}
@@ -3973,6 +2861,7 @@ function ResumeEditorContent() {
                 <Button
                   variant="outline"
                   className="h-11"
+                  disabled={isExporting}
                   onClick={() => setIsExportDialogOpen(false)}
                 >
                   {copy.cancel}
@@ -3998,7 +2887,7 @@ function ResumeEditorContent() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            data-editor-modal role="dialog" aria-modal="true" aria-label={copy.aiReportTitle} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 16 }}
@@ -4036,6 +2925,7 @@ function ResumeEditorContent() {
                       {copy.jdLabel}
                     </label>
                     <textarea
+                      aria-label={copy.jdLabel}
                       className="h-72 w-full resize-none rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm leading-relaxed text-zinc-700 outline-none transition-colors focus:border-zinc-400"
                       placeholder={copy.jdPlaceholder}
                       value={jdText}
@@ -4046,7 +2936,7 @@ function ResumeEditorContent() {
                     <Button
                       type="button"
                       className="h-11 gap-2"
-                      disabled={isAiAnalyzing}
+                      disabled={aiRequest.pending}
                       onClick={() => analyzeResumeWithAi("jd_match")}
                     >
                       <Target size={15} /> {copy.jdMatch}
@@ -4055,7 +2945,7 @@ function ResumeEditorContent() {
                       type="button"
                       variant="outline"
                       className="h-11 gap-2"
-                      disabled={isAiAnalyzing}
+                      disabled={aiRequest.pending}
                       onClick={() => analyzeResumeWithAi("score")}
                     >
                       <Award size={15} /> {copy.resumeScore}
@@ -4097,7 +2987,7 @@ function ResumeEditorContent() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
+            data-editor-modal role="dialog" aria-modal="true" aria-label={copy.aiOptimizeTitle} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
           >
             <motion.div
               initial={{ opacity: 0, scale: 0.96, y: 16 }}
@@ -4155,7 +3045,9 @@ function ResumeEditorContent() {
                 >
                   {copy.keepOriginal}
                 </Button>
-                <Button className="h-11 gap-2" onClick={applyAiDraft}>
+                {sourceSignature(aiDraft.target, aiDraft.kind) !== aiDraft.sourceSignature && <p role="status" className="text-sm text-amber-700">{local("原文已变化，请重新生成", "The original changed. Generate a new draft.")}</p>}
+                {aiError && <p role="alert" className="text-sm text-red-600">{aiError}</p>}
+                <Button className="h-11 gap-2" disabled={sourceSignature(aiDraft.target, aiDraft.kind) !== aiDraft.sourceSignature} onClick={applyAiDraft}>
                   <Check size={16} /> {copy.applyResult}
                 </Button>
               </div>
@@ -4171,7 +3063,7 @@ function ResumeEditorContent() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
+            data-editor-modal role="dialog" aria-modal="true" aria-label={local("头像裁剪", "Crop avatar")} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
           >
             <div className="bg-white w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl flex flex-col animate-in slide-in-from-bottom-8">
               <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
@@ -4181,10 +3073,10 @@ function ResumeEditorContent() {
                   </div>
                   <div>
                     <h3 className="text-xl font-bold text-zinc-900">
-                      裁剪设定
+                      {local("头像裁剪", "Crop avatar")}
                     </h3>
                     <p className="text-sm text-zinc-500">
-                      选择合适的比例并调整位置
+                      {local("调整裁剪范围", "Adjust crop area")}
                     </p>
                   </div>
                 </div>
@@ -4197,6 +3089,7 @@ function ResumeEditorContent() {
                 </button>
               </div>
 
+              {cropError && <p role="alert" className="px-6 text-sm text-red-600">{cropError}</p>}
               <div className="h-[400px] relative bg-zinc-900">
                 <Cropper
                   image={tempAvatar || ""}
@@ -4213,13 +3106,13 @@ function ResumeEditorContent() {
                 {/* 比例选择 */}
                 <div className="space-y-3">
                   <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
-                    比例预设
+                    {local("宽高比", "Aspect ratio")}
                   </label>
                   <div className="grid grid-cols-3 gap-3">
                     {[
-                      { label: "1:1 正方形", value: 1 },
-                      { label: "3:4 证件照", value: 3 / 4 },
-                      { label: "4:3 宽屏", value: 4 / 3 },
+                      { label: local("1:1 正方形", "1:1 Square"), value: 1 },
+                      { label: local("3:4 竖向", "3:4 Portrait"), value: 3 / 4 },
+                      { label: local("4:3 横向", "4:3 Landscape"), value: 4 / 3 },
                     ].map((r) => (
                       <button
                         key={r.value}
@@ -4239,7 +3132,7 @@ function ResumeEditorContent() {
 
                 <div className="flex flex-col gap-2">
                   <div className="flex items-center justify-between text-xs font-bold text-zinc-400 uppercase tracking-widest">
-                    <span>缩放控制</span>
+                    <span>{local("缩放", "Zoom")}</span>
                     <span>{Math.round(zoom * 100)}%</span>
                   </div>
                   <div className="flex items-center gap-4">
@@ -4250,10 +3143,10 @@ function ResumeEditorContent() {
                       min={1}
                       max={3}
                       step={0.1}
-                      aria-labelledby="Zoom"
+                      aria-label={local("缩放", "Zoom")}
                       className="flex-1 h-1.5 bg-zinc-100 rounded-lg appearance-none accent-zinc-900 cursor-pointer"
                       onChange={(e) => setZoom(Number(e.target.value))}
-                      title="调节大小"
+                      title={local("调节大小", "Adjust zoom")}
                     />
                     <Plus size={16} className="text-zinc-400" />
                   </div>
@@ -4272,7 +3165,7 @@ function ResumeEditorContent() {
                     className="flex-2 h-12 gap-2 shadow-lg shadow-zinc-900/10"
                     onClick={handleApplyCrop}
                   >
-                    <Check size={18} /> 确认并应用
+                    <Check size={18} /> {local("确认并应用", "Apply")}
                   </Button>
                 </div>
               </div>
@@ -4284,10 +3177,15 @@ function ResumeEditorContent() {
   );
 }
 
+function EditorIdentity() {
+  const params = useSearchParams();
+  return <ResumeEditorContent key={params.get("id") || "default-1"} />;
+}
+
 export default function ResumeEditor() {
   return (
     <React.Suspense fallback={null}>
-      <ResumeEditorContent />
+      <EditorIdentity />
     </React.Suspense>
   );
 }
