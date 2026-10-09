@@ -82,7 +82,13 @@ export function useResumePersistence(id: string, explicitId: boolean, locale: st
     if (loadedId === id) latest.current = { id, config };
   }, [id, loadedId, config]);
   useEffect(() => {
-    if (loadedId !== id || saved.current === JSON.stringify(config)) return;
+    if (loadedId !== id) return;
+    if (saved.current === JSON.stringify(config)) {
+      // Undo can return to a saved document before the debounce writes anything.
+      // Check external changes before clearing an unsaved or failed status.
+      flush();
+      return;
+    }
     setStatus(previous => previous === "failed" ? "failed" : "unsaved");
     const timer = window.setTimeout(flush, 500);
     return () => window.clearTimeout(timer);

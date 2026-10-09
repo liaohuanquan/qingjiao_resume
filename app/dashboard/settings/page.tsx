@@ -45,7 +45,7 @@ export default function SettingsPage() {
   };
   const download = () => {
     setStatus(""); setError("");
-    try { downloadFile(exportBackup(), "qingjiao-resumes.json"); }
+    try { downloadFile(exportBackup(locale), "qingjiao-resumes.json"); }
     catch { setError(t("备份失败，请下载原始数据", "Backup failed. Download recovery data.")); }
   };
   const closeRestore = useCallback(() => { cancelBackupRead(); setRestorePreview(null); setError(""); }, [cancelBackupRead]);

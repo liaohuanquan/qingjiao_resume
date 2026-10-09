@@ -64,6 +64,19 @@ function legacyConfig(): ResumeConfig | null {
   return parseResumeConfig(config);
 }
 
+// Discover the older default document without writing or replacing its source keys.
+function unlistedLegacyResume(list: ResumeMetadata[], locale: string) {
+  if (list.some(item => item.id === "default-1")) return null;
+  const raw = localStorage.getItem(dataKey("default-1"));
+  const config = raw === null ? legacyConfig() : parseResumeConfig(JSON.parse(raw));
+  if (!config) return null;
+  const metadata: ResumeMetadata = {
+    id: "default-1", title: locale === "en-US" ? "Untitled resume" : "未命名简历",
+    lastModified: new Date().toISOString(), theme: config.themeColor, templateId: config.templateId,
+  };
+  return { metadata, config };
+}
+
 export function readResume(id: string): ResumeConfig {
   const raw = localStorage.getItem(dataKey(id));
   if (raw !== null) return parseResumeConfig(JSON.parse(raw));
@@ -82,9 +95,12 @@ export function savedResumeText(id: string): string | null {
 
 export function listResumesWithLegacy(locale: string): ResumeMetadata[] {
   const list = listResumes();
-  if (list.length || (localStorage.getItem("resume_v2_data") === null && localStorage.getItem(dataKey("default-1")) === null)) return list;
-  openResume("default-1", false, locale === "en-US" ? "Untitled resume" : "未命名简历", locale);
-  return listResumes();
+  const legacy = unlistedLegacyResume(list, locale);
+  if (!legacy) return list;
+  const next = [legacy.metadata, ...list];
+  // Register only after validation; the editor persists the migrated body on save.
+  writeChanges(new Map([["resume_list", JSON.stringify(next)]]));
+  return next;
 }
 
 export function createResume(title: string, config = blankResume(), id: string = crypto.randomUUID()): ResumeMetadata {
@@ -168,8 +184,13 @@ export function saveSnapshot(id: string, label: string, config: ResumeConfig) {
 }
 
 export interface ResumeBackup { version: 1; resumes: { metadata: ResumeMetadata; config: ResumeConfig; history: ResumeSnapshot[] }[] }
-export function exportBackup(): ResumeBackup {
-  return { version: 1, resumes: listResumes().map(metadata => ({ metadata, config: readResume(metadata.id), history: readHistory(metadata.id) })) };
+export function exportBackup(locale = "zh-CN"): ResumeBackup {
+  const list = listResumes();
+  const resumes = list.map(metadata => ({ metadata, config: readResume(metadata.id), history: readHistory(metadata.id) }));
+  const legacy = unlistedLegacyResume(list, locale);
+  if (legacy) resumes.unshift({ ...legacy, history: readHistory(legacy.metadata.id) });
+  // Backup remains available even if there is no space to register or migrate a body.
+  return { version: 1, resumes };
 }
 export function parseResumeBackup(value: unknown): ResumeBackup {
   const backup = record(value);

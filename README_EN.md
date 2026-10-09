@@ -4,7 +4,7 @@ A resume editor without accounts, built with Next.js 16, React 19, and Tailwind 
 
 ## Usage
 
-Create, rename, duplicate, and delete resumes. The editor supports three templates, section order and visibility, custom sections, and avatar cropping. Changes are saved in the current browser. If saving fails, keep the page open and download a backup.
+Create, rename, duplicate, and delete resumes. The editor supports three templates, section order and visibility, custom sections, and avatar cropping. Changes are saved in the current browser. Undoing back to saved content rechecks storage and updates the status; external conflicts still report a failure. If saving fails, keep the page open and download a backup.
 
 On mobile, choosing a section opens its editor; hidden panels leave keyboard navigation. Preview fitting uses the container's actual width. Manual zoom survives resizing; “Fit width” restores automatic fitting. Select document text or drag the blank background with a mouse; touch uses native scrolling. Zoom controls remain visible on mobile and appear on desktop hover or keyboard focus. Skill tag corners support a radius of zero.
 
@@ -15,6 +15,8 @@ Undo and redo retain the latest 30 session steps, grouping consecutive edits in 
 Avatars can be cropped and removed. Changing files, cancelling, or leaving prevents previous operations from applying late results. Cropped images use PNG to retain transparency.
 
 JSON and text imports show a preview before replacing content. Snapshots are saved before importing, applying AI suggestions, or restoring a version; the latest ten are retained. Settings can export all resumes with their histories. Restoring a backup creates new resumes and leaves existing content intact. Keys are excluded from backups.
+
+An unregistered older default resume is validated before being added to the list, even when other resumes already exist. Full backups include its content and history without writing to storage or requiring migration first. Invalid data stops the operation and retains the recovery download option.
 
 Before restoring, review the filename, resume titles, and snapshot counts, then confirm adding the resumes. Cancelling, changing files, or clearing data stops the previous read. Empty backups do not write data. Appearance controls track changes and clearing in other tabs; invalid preferences disable editing and provide retry and recovery downloads.
 
