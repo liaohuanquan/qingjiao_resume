@@ -54,11 +54,14 @@ import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import type { ContactItem, ResumeData, TypographyConfig, ModuleItem, ResumeConfig, ResumeSnapshot, ResumeTemplateId } from "@/app/lib/resume";
-import { blankResume, fontFamilies, parseResumeConfig, visibleResumeText } from "@/app/lib/resume-schema";
+import { blankResume, parseResumeConfig, templateIds, visibleResumeText } from "@/app/lib/resume-schema";
 import { previewTextImport } from "@/app/lib/resume-import";
 import { removeResumeModule } from "@/app/lib/resume-edit";
 import { downloadFile, downloadRawStorage, readHistory, saveSnapshot } from "@/app/lib/resume-storage";
 import { ICON_MAP } from "@/app/lib/contact-icons";
+import { resumeModuleColumn } from "@/app/lib/resume-layout";
+import { TypographyPanel } from "@/app/components/TypographyPanel";
+import { DescriptionEditor } from "@/app/components/DescriptionEditor";
 import { EditorPreview } from "@/app/components/EditorPreview";
 import { ResumePreview } from "@/app/components/ResumePreview";
 import { AIReviewDialog } from "@/app/components/AIReviewDialog";
@@ -99,16 +102,6 @@ const AI_MODE_LABELS: Record<AiOptimizeMode, string> = {
   concise: "压缩语气",
 };
 
-const RESUME_TEMPLATES: Array<{
-  id: ResumeTemplateId;
-  name: string;
-  description: string;
-}> = [
-  { id: "classic", name: "极简经典", description: "稳重单栏，适合通用岗位" },
-  { id: "split", name: "左右分栏", description: "信息密度更高，适合管理与运营" },
-  { id: "tech", name: "技术岗版", description: "突出技能和项目，适合研发岗位" },
-];
-
 const EDITOR_COPY = {
   "zh-CN": {
     editorMode: "Editor Mode",
@@ -135,18 +128,9 @@ const EDITOR_COPY = {
     lang: "EN",
     templateTitle: "简历模板",
     templates: {
-      classic: {
-        name: "极简经典",
-        description: "稳重单栏，适合通用岗位",
-      },
-      split: {
-        name: "左右分栏",
-        description: "信息密度更高，适合管理与运营",
-      },
-      tech: {
-        name: "技术岗版",
-        description: "突出技能和项目，适合研发岗位",
-      },
+      classic: "经典单栏",
+      split: "左右分栏",
+      tech: "技术模板",
     },
     moduleManager: "模块管理",
     basicInfo: "基本信息",
@@ -216,18 +200,9 @@ const EDITOR_COPY = {
     lang: "中文",
     templateTitle: "Resume template",
     templates: {
-      classic: {
-        name: "Minimal Classic",
-        description: "Stable single-column layout for general roles",
-      },
-      split: {
-        name: "Split Layout",
-        description: "Denser layout for management and operations",
-      },
-      tech: {
-        name: "Engineering Focus",
-        description: "Highlights skills and projects for technical roles",
-      },
+      classic: "Classic",
+      split: "Split",
+      tech: "Technical",
     },
     moduleManager: "Module manager",
     basicInfo: "Basic info",
@@ -294,7 +269,7 @@ const EDITOR_COPY = {
   switchLanguage: string;
   lang: string;
   templateTitle: string;
-  templates: Record<ResumeTemplateId, { name: string; description: string }>;
+  templates: Record<ResumeTemplateId, string>;
   moduleManager: string;
   basicInfo: string;
   fixed: string;
@@ -1120,6 +1095,16 @@ function ResumeEditorContent() {
   useModalFocus(Boolean(isAiAnalysisOpen || isExportDialogOpen || isHistoryOpen || isImportDialogOpen), closeModal, "[data-editor-modal]");
   const leaveEditor = () => { if (persistence.flush()) router.push("/dashboard"); };
   const local = (zh: string, en: string) => locale === "en-US" ? en : zh;
+  const renderModulePosition = (module: ModuleItem | undefined) => templateId === "split" && module ?
+    <label className="flex w-full items-center justify-between gap-2 border-t border-zinc-100 pt-2 text-xs text-zinc-500"
+      onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
+      {local("模块位置", "Position")}
+      <select aria-label={`${module.title} ${local("位置", "position")}`} value={resumeModuleColumn(module)}
+        onChange={event => { const column = event.target.value as "main" | "sidebar"; setModules(previous => previous.map(item => item.id === module.id ? { ...item, column } : item)); }}
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1">
+        <option value="sidebar">{local("侧栏", "Sidebar")}</option><option value="main">{local("正文", "Main")}</option>
+      </select>
+    </label> : null;
   if (persistence.error || !persistence.ready) return <main className="min-h-screen flex flex-col items-center justify-center gap-4 p-8">
     <p role="status">{persistence.error === "missing" ? local("简历不存在", "Resume not found") : persistence.error ? local("数据读取失败", "Unable to read saved data") : local("加载中", "Loading")}</p>
     {persistence.error && <><button onClick={persistence.reload}>{local("重试", "Retry")}</button><button onClick={() => { try { downloadRawStorage(); } catch { /* Storage itself is unavailable. */ } }}>{local("原始备份", "Recovery data")}</button><button onClick={() => router.push("/dashboard")}>{local("返回列表", "Resume list")}</button></>}
@@ -1134,8 +1119,6 @@ function ResumeEditorContent() {
           "--theme-color": themeColor,
           "--theme-color-5": `${themeColor}0d`, // 5% opacity in hex
           "--theme-color-20": `${themeColor}33`, // 20% opacity in hex
-          "--font-family": typography.fontFamily,
-          "--line-height": typography.lineHeight,
         } as React.CSSProperties
       }
     >
@@ -1339,22 +1322,22 @@ function ResumeEditorContent() {
               <Layout size={14} /> {copy.templateTitle}
             </h3>
             <div className="space-y-2">
-              {RESUME_TEMPLATES.map((template) => (
+              {templateIds.map((id) => (
                 <button
-                  key={template.id}
-                  onClick={() => setTemplateId(template.id)}
+                  key={id}
+                  onClick={() => setTemplateId(id)}
                   className={cn(
                     "w-full rounded-xl border p-3 text-left transition-all",
-                    templateId === template.id
+                    templateId === id
                       ? "border-zinc-900 bg-white shadow-sm"
                       : "border-zinc-200 bg-white/70 hover:border-zinc-300",
                   )}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-bold text-zinc-800">
-                      {copy.templates[template.id].name}
+                      {copy.templates[id]}
                     </span>
-                    {templateId === template.id && (
+                    {templateId === id && (
                       <Check size={14} className="text-emerald-600" />
                     )}
                   </div>
@@ -1370,9 +1353,8 @@ function ResumeEditorContent() {
             </h3>
             <div className="space-y-2 mb-2">
               <Card
-                onClick={() => openModule("basic")}
                 className={cn(
-                  "flex items-center gap-2 cursor-pointer transition-all",
+                  "flex flex-wrap items-center gap-2 transition-all",
                   activeTab === "basic" &&
                     "border-zinc-900 ring-1 ring-zinc-900/5",
                 )}
@@ -1386,6 +1368,7 @@ function ResumeEditorContent() {
                 <Badge className="bg-zinc-100 text-zinc-400 font-normal ml-auto">
                   {copy.fixed}
                 </Badge>
+                {renderModulePosition(modules.find(module => module.id === "basic"))}
               </Card>
             </div>
 
@@ -1407,7 +1390,7 @@ function ResumeEditorContent() {
                   >
                     <Card
                       className={cn(
-                        "flex items-center gap-2 cursor-pointer transition-all",
+                        "flex flex-wrap items-center gap-2 cursor-pointer transition-all",
                         activeTab === m.id &&
                           "border-zinc-900 ring-1 ring-zinc-900/5",
                         !m.visible && "opacity-50",
@@ -1449,6 +1432,7 @@ function ResumeEditorContent() {
                           <Trash2 size={14} />
                         </button>
                       </div>
+                      {renderModulePosition(m)}
                     </Card>
                   </Reorder.Item>
                 ))}
@@ -1515,117 +1499,7 @@ function ResumeEditorContent() {
             </div>
           </section>
 
-          <section className="space-y-4">
-            <h3 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
-              <Type size={14} /> {local("排版", "Typography")}
-            </h3>
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label
-                  className="text-xs font-medium text-zinc-500"
-                  htmlFor="font-fam"
-                >
-                  {local("字体", "Font")}
-                </label>
-                <select
-                  id="font-fam"
-                  className="w-full h-9 px-3 rounded-lg border border-zinc-300 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 transition-all font-medium"
-                  aria-label={local("字体", "Font")}
-                  value={typography.fontFamily}
-                  onChange={(e) =>
-                    setTypography((prev) => ({
-                      ...prev,
-                      fontFamily: e.target.value,
-                    }))
-                  }
-                >
-                  <option value={fontFamilies.sans}>{local("黑体", "Sans serif")}</option>
-                  <option value={fontFamilies.serif}>{local("宋体", "Serif")}</option>
-                  <option value={fontFamilies.mono}>{local("等宽", "Monospace")}</option>
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center">
-                  <label
-                    className="text-xs font-medium text-zinc-500"
-                  >
-                    {local("行距", "Line height")}
-                  </label>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-10 h-10 p-0"
-                    onClick={() =>
-                      setTypography((prev) => ({
-                        ...prev,
-                        lineHeight: parseFloat(
-                          Math.max(1, prev.lineHeight - 0.05).toFixed(2),
-                        ),
-                      }))
-                    }
-                  >
-                    <Minus size={14} />
-                  </Button>
-                  <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">
-                    {typography.lineHeight.toFixed(2)}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-10 h-10 p-0"
-                    onClick={() =>
-                      setTypography((prev) => ({
-                        ...prev,
-                        lineHeight: parseFloat(
-                          Math.min(2.5, prev.lineHeight + 0.05).toFixed(2),
-                        ),
-                      }))
-                    }
-                  >
-                    <Plus size={14} />
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-500">
-                  {local("主字号 (px)", "Font size (px)")}
-                </label>
-                <div className="flex items-center gap-3">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-10 h-10 p-0"
-                    onClick={() =>
-                      setTypography((prev) => ({
-                        ...prev,
-                        fontSize: Math.max(10, prev.fontSize - 0.5),
-                      }))
-                    }
-                  >
-                    <Minus size={14} />
-                  </Button>
-                  <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">
-                    {typography.fontSize.toFixed(1)}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-10 h-10 p-0"
-                    onClick={() =>
-                      setTypography((prev) => ({
-                        ...prev,
-                        fontSize: Math.min(24, prev.fontSize + 0.5),
-                      }))
-                    }
-                  >
-                    <Plus size={14} />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </section>
+          <TypographyPanel value={typography} onChange={setTypography} />
         </aside>
 
         {/* Column 2: Editor Pane - Mobile Toggle */}
@@ -2040,22 +1914,8 @@ function ResumeEditorContent() {
                       }
                     />
                     <div className="space-y-1.5">
-                      <label htmlFor={`work-description-${item.id}`} className="text-xs font-medium text-zinc-500">
-                        {local("工作成果", "Responsibilities and outcomes")}
-                      </label>
-                      <textarea id={`work-description-${item.id}`}
-                        placeholder={local("请详细描述您的关键成果...", "Describe your actual responsibilities and outcomes")}
-                        className="w-full h-32 p-3 text-sm border border-zinc-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
-                        value={item.desc}
-                        onChange={(e) =>
-                          updateListItem(
-                            "work",
-                            item.id,
-                            "desc",
-                            e.target.value,
-                          )
-                        }
-                      />
+                      <DescriptionEditor id={`work-description-${item.id}`} label={local("工作成果", "Responsibilities and outcomes")}
+                        value={item.desc} onChange={value => updateListItem("work", item.id, "desc", value)} />
                       {renderAiActions({
                         text: item.desc,
                         target: { type: "work", id: item.id },
@@ -2157,22 +2017,8 @@ function ResumeEditorContent() {
                       onChange={event => updateListItem("project", item.id, "link", event.target.value)}
                     />
                     <div className="space-y-1.5">
-                      <label htmlFor={`project-description-${item.id}`} className="text-xs font-medium text-zinc-500">
-                        {local("项目成果", "Project outcomes")}
-                      </label>
-                      <textarea id={`project-description-${item.id}`}
-                        placeholder={local("请描述该项目的核心技术亮点...", "Describe your actual project outcomes")}
-                        className="w-full h-32 p-3 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
-                        value={item.desc}
-                        onChange={(e) =>
-                          updateListItem(
-                            "project",
-                            item.id,
-                            "desc",
-                            e.target.value,
-                          )
-                        }
-                      />
+                      <DescriptionEditor id={`project-description-${item.id}`} label={local("项目成果", "Project outcomes")}
+                        value={item.desc} onChange={value => updateListItem("project", item.id, "desc", value)} />
                       {renderAiActions({
                         text: item.desc,
                         target: { type: "project", id: item.id },
@@ -2402,26 +2248,9 @@ function ResumeEditorContent() {
                   />
 
                   <div className="space-y-1.5">
-                    <label htmlFor={`section-content-${activeTab}`} className="text-xs font-medium text-zinc-500">
-                      {local("模块内容", "Section content")}
-                    </label>
-                    <textarea id={`section-content-${activeTab}`}
-                      className="w-full h-96 p-4 text-sm border border-zinc-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white leading-relaxed font-mono"
-                      placeholder={local("在这里输入内容...", "Enter content")}
-                      value={
-                        modules.find((m) => m.id === activeTab)?.content || ""
-                      }
-                      onChange={(e) => {
-                        const newContent = e.target.value;
-                        setModules((prev) =>
-                          prev.map((mod) =>
-                            mod.id === activeTab
-                              ? { ...mod, content: newContent }
-                              : mod,
-                          ),
-                        );
-                      }}
-                    />
+                    <DescriptionEditor id={`section-content-${activeTab}`} label={local("模块内容", "Section content")} rows={12}
+                      value={modules.find(module => module.id === activeTab)?.content || ""}
+                      onChange={content => setModules(previous => previous.map(module => module.id === activeTab ? { ...module, content } : module))} />
                   </div>
                 </div>
               </motion.div>

@@ -24,6 +24,16 @@ Text imports rebuild standard sections while preserving the template and typogra
 
 The parser distinguishes section headings from entry headings, preserves years in descriptions, recognizes project links, and keeps skill names containing slashes. Unsupported sections are shown as unrecognized content. Changing files, editing text, or closing the import dialog cancels the previous file read.
 
+## Typography and text
+
+Adjust body, name, and heading sizes separately, along with line height and paragraph, entry, and section spacing. Sizes display points while storage remains in CSS pixels. Resetting restores typography defaults and clears individual section styles, preserving skill tags and column positions. Missing new fields receive defaults; existing font, body size, line height, and section overrides remain. New defaults use 1.5 line height, 20px section gaps, and 12px entry gaps.
+
+Classic uses one column. Split defaults basic information, education, and skills to a sidebar; each section can move between sidebar and main. Each column preserves relative section order. A single populated column uses the full width. Other templates still use the original section order, without altering content. Technical uses project accent lines and grouped skills instead of bordered cards. Single-column headers place the avatar on the right while retaining its crop ratio.
+
+Work, project, and custom descriptions support bold, lists, and named links. Formatting commands participate in session undo while descriptions remain plain text. Use `**bold**`, unordered prefixes (`- `, `* `, `+ `, `• `), numbered lists, or `[text](https://example.com)`. Ordinary text remains visible; HTML is not executed. This is a small text syntax, without full Markdown or nested lists. Links support HTTP/HTTPS; the toolbar encodes URL parentheses. Ctrl/Cmd+B applies bold, Ctrl/Cmd+K inserts a link. Multiline bold preserves list markers. Link insertion checks for changed source text; cancelling retains the original.
+
+Text imports retain description formatting. Preview, thumbnails, and printing share the same renderer; thumbnails contain no interactive links. New templates, selection restoration, formatting, typography migration, and column pagination have not been run or visually verified.
+
 ## Print PDF
 
 Choose “Print resume”, then “Save as PDF” in the system print dialog. Use portrait A4. Disable browser headers and footers, and enable background graphics to retain template colors.

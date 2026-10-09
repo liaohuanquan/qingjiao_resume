@@ -12,7 +12,7 @@ const SECTION_KEYWORDS: Record<ImportSectionKey, string[]> = {
   skill: ["技能", "专业技能", "skills", "skill", "technical skills", "professional skills", "core skills"],
 };
 const UNSUPPORTED_HEADINGS = ["自我评价", "个人简介", "获奖经历", "荣誉奖项", "证书", "证书荣誉", "兴趣爱好", "志愿经历", "summary", "profile", "awards", "certifications", "interests", "volunteer experience"];
-const stripLine = (line: string) => line.replace(/^\s*#{1,6}\s+/, "").replace(/^\s*[-*•]\s+/, "").replace(/^\s*\d+[.)、]\s+/, "").replace(/\*\*/g, "").trim();
+const stripLine = (line: string) => line.replace(/^\s*#{1,6}\s+/, "").replace(/^\s*[-*+•]\s+/, "").replace(/^\s*\d+[.)、]\s+/, "").replace(/\*\*/g, "").trim();
 const sectionKey = (line: ImportLine): ImportSectionKey | undefined => {
   const name = line.text.replace(/[:：]$/, "").toLowerCase();
   return (Object.keys(SECTION_KEYWORDS) as ImportSectionKey[]).find(key => SECTION_KEYWORDS[key].includes(name));
@@ -24,7 +24,7 @@ function splitSections(text: string) {
   let current: ImportSectionKey | "unknown" = "intro";
   let sectionLevel = 1;
   for (const raw of text.split(/\r?\n/)) {
-    const line: ImportLine = { raw, text: stripLine(raw), heading: raw.match(/^\s*(#{1,6})\s+/)?.[1].length || 0, bullet: /^\s*(?:[-*•]|\d+[.)、])\s+/.test(raw) };
+    const line: ImportLine = { raw, text: stripLine(raw), heading: raw.match(/^\s*(#{1,6})\s+/)?.[1].length || 0, bullet: /^\s*(?:[-*+•]|\d+[.)、])\s+/.test(raw) };
     const key = sectionKey(line);
     // Deeper headings in experience sections belong to entries, even if their
     // text happens to match a section name such as "Projects".
@@ -84,7 +84,13 @@ function takeDate(block: ImportLine[]) {
   }
   return {
     date,
-    lines: block.map((line, i) => i === index ? { ...line, text: dateOnly ? "" : line.text.replace(date, "").replace(/\(\s*\)|（\s*）/g, "").replace(/^[\s|｜·,，]+|[\s|｜·,，]+$/g, "").trim() } : line).filter(line => line.text),
+    lines: block.map((line, i) => i === index ? {
+      ...line,
+      text: dateOnly ? "" : line.text.replace(date, "").replace(/\(\s*\)|（\s*）/g, "").replace(/^[\s|｜·,，]+|[\s|｜·,，]+$/g, "").trim(),
+      // Keep formatted descriptions consistent with the extracted date, including
+      // entry subheadings that later become description paragraphs.
+      raw: dateOnly ? "" : line.raw.replace(date, "").replace(/\(\s*\)|（\s*）/g, "").replace(/[\s|｜·,，]+(?=(?:\*\*)?$)/g, ""),
+    } : line).filter(line => line.text),
   };
 }
 
@@ -175,7 +181,7 @@ export function previewTextImport(text: string) {
     const [first, second, ...rest] = dated.lines;
     const role = second && !second.bullet && !second.heading ? second.text : "";
     const description = role ? rest : dated.lines.slice(1);
-    return { name: first?.text || "", role, date: dated.date, desc: description.map(line => line.text).join("\n") };
+    return { name: first?.text || "", role, date: dated.date, desc: description.map(line => line.raw.replace(/^\s*#{1,6}\s+/, "").trim()).join("\n") };
   };
   const data: ResumeData = {
     name, title, nameVisible: true, titleVisible: true, contacts: contact.contacts,
