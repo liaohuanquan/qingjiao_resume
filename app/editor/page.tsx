@@ -28,6 +28,8 @@ import {
   Sparkles,
   History,
   RotateCcw,
+  Undo2,
+  Redo2,
 } from "lucide-react";
 
 import {
@@ -54,11 +56,15 @@ import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import Cropper, { Area } from "react-easy-crop";
 import type { ContactItem, ResumeData, TypographyConfig, ModuleItem, ResumeConfig, ResumeSnapshot, ResumeTemplateId } from "@/app/lib/resume";
-import { fontFamilies, parseResumeConfig, visibleResumeText } from "@/app/lib/resume-schema";
+import { blankResume, fontFamilies, parseResumeConfig, visibleResumeText } from "@/app/lib/resume-schema";
 import { previewTextImport } from "@/app/lib/resume-import";
+import { removeResumeModule } from "@/app/lib/resume-edit";
 import { downloadFile, downloadRawStorage, readHistory, saveSnapshot } from "@/app/lib/resume-storage";
 import { ICON_MAP } from "@/app/lib/contact-icons";
 import { ResumeDocument } from "@/app/components/ResumeDocument";
+import { ResumePreview } from "@/app/components/ResumePreview";
+import { AIReviewDialog } from "@/app/components/AIReviewDialog";
+import { Modal } from "@/app/components/Modal";
 import { useResumePersistence } from "@/app/hooks/useResumePersistence";
 import { useModalFocus } from "@/app/hooks/useModalFocus";
 import { useAIRequest } from "@/app/hooks/useAIRequest";
@@ -216,11 +222,6 @@ const EDITOR_COPY = {
     reportTitle: "分析报告",
     analyzing: "分析中...",
     reportEmpty: "点击 JD 匹配或简历评分后，分析结果会显示在这里。",
-    aiOptimizeTitle: "AI 优化结果",
-    originalText: "原文",
-    optimizedText: "优化后",
-    keepOriginal: "保留原文",
-    applyResult: "应用结果",
     historyTitle: "版本历史",
     historyDesc: "保留最近 10 个本地快照，可随时恢复。",
     saveCurrentVersion: "保存当前版本",
@@ -303,11 +304,6 @@ const EDITOR_COPY = {
     reportTitle: "Analysis report",
     analyzing: "Analyzing...",
     reportEmpty: "Run JD matching or resume scoring to show results here.",
-    aiOptimizeTitle: "AI optimization result",
-    originalText: "Original",
-    optimizedText: "Optimized",
-    keepOriginal: "Keep original",
-    applyResult: "Apply result",
     historyTitle: "Version history",
     historyDesc: "Keeps the latest 10 local snapshots for restore.",
     saveCurrentVersion: "Save current version",
@@ -374,11 +370,6 @@ const EDITOR_COPY = {
   reportTitle: string;
   analyzing: string;
   reportEmpty: string;
-  aiOptimizeTitle: string;
-  originalText: string;
-  optimizedText: string;
-  keepOriginal: string;
-  applyResult: string;
   historyTitle: string;
   historyDesc: string;
   saveCurrentVersion: string;
@@ -735,6 +726,22 @@ function ResumeEditorContent() {
   const persistence = useResumePersistence(resumeId, searchParams.has("id"), locale);
   const { config: resumeConfig, setConfig } = persistence;
   const { resumeData, modules, themeColor, typography, templateId } = resumeConfig;
+  React.useEffect(() => {
+    if (!modules.some(module => module.id === activeTab)) setActiveTab("basic");
+  }, [modules, activeTab]);
+  React.useEffect(() => {
+    const handleUndo = (event: KeyboardEvent) => {
+      if (!persistence.ready || !(event.metaKey || event.ctrlKey) || event.altKey) return;
+      const target = event.target;
+      // Keep native text undo and modal shortcuts in their own controls.
+      if (target instanceof Element && target.closest("input, textarea, select, [contenteditable=true], [role=dialog]")) return;
+      const key = event.key.toLowerCase();
+      if (key === "z") { event.preventDefault(); if (event.shiftKey) persistence.redo(); else persistence.undo(); }
+      else if (key === "y" && !event.shiftKey) { event.preventDefault(); persistence.redo(); }
+    };
+    window.addEventListener("keydown", handleUndo);
+    return () => window.removeEventListener("keydown", handleUndo);
+  }, [persistence.ready, persistence.undo, persistence.redo]);
   const updateConfig = useCallback(<K extends keyof ResumeConfig,>(key: K, value: React.SetStateAction<ResumeConfig[K]>) => {
     setConfig(previous => ({ ...previous, [key]: typeof value === "function" ? (value as (old: ResumeConfig[K]) => ResumeConfig[K])(previous[key]) : value }));
   }, [setConfig]);
@@ -770,6 +777,7 @@ function ResumeEditorContent() {
       setResumeData((prev) => {
         const oldIndex = prev.contacts.findIndex((i) => i.id === active.id);
         const newIndex = prev.contacts.findIndex((i) => i.id === over.id);
+        if (oldIndex < 0 || newIndex < 0) return prev;
         return {
           ...prev,
           contacts: arrayMove(prev.contacts, oldIndex, newIndex),
@@ -815,7 +823,7 @@ function ResumeEditorContent() {
   };
 
   const removeModule = (id: string) => {
-    setModules((prev) => prev.filter((m) => m.id !== id));
+    setConfig(previous => removeResumeModule(previous, id));
   };
 
   const updateBasicData = (
@@ -858,7 +866,7 @@ function ResumeEditorContent() {
   };
 
   const addItem = (type: "edu" | "work" | "project") => {
-    const id = Date.now().toString();
+    const id = crypto.randomUUID();
     if (type === "edu") {
       setResumeData((prev) => ({
         ...prev,
@@ -944,6 +952,8 @@ function ResumeEditorContent() {
   const [importError, setImportError] = useState<string | null>(null);
   const [importPreview, setImportPreview] = useState<{ config: ResumeConfig; unrecognized: string[]; source: string } | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
+  const [isReloadConfirmOpen, setIsReloadConfirmOpen] = useState(false);
+  const [reloadError, setReloadError] = useState<string | null>(null);
   const [isPanning, setIsPanning] = useState(false); // 预览区是否正在按下鼠标拖拽平移
   // 移动端底部 Tab 激活状态：管理、编辑、预览
   const [activeMobileTab, setActiveMobileTab] = useState<
@@ -951,8 +961,19 @@ function ResumeEditorContent() {
   >("edit");
   const scrollStart = React.useRef({ scrollLeft: 0, scrollTop: 0, x: 0, y: 0 }); // 记录拖拽起始位置
   const importReaderRef = React.useRef<FileReader | null>(null);
+  const cancelImportRead = useCallback(() => {
+    const reader = importReaderRef.current;
+    importReaderRef.current = null;
+    if (reader?.readyState === FileReader.LOADING) reader.abort();
+  }, []);
+  const closeImportDialog = useCallback(() => {
+    cancelImportRead();
+    setImportPreview(null);
+    setImportError(null);
+    setIsImportDialogOpen(false);
+  }, [cancelImportRead]);
   const printCleanupRef = React.useRef<(() => void) | null>(null);
-  React.useEffect(() => () => { importReaderRef.current?.abort(); printCleanupRef.current?.(); }, []);
+  React.useEffect(() => () => { cancelImportRead(); printCleanupRef.current?.(); }, [cancelImportRead]);
   const importInputRef = React.useRef<HTMLInputElement>(null); // JSON 导入隐藏 Input Ref
   const aiRequest = useAIRequest(locale);
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
@@ -1031,7 +1052,7 @@ function ResumeEditorContent() {
   };
 
   const applyAiDraft = () => {
-    if (!aiDraft) return;
+    if (!aiDraft || !aiDraft.result.trim()) return;
 
     if (sourceSignature(aiDraft.target, aiDraft.kind) !== aiDraft.sourceSignature) { setAiError(locale === "en-US" ? "The original changed. Keep this result and request a new draft." : "原文已变化，请重新生成后应用"); return; }
     if (!saveVersionSnapshot(copy.beforeAiApplyLabel)) { setAiError(locale === "en-US" ? "Snapshot could not be saved." : "快照保存失败，未替换内容"); return; }
@@ -1143,41 +1164,50 @@ function ResumeEditorContent() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    importReaderRef.current?.abort();
+    cancelImportRead();
+    setImportPreview(null);
+    setImportError(null);
     const reader = new FileReader();
     importReaderRef.current = reader;
-    reader.onerror = () => setImportError(copy.importFailed);
+    reader.onerror = () => {
+      if (importReaderRef.current !== reader) return;
+      importReaderRef.current = null;
+      setImportError(copy.importFailed);
+    };
     reader.onload = () => {
+      if (importReaderRef.current !== reader) return;
+      importReaderRef.current = null;
       try { setImportPreview({ config: parseResumeConfig(JSON.parse(String(reader.result))), unrecognized: [], source: file.name }); setImportError(null); }
       catch { setImportError(copy.importFailed); }
     };
     reader.readAsText(file);
   };
   const applyTextImport = () => {
+    cancelImportRead();
     if (importPreview) {
       try {
         const config = parseResumeConfig(importPreview.config);
         if (!saveVersionSnapshot(copy.beforeImportLabel)) { setImportError(locale === "en-US" ? "Save a snapshot before replacing content." : "快照保存失败，未替换内容"); return; }
-        setConfig(config); setImportPreview(null); setImportText(""); setImportError(null); setIsImportDialogOpen(false);
+        setConfig(config); setImportText(""); closeImportDialog();
       } catch { setImportError(copy.importFailed); }
       return;
     }
     if (!importText.trim()) { setImportError(copy.importEmptyError); return; }
     try {
       const parsed = previewTextImport(importText);
-      setImportPreview({ config: parseResumeConfig({ ...resumeConfig, resumeData: parsed.data }), unrecognized: parsed.unrecognized, source: locale === "en-US" ? "Text" : "文本" });
+      setImportPreview({ config: parseResumeConfig({ ...resumeConfig, resumeData: parsed.data, modules: blankResume(locale).modules }), unrecognized: parsed.unrecognized, source: locale === "en-US" ? "Text" : "文本" });
       setImportError(null);
-    } catch { setImportError(copy.importFailed); }
+    } catch { setImportPreview(null); setImportError(copy.importFailed); }
   };
   const closeModal = useCallback(() => {
     if (tempAvatar) setTempAvatar(null);
     else if (aiDraft) setAiDraft(null);
-    else if (isAiAnalysisOpen) setIsAiAnalysisOpen(false);
+    else if (isAiAnalysisOpen) { aiRequest.cancel(); setIsAiAnalysisOpen(false); }
     else if (isExportDialogOpen && !isExporting) setIsExportDialogOpen(false);
     else if (isHistoryOpen) setIsHistoryOpen(false);
-    else if (isImportDialogOpen) setIsImportDialogOpen(false);
-  }, [tempAvatar, aiDraft, isAiAnalysisOpen, isExportDialogOpen, isExporting, isHistoryOpen, isImportDialogOpen]);
-  useModalFocus(Boolean(tempAvatar || aiDraft || isAiAnalysisOpen || isExportDialogOpen || isHistoryOpen || isImportDialogOpen), closeModal, "[data-editor-modal]");
+    else if (isImportDialogOpen) closeImportDialog();
+  }, [tempAvatar, aiDraft, isAiAnalysisOpen, isExportDialogOpen, isExporting, isHistoryOpen, isImportDialogOpen, aiRequest.cancel, closeImportDialog]);
+  useModalFocus(Boolean(tempAvatar || isAiAnalysisOpen || isExportDialogOpen || isHistoryOpen || isImportDialogOpen), closeModal, "[data-editor-modal]");
   const leaveEditor = () => { if (persistence.flush()) router.push("/dashboard"); };
   const local = (zh: string, en: string) => locale === "en-US" ? en : zh;
   if (persistence.error || !persistence.ready) return <main className="min-h-screen flex flex-col items-center justify-center gap-4 p-8">
@@ -1200,8 +1230,12 @@ function ResumeEditorContent() {
       }
     >
       {/* Head */}
-      <header className="h-[60px] flex items-center justify-between px-6 bg-white border-b border-zinc-200 shadow-sm z-50">
+      <header className="min-h-[60px] shrink-0 flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-6 bg-white border-b border-zinc-200 shadow-sm z-50">
         <div className="flex items-center gap-3">
+          <Button variant="outline" size="sm" aria-label={local("撤销", "Undo")} title={local("撤销", "Undo")}
+            disabled={!persistence.canUndo} onClick={persistence.undo}><Undo2 size={16} /></Button>
+          <Button variant="outline" size="sm" aria-label={local("重做", "Redo")} title={local("重做", "Redo")}
+            disabled={!persistence.canRedo} onClick={persistence.redo}><Redo2 size={16} /></Button>
           <button
             onClick={leaveEditor}
             aria-label={local("返回列表", "Resume list")}
@@ -1360,7 +1394,23 @@ function ResumeEditorContent() {
       </header>
 
       {(aiError || aiRequest.pending) && <div role="status" className="no-print flex items-center gap-3 px-4 py-2 text-sm"><span>{aiError || local("处理中", "Processing")}</span>{aiRequest.pending && <button onClick={aiRequest.cancel}>{local("取消请求", "Cancel request")}</button>}<button onClick={() => { if (persistence.flush()) router.push("/dashboard/ai"); }}>{local("AI 设置", "AI settings")}</button></div>}
-      {persistence.status === "failed" && <div role="alert" className="no-print flex items-center gap-3 bg-red-50 px-4 py-2 text-sm text-red-700"><span>{local("保存失败，内容仍在当前页面", "Save failed. Keep this page open.")}</span><button onClick={persistence.flush}>{local("重试", "Retry")}</button><button onClick={exportToJson}>{local("下载备份", "Download backup")}</button><button onClick={() => { try { downloadRawStorage(); } catch { setVersionNotice(local("备份读取失败", "Cannot read recovery data")); } }}>{local("原始备份", "Recovery data")}</button></div>}
+      {persistence.status === "failed" && <div role="alert" className="no-print flex flex-wrap items-center gap-3 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <span>{persistence.conflict === "changed" ? local("其他页面已修改", "Changed in another page") : persistence.conflict === "deleted" ? local("简历已在其他页面删除", "Deleted in another page") : local("保存失败，内容仍在当前页面", "Save failed. Keep this page open.")}</span>
+        {!persistence.conflict && <button onClick={persistence.flush}>{local("重试", "Retry")}</button>}
+        {persistence.conflict === "changed" && <button onClick={() => { setReloadError(null); setIsReloadConfirmOpen(true); }}>{local("读取最新", "Load latest")}</button>}
+        <button onClick={() => { const id = persistence.saveCopy(); if (id) router.push(`/editor?id=${id}`); }}>{local("另存副本", "Save a copy")}</button>
+        <button onClick={exportToJson}>{local("下载备份", "Download backup")}</button>
+        <button onClick={() => { try { downloadRawStorage(); } catch { setVersionNotice(local("备份读取失败", "Cannot read recovery data")); } }}>{local("原始备份", "Recovery data")}</button>
+      </div>}
+      {isReloadConfirmOpen && <Modal title={local("读取最新", "Load latest")} close={() => setIsReloadConfirmOpen(false)} closeLabel={copy.close}>
+        <p className="mb-5 text-sm">{local("将替换当前编辑内容", "This replaces your current edits.")}</p>
+        {reloadError && <p role="alert" className="mb-4 text-sm text-red-600">{reloadError}</p>}
+        <div className="flex flex-wrap justify-end gap-3">
+          <button className="rounded-xl border px-4 py-2 text-sm" onClick={exportToJson}>{local("下载备份", "Download backup")}</button>
+          <button className="rounded-xl border px-4 py-2 text-sm" onClick={() => setIsReloadConfirmOpen(false)}>{copy.cancel}</button>
+          <button className="rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white" onClick={() => { if (persistence.reload()) { setIsReloadConfirmOpen(false); setAiDraft(null); } else setReloadError(local("读取失败，当前内容已保留", "Load failed. Current edits were retained.")); }}>{local("确认替换", "Replace edits")}</button>
+        </div>
+      </Modal>}
       {versionNotice && !isHistoryOpen && <div role="status" className="no-print px-4 py-2 text-sm">{versionNotice}</div>}
       {/* Main Content */}
       <main className="resume-editor-main flex-1 flex flex-col lg:flex-row overflow-hidden relative">
@@ -1493,26 +1543,26 @@ function ResumeEditorContent() {
                 ))}
             </Reorder.Group>
 
-            <Button
-              variant="outline"
-              className="w-full mt-4 border-dashed border-zinc-300 bg-white hover:bg-zinc-50 flex items-center gap-2"
-              onClick={() => {
-                const id = `custom-${Date.now()}`;
-                setModules((prev) => [
-                  ...prev,
-                  {
-                    id,
-                    title: local("自定义板块", "Custom section"),
-                    visible: true,
-                    type: "custom",
-                    content: "",
-                  },
-                ]);
-                setActiveTab(id);
+            <select
+              aria-label={local("添加模块", "Add section")}
+              className="w-full mt-4 p-2 text-sm rounded-lg border border-dashed border-zinc-300 bg-white"
+              value=""
+              onChange={event => {
+                const choice = event.target.value;
+                if (!choice) return;
+                const module = choice === "custom"
+                  ? { id: `custom-${crypto.randomUUID()}`, title: local("自定义模块", "Custom section"), visible: true, type: "custom" as const, content: "" }
+                  : blankResume(locale).modules.find(item => item.id === choice);
+                if (!module) return;
+                setModules(previous => previous.some(item => item.id === module.id) ? previous : [...previous, module]);
+                setActiveTab(module.id);
               }}
             >
-              <Plus size={14} /> {local("新增模块", "Add section")}
-            </Button>
+              <option value="" disabled>{local("添加模块", "Add section")}</option>
+              {blankResume(locale).modules.filter(module => module.id !== "basic" && !modules.some(item => item.id === module.id)).map(module =>
+                <option key={module.id} value={module.id}>{module.title}</option>)}
+              <option value="custom">{local("自定义模块", "Custom section")}</option>
+            </select>
           </section>
 
           <section>
@@ -1883,7 +1933,7 @@ function ResumeEditorContent() {
 
                     <Button
                       onClick={() => {
-                        const id = `contact-${Date.now()}`;
+                        const id = `contact-${crypto.randomUUID()}`;
                         setResumeData((prev) => ({
                           ...prev,
                           contacts: [
@@ -2187,6 +2237,12 @@ function ResumeEditorContent() {
                           e.target.value,
                         )
                       }
+                    />
+                    <Input
+                      label={local("项目链接", "Project link")}
+                      type="url"
+                      value={item.link || ""}
+                      onChange={event => updateListItem("project", item.id, "link", event.target.value)}
                     />
                     <div className="space-y-1.5">
                       <label className="text-xs font-medium text-zinc-500">
@@ -2615,7 +2671,7 @@ function ResumeEditorContent() {
                   </p>
                 </div>
                 <button
-                  onClick={() => setIsImportDialogOpen(false)}
+                  onClick={closeImportDialog}
                   className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
                   title={copy.close}
                 >
@@ -2650,6 +2706,7 @@ function ResumeEditorContent() {
                     placeholder={copy.importTextPlaceholder}
                     value={importText}
                     onChange={(event) => {
+                      cancelImportRead();
                       setImportText(event.target.value);
                       setImportPreview(null);
                       setImportError(null);
@@ -2657,7 +2714,7 @@ function ResumeEditorContent() {
                   />
                 </div>
 
-                {importPreview && <div className="space-y-3"><p className="text-sm font-bold">{local("导入预览", "Import preview")}: {importPreview.source}</p><div className="max-h-72 overflow-auto rounded-xl border"><div style={{ width: PAPER_WIDTH, zoom: 0.65 }}><ResumeDocument config={importPreview.config} /></div></div>{importPreview.unrecognized.length > 0 && <div><p>{local("未识别内容", "Unrecognized content")}</p><pre className="whitespace-pre-wrap text-sm">{importPreview.unrecognized.join("\n")}</pre></div>}<button onClick={() => setImportPreview(null)}>{local("重新解析", "Parse again")}</button></div>}
+                {importPreview && <div className="space-y-3"><p className="text-sm font-bold">{local("导入预览", "Import preview")}: {importPreview.source}</p><div className="max-h-72 overflow-auto rounded-xl border"><ResumePreview config={importPreview.config} /></div>{importPreview.unrecognized.length > 0 && <div><p>{local("未识别内容", "Unrecognized content")}</p><pre className="whitespace-pre-wrap text-sm">{importPreview.unrecognized.join("\n")}</pre></div>}<button onClick={() => { cancelImportRead(); setImportPreview(null); setImportError(null); }}>{local("重新解析", "Parse again")}</button></div>}
                 {importError && (
                   <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
                     {importError}
@@ -2669,7 +2726,7 @@ function ResumeEditorContent() {
                 <Button
                   variant="secondary"
                   className="h-11"
-                  onClick={() => setIsImportDialogOpen(false)}
+                  onClick={closeImportDialog}
                 >
                   {copy.cancel}
                 </Button>
@@ -2876,7 +2933,7 @@ function ResumeEditorContent() {
               initial={{ opacity: 0, scale: 0.96, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 16 }}
-              className="w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+              className="max-h-[90dvh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
             >
               <div className="flex items-center justify-between border-b border-zinc-100 p-6">
                 <div className="flex items-center gap-4">
@@ -2893,7 +2950,7 @@ function ResumeEditorContent() {
                   </div>
                 </div>
                 <button
-                  onClick={() => setIsAiAnalysisOpen(false)}
+                  onClick={() => { aiRequest.cancel(); setIsAiAnalysisOpen(false); }}
                   className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
                   title={copy.close}
                 >
@@ -2934,6 +2991,7 @@ function ResumeEditorContent() {
                       <Award size={15} /> {copy.resumeScore}
                     </Button>
                   </div>
+                  {aiRequest.pending && <Button type="button" variant="outline" className="w-full" onClick={aiRequest.cancel}>{local("取消请求", "Cancel request")}</Button>}
                   {aiError && (
                     <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-medium text-red-600">
                       {aiError}
@@ -2963,80 +3021,18 @@ function ResumeEditorContent() {
         )}
       </AnimatePresence>
 
-      {/* AI Optimize Modal */}
+      {/* AI suggestion review */}
       <AnimatePresence>
-        {aiDraft && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            data-editor-modal role="dialog" aria-modal="true" aria-label={copy.aiOptimizeTitle} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 16 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 16 }}
-              className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl"
-            >
-              <div className="flex items-center justify-between border-b border-zinc-100 p-6">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                    <Sparkles size={22} />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-zinc-900">
-                      {copy.aiOptimizeTitle}
-                    </h3>
-                    <p className="text-xs font-medium text-zinc-400">
-                      {aiDraft.context}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setAiDraft(null)}
-                  className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
-                  title={copy.close}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="grid gap-4 p-6 md:grid-cols-2">
-                <div className="space-y-2">
-                  <div className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-                    {copy.originalText}
-                  </div>
-                  <div className="h-72 overflow-auto whitespace-pre-wrap rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm leading-relaxed text-zinc-500">
-                    {aiDraft.sourceText}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="text-xs font-bold uppercase tracking-widest text-emerald-600">
-                    {copy.optimizedText}
-                  </div>
-                  <div className="h-72 overflow-auto whitespace-pre-wrap rounded-xl border border-emerald-100 bg-emerald-50/40 p-4 text-sm leading-relaxed text-zinc-800">
-                    {aiDraft.result}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col-reverse gap-3 border-t border-zinc-100 bg-zinc-50/60 p-6 sm:flex-row sm:justify-end">
-                <Button
-                  variant="outline"
-                  className="h-11"
-                  onClick={() => setAiDraft(null)}
-                >
-                  {copy.keepOriginal}
-                </Button>
-                {sourceSignature(aiDraft.target, aiDraft.kind) !== aiDraft.sourceSignature && <p role="status" className="text-sm text-amber-700">{local("原文已变化，请重新生成", "The original changed. Generate a new draft.")}</p>}
-                {aiError && <p role="alert" className="text-sm text-red-600">{aiError}</p>}
-                <Button className="h-11 gap-2" disabled={sourceSignature(aiDraft.target, aiDraft.kind) !== aiDraft.sourceSignature} onClick={applyAiDraft}>
-                  <Check size={16} /> {copy.applyResult}
-                </Button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
+        {aiDraft && <AIReviewDialog
+          original={aiDraft.sourceText}
+          suggestion={aiDraft.result}
+          context={aiDraft.context}
+          stale={sourceSignature(aiDraft.target, aiDraft.kind) !== aiDraft.sourceSignature}
+          error={aiError}
+          onChange={result => setAiDraft(current => current ? { ...current, result } : null)}
+          onApply={applyAiDraft}
+          onClose={() => setAiDraft(null)}
+        />}
       </AnimatePresence>
 
       {/* Avatar Crop Modal */}

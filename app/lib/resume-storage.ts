@@ -3,6 +3,18 @@ import { blankResume, color, parseResumeConfig, record } from "./resume-schema";
 
 const dataKey = (id: string) => `resume_data_${id}`;
 const historyKey = (id: string) => `resume_history_${id}`;
+
+export class ResumeConflictError extends Error {
+  constructor(public reason: "changed" | "deleted") {
+    super(`resume ${reason}`);
+    this.name = "ResumeConflictError";
+  }
+}
+
+export function assertResumeUnchanged(id: string, expected: string | null) {
+  if (!listResumes().some(item => item.id === id)) throw new ResumeConflictError("deleted");
+  if (savedResumeText(id) !== expected) throw new ResumeConflictError("changed");
+}
 export function downloadFile(value: unknown, filename: string, raw = false) {
   const url = URL.createObjectURL(new Blob([raw ? String(value) : JSON.stringify(value, null, 2)], { type: "application/json" }));
   const link = document.createElement("a");
@@ -105,12 +117,14 @@ export function openResume(id: string, explicitId: boolean, title: string, local
   return config;
 }
 
-export function saveResume(id: string, config: ResumeConfig) {
+export function saveResume(id: string, config: ResumeConfig, expected: string | null) {
+  assertResumeUnchanged(id, expected);
   const list = listResumes();
-  if (!list.some(item => item.id === id)) throw new Error("resume not found");
   const valid = parseResumeConfig(config);
+  const encoded = JSON.stringify(valid);
   const updated = list.map(item => item.id === id ? { ...item, theme: valid.themeColor, templateId: valid.templateId, lastModified: new Date().toISOString() } : item);
-  writeChanges(new Map([[dataKey(id), JSON.stringify(valid)], ["resume_list", JSON.stringify(updated)]]));
+  writeChanges(new Map([[dataKey(id), encoded], ["resume_list", JSON.stringify(updated)]]));
+  return encoded;
 }
 export function renameResume(id: string, title: string) {
   const list = listResumes();
@@ -122,8 +136,8 @@ export function deleteResume(id: string) {
   if (id === "default-1") ["resume_v2_data", "resume_v2_modules", "resume_v2_theme", "resume_v2_typography", "resume_avatar", "resume_avatar_aspect"].forEach(key => changes.set(key, null));
   writeChanges(changes);
 }
-export function duplicateResume(id: string, title: string): ResumeMetadata {
-  const config = readResume(id);
+export function duplicateResume(id: string, title: string, draft?: ResumeConfig): ResumeMetadata {
+  const config = draft ? parseResumeConfig(draft) : readResume(id);
   const history = readHistory(id).map(snapshot => ({ ...snapshot, id: crypto.randomUUID() }));
   const newId = crypto.randomUUID();
   const metadata = { id: newId, title, lastModified: new Date().toISOString(), theme: config.themeColor, templateId: config.templateId };

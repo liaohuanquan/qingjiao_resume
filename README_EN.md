@@ -6,7 +6,15 @@ A resume editor without accounts, built with Next.js 16, React 19, and Tailwind 
 
 Create, rename, duplicate, and delete resumes. The editor supports three templates, section order and visibility, custom sections, and avatar cropping. Changes are saved in the current browser. If saving fails, keep the page open and download a backup.
 
+The list shows actual resume thumbnails ordered by the most recent update. When another page changes or deletes the same resume, current edits are retained. Save a separate copy, download a backup, or explicitly confirm loading the latest version.
+
+Undo and redo retain the latest 30 session steps, grouping consecutive edits in the same input within 500 milliseconds. Refreshing or loading the latest version clears these steps. Text inputs retain their native undo shortcuts. Removing a section clears its content and individual style; undo restores them. Missing standard sections can be added again. Projects have a link input.
+
 JSON and text imports show a preview before replacing content. Snapshots are saved before importing, applying AI suggestions, or restoring a version; the latest ten are retained. Settings can export all resumes with their histories. Restoring a backup creates new resumes and leaves existing content intact. Keys are excluded from backups.
+
+Text imports rebuild standard sections while preserving the template and typography. Existing custom content is not mixed into the imported resume.
+
+The parser distinguishes section headings from entry headings, preserves years in descriptions, recognizes project links, and keeps skill names containing slashes. Unsupported sections are shown as unrecognized content. Changing files, editing text, or closing the import dialog cancels the previous file read.
 
 ## Print PDF
 
@@ -24,6 +32,8 @@ The address and model may be saved locally. The key stays only in memory for the
 
 “Check connection” sends a real minimal request. Requests can be cancelled and time out after 60 seconds. Suggestions are reviewed before applying, and changes to the original prevent replacement. Resume analysis uses visible sections and excludes contact details and avatars by default. Describe actual responsibilities or outcomes before generating text.
 
+Edit suggestions before applying, or copy them separately. A changed original allows copying only. Closing the analysis dialog cancels its request. If copying fails, the text is selected for manual copying without reporting success.
+
 ## Development
 
 ```bash
@@ -33,7 +43,7 @@ npm run dev
 
 Open `http://localhost:3000/qingjiao_resume/`. Follow local installation policies before installing dependencies.
 
-Existing production scripts and Docker configuration are retained. This coding update did not run dependency installation, tests, builds, browser acceptance, or live AI calls, and did not change CI, Docker, or hosting configuration.
+Existing production scripts and Docker configuration are retained. This coding update did not run dependency installation, tests, builds, browser acceptance, or live resume AI calls, and did not change CI, Docker, or hosting configuration.
 
 ## Storage
 
