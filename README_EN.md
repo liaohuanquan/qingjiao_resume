@@ -10,7 +10,11 @@ The list shows actual resume thumbnails ordered by the most recent update. When 
 
 Undo and redo retain the latest 30 session steps, grouping consecutive edits in the same input within 500 milliseconds. Refreshing or loading the latest version clears these steps. Text inputs retain their native undo shortcuts. Removing a section clears its content and individual style; undo restores them. Missing standard sections can be added again. Projects have a link input.
 
+Avatars can be cropped and removed. Changing files, cancelling, or leaving prevents previous operations from applying late results. Cropped images use PNG to retain transparency.
+
 JSON and text imports show a preview before replacing content. Snapshots are saved before importing, applying AI suggestions, or restoring a version; the latest ten are retained. Settings can export all resumes with their histories. Restoring a backup creates new resumes and leaves existing content intact. Keys are excluded from backups.
+
+Before restoring, review the filename, resume titles, and snapshot counts, then confirm adding the resumes. Cancelling, changing files, or clearing data stops the previous read. Empty backups do not write data. Appearance controls track changes and clearing in other tabs; invalid preferences disable editing and provide retry and recovery downloads.
 
 Text imports rebuild standard sections while preserving the template and typography. Existing custom content is not mixed into the imported resume.
 

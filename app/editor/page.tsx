@@ -54,7 +54,6 @@ import NextImage from "next/image";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import Cropper, { Area } from "react-easy-crop";
 import type { ContactItem, ResumeData, TypographyConfig, ModuleItem, ResumeConfig, ResumeSnapshot, ResumeTemplateId } from "@/app/lib/resume";
 import { blankResume, fontFamilies, parseResumeConfig, visibleResumeText } from "@/app/lib/resume-schema";
 import { previewTextImport } from "@/app/lib/resume-import";
@@ -64,6 +63,8 @@ import { ICON_MAP } from "@/app/lib/contact-icons";
 import { ResumeDocument } from "@/app/components/ResumeDocument";
 import { ResumePreview } from "@/app/components/ResumePreview";
 import { AIReviewDialog } from "@/app/components/AIReviewDialog";
+import { AvatarCropDialog } from "@/app/components/AvatarCropDialog";
+import { useFileRead } from "@/app/hooks/useFileRead";
 import { Modal } from "@/app/components/Modal";
 import { useResumePersistence } from "@/app/hooks/useResumePersistence";
 import { useModalFocus } from "@/app/hooks/useModalFocus";
@@ -73,46 +74,6 @@ import { CONTENT_HEIGHT, PAPER_HEIGHT, PAPER_MARGIN, PAPER_WIDTH } from "@/app/l
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
-}
-
-// --- 辅助函数 ---
-
-const createImage = (url: string): Promise<HTMLImageElement> =>
-  new Promise((resolve, reject) => {
-    // 使用 globalThis.Image 确保调用浏览器原生的 HTMLImageElement 构造函数
-    const image = new globalThis.Image();
-    image.addEventListener("load", () => resolve(image));
-    image.addEventListener("error", (error) => reject(error));
-    image.setAttribute("crossOrigin", "anonymous");
-    image.src = url;
-  });
-
-async function getCroppedImg(
-  imageSrc: string,
-  pixelCrop: Area,
-): Promise<string | null> {
-  const image = await createImage(imageSrc);
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-
-  if (!ctx) return null;
-
-  canvas.width = pixelCrop.width;
-  canvas.height = pixelCrop.height;
-
-  ctx.drawImage(
-    image,
-    pixelCrop.x,
-    pixelCrop.y,
-    pixelCrop.width,
-    pixelCrop.height,
-    0,
-    0,
-    pixelCrop.width,
-    pixelCrop.height,
-  );
-
-  return canvas.toDataURL("image/jpeg");
 }
 
 // --- 类型定义 ---
@@ -230,7 +191,6 @@ const EDITOR_COPY = {
     currentVersionLabel: "手动保存",
     beforeAiApplyLabel: "AI 应用前",
     versionSaved: "版本已保存",
-    backToEdit: "返回编辑",
   },
   "en-US": {
     editorMode: "Editor Mode",
@@ -312,7 +272,6 @@ const EDITOR_COPY = {
     currentVersionLabel: "Manual save",
     beforeAiApplyLabel: "Before AI apply",
     versionSaved: "Version saved",
-    backToEdit: "Back to edit",
   },
 } satisfies Record<AppLocale, {
   editorMode: string;
@@ -378,7 +337,6 @@ const EDITOR_COPY = {
   currentVersionLabel: string;
   beforeAiApplyLabel: string;
   versionSaved: string;
-  backToEdit: string;
 }>;
 
 // --- 基础 UI 组件 ---
@@ -756,13 +714,17 @@ function ResumeEditorContent() {
   const previewContainerRef = React.useRef<HTMLDivElement>(null);
   const resumeContentRef = React.useRef<HTMLDivElement>(null);
 
-  // 头像裁剪状态
-  const [tempAvatar, setTempAvatar] = useState<string | null>(null);
-  const [cropError, setCropError] = useState<string | null>(null);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [aspect, setAspect] = useState(1); // 默认 1:1
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [tempAvatar, setTempAvatar] = useState<{ id: string; image: string } | null>(null);
+  const [avatarError, setAvatarError] = useState("");
+  const avatarRead = useFileRead();
+  const handleAvatarUpload = async (file: File) => {
+    setTempAvatar(null);
+    setAvatarError("");
+    const result = await avatarRead.read(file, "dataURL");
+    if (!result?.current()) return;
+    if (!result.ok) { setAvatarError(locale === "en-US" ? "Cannot read image" : "图片读取失败"); return; }
+    setTempAvatar({ id: crypto.randomUUID(), image: result.text });
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -787,34 +749,6 @@ function ResumeEditorContent() {
   };
 
   const presetColors = ["#10b981", "#3b82f6", "#ef4444", "#f59e0b", "#18181b"];
-
-  const onCropComplete = useCallback(
-    (_croppedArea: Area, _croppedAreaPixels: Area) => {
-      setCroppedAreaPixels(_croppedAreaPixels);
-    },
-    [],
-  );
-
-  const handleApplyCrop = async () => {
-    if (tempAvatar && croppedAreaPixels) {
-      try {
-        const croppedImage = await getCroppedImg(tempAvatar, croppedAreaPixels);
-        if (!croppedImage) throw new Error("crop failed");
-        if (croppedImage) {
-          setResumeData((prev) => ({
-            ...prev,
-            avatar: croppedImage,
-            avatarAspect: aspect,
-          }));
-
-        }
-      } catch {
-        setCropError(locale === "en-US" ? "Unable to crop this image." : "图片裁剪失败");
-        return;
-      }
-    }
-    setCropError(null); setTempAvatar(null);
-  };
 
   const toggleModuleVisibility = (id: string) => {
     setModules((prev) =>
@@ -960,12 +894,7 @@ function ResumeEditorContent() {
     "manage" | "edit" | "preview"
   >("edit");
   const scrollStart = React.useRef({ scrollLeft: 0, scrollTop: 0, x: 0, y: 0 }); // 记录拖拽起始位置
-  const importReaderRef = React.useRef<FileReader | null>(null);
-  const cancelImportRead = useCallback(() => {
-    const reader = importReaderRef.current;
-    importReaderRef.current = null;
-    if (reader?.readyState === FileReader.LOADING) reader.abort();
-  }, []);
+  const { read: readImportFile, cancel: cancelImportRead, pending: importPending } = useFileRead();
   const closeImportDialog = useCallback(() => {
     cancelImportRead();
     setImportPreview(null);
@@ -973,7 +902,7 @@ function ResumeEditorContent() {
     setIsImportDialogOpen(false);
   }, [cancelImportRead]);
   const printCleanupRef = React.useRef<(() => void) | null>(null);
-  React.useEffect(() => () => { cancelImportRead(); printCleanupRef.current?.(); }, [cancelImportRead]);
+  React.useEffect(() => () => { printCleanupRef.current?.(); }, []);
   const importInputRef = React.useRef<HTMLInputElement>(null); // JSON 导入隐藏 Input Ref
   const aiRequest = useAIRequest(locale);
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
@@ -1160,27 +1089,17 @@ function ResumeEditorContent() {
   };
 
   const exportToJson = () => downloadFile(resumeConfig, `resume-${resumeData.name || "config"}.json`);
-  const handleImportJson = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportJson = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    cancelImportRead();
     setImportPreview(null);
     setImportError(null);
-    const reader = new FileReader();
-    importReaderRef.current = reader;
-    reader.onerror = () => {
-      if (importReaderRef.current !== reader) return;
-      importReaderRef.current = null;
-      setImportError(copy.importFailed);
-    };
-    reader.onload = () => {
-      if (importReaderRef.current !== reader) return;
-      importReaderRef.current = null;
-      try { setImportPreview({ config: parseResumeConfig(JSON.parse(String(reader.result))), unrecognized: [], source: file.name }); setImportError(null); }
-      catch { setImportError(copy.importFailed); }
-    };
-    reader.readAsText(file);
+    const result = await readImportFile(file);
+    if (!result?.current()) return;
+    if (!result.ok) { setImportError(copy.importFailed); return; }
+    try { setImportPreview({ config: parseResumeConfig(JSON.parse(result.text)), unrecognized: [], source: file.name }); }
+    catch { setImportError(copy.importFailed); }
   };
   const applyTextImport = () => {
     cancelImportRead();
@@ -1200,14 +1119,13 @@ function ResumeEditorContent() {
     } catch { setImportPreview(null); setImportError(copy.importFailed); }
   };
   const closeModal = useCallback(() => {
-    if (tempAvatar) setTempAvatar(null);
-    else if (aiDraft) setAiDraft(null);
+    if (aiDraft) setAiDraft(null);
     else if (isAiAnalysisOpen) { aiRequest.cancel(); setIsAiAnalysisOpen(false); }
     else if (isExportDialogOpen && !isExporting) setIsExportDialogOpen(false);
     else if (isHistoryOpen) setIsHistoryOpen(false);
     else if (isImportDialogOpen) closeImportDialog();
-  }, [tempAvatar, aiDraft, isAiAnalysisOpen, isExportDialogOpen, isExporting, isHistoryOpen, isImportDialogOpen, aiRequest.cancel, closeImportDialog]);
-  useModalFocus(Boolean(tempAvatar || isAiAnalysisOpen || isExportDialogOpen || isHistoryOpen || isImportDialogOpen), closeModal, "[data-editor-modal]");
+  }, [aiDraft, isAiAnalysisOpen, isExportDialogOpen, isExporting, isHistoryOpen, isImportDialogOpen, aiRequest.cancel, closeImportDialog]);
+  useModalFocus(Boolean(isAiAnalysisOpen || isExportDialogOpen || isHistoryOpen || isImportDialogOpen), closeModal, "[data-editor-modal]");
   const leaveEditor = () => { if (persistence.flush()) router.push("/dashboard"); };
   const local = (zh: string, en: string) => locale === "en-US" ? en : zh;
   if (persistence.error || !persistence.ready) return <main className="min-h-screen flex flex-col items-center justify-center gap-4 p-8">
@@ -1743,49 +1661,49 @@ function ResumeEditorContent() {
                 </header>
 
                 <section className="space-y-6">
+                  {avatarError && <p role="alert" className="text-sm text-red-600">{avatarError}</p>}
+                  {avatarRead.pending && <div role="status" className="flex gap-3 text-sm"><span>{local("读取中", "Reading")}</span><button type="button" onClick={avatarRead.cancel}>{copy.cancel}</button></div>}
                   <div className="flex items-start gap-6">
-                    <div className="relative group">
-                      <div
-                        className="w-24 bg-white border-2 border-dashed border-zinc-200 flex items-center justify-center overflow-hidden transition-colors group-hover:border-zinc-300 relative"
-                        style={{
-                          height: `${96 / (resumeData.avatarAspect || 1)}px`,
-                          borderRadius: `${resumeData.avatarBorderRadius}px`,
-                        }}
-                      >
-                        {resumeData.avatar ? (
-                          <NextImage
-                            src={resumeData.avatar}
-                            alt="Avatar"
-                            fill
-                            className="object-cover"
-                            unoptimized
-                          />
-                        ) : (
-                          <User size={32} className="text-zinc-300" />
-                        )}
-                      </div>
-                      <label
-                        className="absolute -bottom-2 -right-2 w-8 h-8 bg-zinc-900 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white hover:scale-110 transition-transform cursor-pointer"
-                        title={local("上传头像", "Upload avatar")}
-                      >
-                        <Palette size={14} />
-                        <input
-                          type="file"
-                          className="sr-only"
-                          aria-label={local("头像上传", "Upload avatar")}
-                          accept="image/*"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onerror = () => setVersionNotice(locale === "en-US" ? "Cannot read image." : "图片读取失败");
-                              reader.onload = () => { setCropError(null); setTempAvatar(reader.result as string); };
-                              e.target.value = "";
-                              reader.readAsDataURL(file);
-                            }
+                    <div>
+                      <div className="relative group">
+                        <div
+                          className="w-24 bg-white border-2 border-dashed border-zinc-200 flex items-center justify-center overflow-hidden transition-colors group-hover:border-zinc-300 relative"
+                          style={{
+                            height: `${96 / (resumeData.avatarAspect || 1)}px`,
+                            borderRadius: `${resumeData.avatarBorderRadius}px`,
                           }}
-                        />
-                      </label>
+                        >
+                          {resumeData.avatar ? (
+                            <NextImage
+                              src={resumeData.avatar}
+                              alt={local("头像", "Avatar")}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          ) : (
+                            <User size={32} className="text-zinc-300" />
+                          )}
+                        </div>
+                        <label
+                          className="absolute -bottom-2 -right-2 w-8 h-8 bg-zinc-900 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white hover:scale-110 transition-transform cursor-pointer focus-within:ring-2 focus-within:ring-emerald-500"
+                          title={local("上传头像", "Upload avatar")}
+                        >
+                          <Palette size={14} />
+                          <input
+                            type="file"
+                            className="sr-only"
+                            aria-label={local("头像上传", "Upload avatar")}
+                            accept="image/*"
+                            onChange={event => {
+                              const file = event.target.files?.[0];
+                              event.target.value = "";
+                              if (file) void handleAvatarUpload(file);
+                            }}
+                          />
+                        </label>
+                      </div>
+                      {resumeData.avatar && <button type="button" onClick={() => { avatarRead.cancel(); setTempAvatar(null); setAvatarError(""); setResumeData(previous => ({ ...previous, avatar: "" })); }} className="mt-3 text-xs text-red-600">{local("删除头像", "Remove avatar")}</button>}
                     </div>
                     <div className="flex-1 space-y-5">
                       <div className="flex items-center gap-3">
@@ -2680,6 +2598,7 @@ function ResumeEditorContent() {
               </div>
 
               <div className="flex-1 space-y-5 overflow-y-auto p-6">
+                {importPending && <p role="status" className="text-sm">{local("读取中", "Reading")}</p>}
                 <Button
                   variant="outline"
                   className="h-11 w-full gap-2"
@@ -2730,7 +2649,7 @@ function ResumeEditorContent() {
                 >
                   {copy.cancel}
                 </Button>
-                <Button className="h-11 gap-2" onClick={applyTextImport}>
+                <Button className="h-11 gap-2" disabled={importPending} onClick={applyTextImport}>
                   <Rocket size={16} />
                   {importPreview ? local("确认替换", "Replace content") : local("解析文本", "Parse text")}
                 </Button>
@@ -3035,122 +2954,10 @@ function ResumeEditorContent() {
         />}
       </AnimatePresence>
 
-      {/* Avatar Crop Modal */}
       <AnimatePresence>
-        {tempAvatar && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            data-editor-modal role="dialog" aria-modal="true" aria-label={local("头像裁剪", "Crop avatar")} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-          >
-            <div className="bg-white w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl flex flex-col animate-in slide-in-from-bottom-8">
-              <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-zinc-50 rounded-xl flex items-center justify-center text-zinc-600">
-                    <Palette size={24} />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-zinc-900">
-                      {local("头像裁剪", "Crop avatar")}
-                    </h3>
-                    <p className="text-sm text-zinc-500">
-                      {local("调整裁剪范围", "Adjust crop area")}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setTempAvatar(null)}
-                  className="w-10 h-10 flex items-center justify-center hover:bg-zinc-50 rounded-full text-zinc-400 transition-colors"
-                  title={copy.close}
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              {cropError && <p role="alert" className="px-6 text-sm text-red-600">{cropError}</p>}
-              <div className="h-[400px] relative bg-zinc-900">
-                <Cropper
-                  image={tempAvatar || ""}
-                  crop={crop}
-                  zoom={zoom}
-                  aspect={aspect}
-                  onCropChange={setCrop}
-                  onZoomChange={setZoom}
-                  onCropComplete={onCropComplete}
-                />
-              </div>
-
-              <div className="p-6 bg-white border-t border-zinc-100 flex flex-col gap-6">
-                {/* 比例选择 */}
-                <div className="space-y-3">
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
-                    {local("宽高比", "Aspect ratio")}
-                  </label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { label: local("1:1 正方形", "1:1 Square"), value: 1 },
-                      { label: local("3:4 竖向", "3:4 Portrait"), value: 3 / 4 },
-                      { label: local("4:3 横向", "4:3 Landscape"), value: 4 / 3 },
-                    ].map((r) => (
-                      <button
-                        key={r.value}
-                        onClick={() => setAspect(r.value)}
-                        className={cn(
-                          "py-2 px-3 rounded-lg border text-sm font-medium transition-all",
-                          aspect === r.value
-                            ? "bg-zinc-900 text-white border-zinc-900 shadow-lg"
-                            : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300",
-                        )}
-                      >
-                        {r.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-zinc-400 uppercase tracking-widest">
-                    <span>{local("缩放", "Zoom")}</span>
-                    <span>{Math.round(zoom * 100)}%</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <Minus size={16} className="text-zinc-400" />
-                    <input
-                      type="range"
-                      value={zoom}
-                      min={1}
-                      max={3}
-                      step={0.1}
-                      aria-label={local("缩放", "Zoom")}
-                      className="flex-1 h-1.5 bg-zinc-100 rounded-lg appearance-none accent-zinc-900 cursor-pointer"
-                      onChange={(e) => setZoom(Number(e.target.value))}
-                      title={local("调节大小", "Adjust zoom")}
-                    />
-                    <Plus size={16} className="text-zinc-400" />
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1 h-12"
-                    onClick={() => setTempAvatar(null)}
-                  >
-                    {copy.backToEdit}
-                  </Button>
-                  <Button
-                    variant="primary"
-                    className="flex-2 h-12 gap-2 shadow-lg shadow-zinc-900/10"
-                    onClick={handleApplyCrop}
-                  >
-                    <Check size={18} /> {local("确认并应用", "Apply")}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
+        {tempAvatar && <AvatarCropDialog key={tempAvatar.id} image={tempAvatar.image}
+          onClose={() => setTempAvatar(null)}
+          onApply={(avatar, avatarAspect) => setResumeData(previous => ({ ...previous, avatar, avatarAspect }))} />}
       </AnimatePresence>
     </div>
   );

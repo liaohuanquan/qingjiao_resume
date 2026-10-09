@@ -171,14 +171,19 @@ export interface ResumeBackup { version: 1; resumes: { metadata: ResumeMetadata;
 export function exportBackup(): ResumeBackup {
   return { version: 1, resumes: listResumes().map(metadata => ({ metadata, config: readResume(metadata.id), history: readHistory(metadata.id) })) };
 }
-export function restoreBackup(value: unknown): number {
+export function parseResumeBackup(value: unknown): ResumeBackup {
   const backup = record(value);
   if (backup.version !== 1 || !Array.isArray(backup.resumes)) throw new Error("invalid backup");
   // Validate the entire file before writing any entry.
-  const entries = backup.resumes.map(value => {
+  const resumes = backup.resumes.map(value => {
     const entry = record(value);
-    return { metadata: parseMetadata(entry.metadata), config: parseResumeConfig(entry.config), history: parseHistory(entry.history) };
+    return { metadata: parseMetadata(entry.metadata), config: parseResumeConfig(entry.config), history: parseHistory(entry.history).slice(0, 10) };
   });
+  return { version: 1, resumes };
+}
+export function restoreBackup(value: unknown): number {
+  const { resumes: entries } = parseResumeBackup(value);
+  if (!entries.length) return 0;
   const changes = new Map<string, string | null>();
   const restored = entries.map(entry => {
     const id = crypto.randomUUID();
