@@ -56,10 +56,12 @@ import { twMerge } from "tailwind-merge";
 import type { ContactItem, ResumeData, TypographyConfig, ModuleItem, ResumeConfig, ResumeSnapshot, ResumeTemplateId } from "@/app/lib/resume";
 import { blankResume, parseResumeConfig, templateIds, visibleResumeText } from "@/app/lib/resume-schema";
 import { previewTextImport } from "@/app/lib/resume-import";
-import { removeResumeModule } from "@/app/lib/resume-edit";
+import { editResumeEntry, removeResumeModule, type ResumeEntryAction, type ResumeEntrySection } from "@/app/lib/resume-edit";
 import { downloadFile, downloadRawStorage, readHistory, saveSnapshot } from "@/app/lib/resume-storage";
 import { ICON_MAP } from "@/app/lib/contact-icons";
 import { resumeModuleColumn } from "@/app/lib/resume-layout";
+import { ResumeEntryActions } from "@/app/components/ResumeEntryActions";
+import { useEntryFocus } from "@/app/hooks/useEntryFocus";
 import { TypographyPanel } from "@/app/components/TypographyPanel";
 import { DescriptionEditor } from "@/app/components/DescriptionEditor";
 import { EditorPreview } from "@/app/components/EditorPreview";
@@ -654,6 +656,7 @@ function ResumeEditorContent() {
   const resumeId = searchParams.get("id") || "default-1";
 
   const [activeTab, setActiveTab] = useState("basic");
+  const restoreEntryFocus = useEntryFocus(`${resumeId}:${activeTab}`);
   const persistence = useResumePersistence(resumeId, searchParams.has("id"), locale);
   const { config: resumeConfig, setConfig } = persistence;
   const { resumeData, modules, themeColor, typography, templateId } = resumeConfig;
@@ -674,7 +677,10 @@ function ResumeEditorContent() {
     return () => window.removeEventListener("keydown", handleUndo);
   }, [persistence.ready, persistence.undo, persistence.redo]);
   const updateConfig = useCallback(<K extends keyof ResumeConfig,>(key: K, value: React.SetStateAction<ResumeConfig[K]>) => {
-    setConfig(previous => ({ ...previous, [key]: typeof value === "function" ? (value as (old: ResumeConfig[K]) => ResumeConfig[K])(previous[key]) : value }));
+    setConfig(previous => {
+      const next = typeof value === "function" ? (value as (old: ResumeConfig[K]) => ResumeConfig[K])(previous[key]) : value;
+      return next === previous[key] ? previous : { ...previous, [key]: next };
+    });
   }, [setConfig]);
   const setResumeData = (value: React.SetStateAction<ResumeData>) => updateConfig("resumeData", value);
   const setModules = (value: React.SetStateAction<ModuleItem[]>) => updateConfig("modules", value);
@@ -795,24 +801,11 @@ function ResumeEditorContent() {
     }
   };
 
-  // 删除列表项（教育、工作、项目）
-  const deleteItem = (type: "edu" | "work" | "project", id: string) => {
-    if (type === "edu") {
-      setResumeData((prev) => ({
-        ...prev,
-        education: prev.education.filter((i) => i.id !== id),
-      }));
-    } else if (type === "work") {
-      setResumeData((prev) => ({
-        ...prev,
-        workExperiences: prev.workExperiences.filter((i) => i.id !== id),
-      }));
-    } else {
-      setResumeData((prev) => ({
-        ...prev,
-        projects: prev.projects.filter((i) => i.id !== id),
-      }));
-    }
+  const handleEntryAction = (section: ResumeEntrySection, id: string, action: ResumeEntryAction, trigger: HTMLButtonElement) => {
+    // IDs are allocated once per command, outside the state updater.
+    const copyId = action === "copy" ? crypto.randomUUID() : undefined;
+    setResumeData(previous => editResumeEntry(previous, section, id, action, copyId));
+    restoreEntryFocus(trigger, action === "remove");
   };
 
   // 更新技能列表
@@ -1799,6 +1792,7 @@ function ResumeEditorContent() {
             {activeTab === "edu" && (
               <motion.div
                 key="edu"
+                data-entry-list="edu"
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 10 }}
@@ -1810,18 +1804,14 @@ function ResumeEditorContent() {
                   </div>
                   <h2 className="text-xl font-bold tracking-tight">{local("教育背景", "Education")}</h2>
                 </header>
-                {resumeData.education.map((item) => (
+                {resumeData.education.map((item, index) => (
                   <Card
                     key={item.id}
-                    className="relative group p-4 border-dashed border-zinc-200 space-y-3"
+                    className="p-4 border-dashed border-zinc-200 space-y-3"
                   >
-                    <button
-                      onClick={() => deleteItem("edu", item.id)}
-                      className="absolute top-2 right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity border border-red-100 shadow-sm z-10"
-                      title={local("移除", "Remove")}
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                    <ResumeEntryActions id={item.id} label={`${item.school.trim() || local("教育", "Education")} · ${index + 1}`}
+                      index={index} count={resumeData.education.length}
+                      onAction={(action, trigger) => handleEntryAction("edu", item.id, action, trigger)} />
                     <Input
                       label={local("学校名称", "School")}
                       placeholder={local("例如：五邑大学", "University")}
@@ -1851,6 +1841,7 @@ function ResumeEditorContent() {
                 <Button
                   variant="outline"
                   className="w-full border-dashed"
+                  data-add-entry
                   onClick={() => addItem("edu")}
                 >
                   {local("+ 新增教育", "Add education")}
@@ -1861,6 +1852,7 @@ function ResumeEditorContent() {
             {activeTab === "work" && (
               <motion.div
                 key="work"
+                data-entry-list="work"
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 10 }}
@@ -1872,18 +1864,14 @@ function ResumeEditorContent() {
                   </div>
                   <h2 className="text-xl font-bold tracking-tight">{local("工作经历", "Work experience")}</h2>
                 </header>
-                {resumeData.workExperiences.map((item) => (
+                {resumeData.workExperiences.map((item, index) => (
                   <Card
                     key={item.id}
-                    className="relative group p-4 border-dashed border-zinc-200 space-y-3"
+                    className="p-4 border-dashed border-zinc-200 space-y-3"
                   >
-                    <button
-                      onClick={() => deleteItem("work", item.id)}
-                      className="absolute top-2 right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity border border-red-100 shadow-sm z-10"
-                      title={local("移除", "Remove")}
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                    <ResumeEntryActions id={item.id} label={`${item.company.trim() || local("工作", "Work")} · ${index + 1}`}
+                      index={index} count={resumeData.workExperiences.length}
+                      onAction={(action, trigger) => handleEntryAction("work", item.id, action, trigger)} />
                     <Input
                       label={local("公司名称", "Company")}
                       placeholder={local("例如：青椒实验室", "Company")}
@@ -1938,6 +1926,7 @@ function ResumeEditorContent() {
                 <Button
                   variant="outline"
                   className="w-full border-dashed"
+                  data-add-entry
                   onClick={() => addItem("work")}
                 >
                   {local("+ 新增经历", "Add experience")}
@@ -1948,6 +1937,7 @@ function ResumeEditorContent() {
             {activeTab === "project" && (
               <motion.div
                 key="project"
+                data-entry-list="project"
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 10 }}
@@ -1959,18 +1949,14 @@ function ResumeEditorContent() {
                   </div>
                   <h2 className="text-xl font-bold tracking-tight">{local("项目经验", "Projects")}</h2>
                 </header>
-                {resumeData.projects.map((item) => (
+                {resumeData.projects.map((item, index) => (
                   <Card
                     key={item.id}
-                    className="relative group p-4 border-dashed border-zinc-200 space-y-3"
+                    className="p-4 border-dashed border-zinc-200 space-y-3"
                   >
-                    <button
-                      onClick={() => deleteItem("project", item.id)}
-                      className="absolute top-2 right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity border border-red-100 shadow-sm z-10"
-                      title={local("移除项目", "Remove project")}
-                    >
-                      <Trash2 size={12} />
-                    </button>
+                    <ResumeEntryActions id={item.id} label={`${item.name.trim() || local("项目", "Project")} · ${index + 1}`}
+                      index={index} count={resumeData.projects.length}
+                      onAction={(action, trigger) => handleEntryAction("project", item.id, action, trigger)} />
                     <Input
                       label={local("项目名称", "Project name")}
                       placeholder={local("例如：青椒简历编辑器", "Project name")}
@@ -2041,6 +2027,7 @@ function ResumeEditorContent() {
                 <Button
                   variant="outline"
                   className="w-full border-dashed"
+                  data-add-entry
                   onClick={() => addItem("project")}
                 >
                   {local("+ 新增项目", "Add project")}
