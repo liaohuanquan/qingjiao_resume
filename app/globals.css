@@ -55,6 +55,7 @@ button:disabled { cursor: not-allowed; }
 .resume-entry-heading span { font-size: .85em; color: #71717a; flex-shrink: 1; max-width: 45%; text-align: right; }
 .resume-role { font-weight: 600; margin: 3px 0 6px; break-after: avoid; }
 .resume-description p { margin: 4px 0; white-space: pre-wrap; orphans: 3; widows: 3; }
+.resume-document a { cursor: pointer; }
 .resume-section a { text-decoration: underline; }
 .resume-skills { display: flex; flex-wrap: wrap; gap: 8px 24px; padding: 0; list-style: none; }
 .resume-skills li::before { content: '•'; color: var(--theme-color); margin-right: 8px; }
@@ -85,7 +86,7 @@ button:disabled { cursor: not-allowed; }
 @media print {
   html, body, .app-surface, .resume-editor, .resume-editor-main { display: block !important; height: auto !important; min-height: 0 !important; width: auto !important; overflow: visible !important; background: #fff !important; color: #18181b !important; }
   .resume-editor > :not(.resume-editor-main), .resume-editor-main > :not([data-preview-section]), [data-preview-section] > :not([data-preview-container]), [data-editor-modal], .no-print { display: none !important; }
-  [data-preview-section], [data-preview-container], .resume-preview-center, .resume-preview-sizing, .resume-preview-scale { display: block !important; position: static !important; transform: none !important; translate: none !important; width: auto !important; height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; padding: 0 !important; margin: 0 !important; background: #fff !important; }
+  [data-preview-section], [data-preview-container], .resume-preview-center, .resume-preview-sizing, .resume-preview-scale { display: block !important; visibility: visible !important; position: static !important; transform: none !important; translate: none !important; width: auto !important; height: auto !important; min-height: 0 !important; max-height: none !important; overflow: visible !important; padding: 0 !important; margin: 0 !important; box-shadow: none !important; background: #fff !important; }
   .resume-document { width: 180mm !important; min-height: 0 !important; padding: 0 !important; box-shadow: none !important; background: #fff !important; color: #27272a !important; font-size: var(--print-font-size, 14.5px); print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .resume-document img { max-width: 100%; }
   .resume-document a { color: inherit; }

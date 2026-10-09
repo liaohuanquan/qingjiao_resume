@@ -6,6 +6,8 @@ A resume editor without accounts, built with Next.js 16, React 19, and Tailwind 
 
 Create, rename, duplicate, and delete resumes. The editor supports three templates, section order and visibility, custom sections, and avatar cropping. Changes are saved in the current browser. If saving fails, keep the page open and download a backup.
 
+On mobile, choosing a section opens its editor; hidden panels leave keyboard navigation. Preview fitting uses the container's actual width. Manual zoom survives resizing; “Fit width” restores automatic fitting. Select document text or drag the blank background with a mouse; touch uses native scrolling. Zoom controls remain visible on mobile and appear on desktop hover or keyboard focus. Skill tag corners support a radius of zero.
+
 The list shows actual resume thumbnails ordered by the most recent update. When another page changes or deletes the same resume, current edits are retained. Save a separate copy, download a backup, or explicitly confirm loading the latest version.
 
 Undo and redo retain the latest 30 session steps, grouping consecutive edits in the same input within 500 milliseconds. Refreshing or loading the latest version clears these steps. Text inputs retain their native undo shortcuts. Removing a section clears its content and individual style; undo restores them. Missing standard sections can be added again. Projects have a link input.

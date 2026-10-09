@@ -12,7 +12,6 @@ import {
   Trash2,
   Type,
   Palette,
-  Maximize,
   EyeOff,
   Briefcase,
   GraduationCap,
@@ -60,7 +59,7 @@ import { previewTextImport } from "@/app/lib/resume-import";
 import { removeResumeModule } from "@/app/lib/resume-edit";
 import { downloadFile, downloadRawStorage, readHistory, saveSnapshot } from "@/app/lib/resume-storage";
 import { ICON_MAP } from "@/app/lib/contact-icons";
-import { ResumeDocument } from "@/app/components/ResumeDocument";
+import { EditorPreview } from "@/app/components/EditorPreview";
 import { ResumePreview } from "@/app/components/ResumePreview";
 import { AIReviewDialog } from "@/app/components/AIReviewDialog";
 import { AvatarCropDialog } from "@/app/components/AvatarCropDialog";
@@ -70,7 +69,6 @@ import { useResumePersistence } from "@/app/hooks/useResumePersistence";
 import { useModalFocus } from "@/app/hooks/useModalFocus";
 import { useAIRequest } from "@/app/hooks/useAIRequest";
 import { aiMessages } from "@/app/lib/ai-prompts";
-import { CONTENT_HEIGHT, PAPER_HEIGHT, PAPER_MARGIN, PAPER_WIDTH } from "@/app/lib/resume-layout";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -708,10 +706,7 @@ function ResumeEditorContent() {
   const setThemeColor = (value: React.SetStateAction<string>) => updateConfig("themeColor", value);
   const setTemplateId = (value: React.SetStateAction<ResumeTemplateId>) => updateConfig("templateId", value);
   const setTypography = (value: React.SetStateAction<TypographyConfig>) => updateConfig("typography", value);
-  const [documentHeight, setDocumentHeight] = useState(PAPER_HEIGHT);
-  const [zoomScale, setZoomScale] = useState(0.8);
   const [numPages, setNumPages] = useState(1);
-  const previewContainerRef = React.useRef<HTMLDivElement>(null);
   const resumeContentRef = React.useRef<HTMLDivElement>(null);
 
   const [tempAvatar, setTempAvatar] = useState<{ id: string; image: string } | null>(null);
@@ -853,28 +848,6 @@ function ResumeEditorContent() {
     }));
   };
 
-  // 自动适配缩放比例，使预览区刚好填满容器宽度
-  const autoFit = useCallback(() => {
-    if (previewContainerRef.current) {
-      const containerWidth = previewContainerRef.current.clientWidth - 64;
-      const scale = Math.max(0.1, Math.min(1, containerWidth / PAPER_WIDTH));
-      setZoomScale(Number(scale.toFixed(2)));
-    }
-  }, []);
-
-  React.useEffect(() => {
-    if (!persistence.ready) return;
-    autoFit();
-    window.addEventListener("resize", autoFit);
-    const observer = new ResizeObserver(() => {
-      const height = resumeContentRef.current?.scrollHeight || PAPER_HEIGHT;
-      setDocumentHeight(Math.max(PAPER_HEIGHT, height));
-      setNumPages(Math.max(1, Math.ceil((height - PAPER_MARGIN * 2) / CONTENT_HEIGHT)));
-    });
-    if (resumeContentRef.current) observer.observe(resumeContentRef.current);
-    return () => { window.removeEventListener("resize", autoFit); observer.disconnect(); };
-  }, [persistence.ready, autoFit]);
-
   const isSaving = persistence.status === "saving" || persistence.status === "unsaved";
   const [isExporting, setIsExporting] = useState(false); // 是否正在准备打印
   const [exportProgress, setExportProgress] = useState<string | null>(null); // 打印准备状态
@@ -888,12 +861,31 @@ function ResumeEditorContent() {
   const [printError, setPrintError] = useState<string | null>(null);
   const [isReloadConfirmOpen, setIsReloadConfirmOpen] = useState(false);
   const [reloadError, setReloadError] = useState<string | null>(null);
-  const [isPanning, setIsPanning] = useState(false); // 预览区是否正在按下鼠标拖拽平移
   // 移动端底部 Tab 激活状态：管理、编辑、预览
   const [activeMobileTab, setActiveMobileTab] = useState<
     "manage" | "edit" | "preview"
   >("edit");
-  const scrollStart = React.useRef({ scrollLeft: 0, scrollTop: 0, x: 0, y: 0 }); // 记录拖拽起始位置
+  const openModule = (id: string) => {
+    setActiveTab(id);
+    setActiveMobileTab("edit");
+  };
+  React.useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 64rem)");
+    const moveHiddenFocus = () => {
+      if (desktop.matches) return;
+      const focused = document.activeElement;
+      const oldPanel = focused?.closest<HTMLElement>("[data-editor-panel]");
+      if (!oldPanel || getComputedStyle(oldPanel).visibility !== "hidden") return;
+      const panel = document.getElementById(`resume-editor-panel-${activeMobileTab}`);
+      if (!panel) return;
+      const next = Array.from(panel.querySelectorAll<HTMLElement>("input:not(:disabled), textarea:not(:disabled), select:not(:disabled), button:not(:disabled), a[href], [tabindex='0']"))
+        .find(element => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden");
+      (next || panel).focus({ preventScroll: true });
+    };
+    moveHiddenFocus();
+    desktop.addEventListener("change", moveHiddenFocus);
+    return () => desktop.removeEventListener("change", moveHiddenFocus);
+  }, [activeMobileTab, persistence.ready]);
   const { read: readImportFile, cancel: cancelImportRead, pending: importPending } = useFileRead();
   const closeImportDialog = useCallback(() => {
     cancelImportRead();
@@ -1334,11 +1326,12 @@ function ResumeEditorContent() {
       <main className="resume-editor-main flex-1 flex flex-col lg:flex-row overflow-hidden relative">
         {/* Column 1: Module Manager - Mobile Toggle */}
         <aside
+          id="resume-editor-panel-manage" data-editor-panel tabIndex={-1} aria-label={copy.mobileManage}
           className={cn(
-            "w-full lg:w-[280px] bg-white border-r border-zinc-100 p-4 overflow-y-auto flex-col gap-6 scrollbar-hide absolute inset-0 z-40 lg:relative lg:flex lg:translate-x-0 transition-transform duration-300",
+            "w-full lg:w-[280px] bg-white border-r border-zinc-100 p-4 pb-24 lg:pb-4 overflow-y-auto flex flex-col gap-6 scrollbar-hide absolute inset-0 z-40 lg:relative lg:translate-x-0 lg:visible transition-transform duration-300",
             activeMobileTab === "manage"
-              ? "translate-x-0 flex"
-              : "-translate-x-full lg:translate-x-0",
+              ? "translate-x-0 visible"
+              : "-translate-x-full invisible",
           )}
         >
           <section>
@@ -1377,7 +1370,7 @@ function ResumeEditorContent() {
             </h3>
             <div className="space-y-2 mb-2">
               <Card
-                onClick={() => setActiveTab("basic")}
+                onClick={() => openModule("basic")}
                 className={cn(
                   "flex items-center gap-2 cursor-pointer transition-all",
                   activeTab === "basic" &&
@@ -1387,9 +1380,9 @@ function ResumeEditorContent() {
                 <div className="w-4 h-4 rounded-sm border border-zinc-200 flex items-center justify-center bg-zinc-50 ml-1">
                   <div className="w-1.5 h-1.5 rounded-full bg-zinc-300" />
                 </div>
-                <span className="text-sm text-zinc-600 flex-1 ml-1">
+                <button type="button" aria-pressed={activeTab === "basic"} onClick={() => openModule("basic")} className="text-sm text-zinc-600 flex-1 ml-1 text-left">
                   {copy.basicInfo}
-                </span>
+                </button>
                 <Badge className="bg-zinc-100 text-zinc-400 font-normal ml-auto">
                   {copy.fixed}
                 </Badge>
@@ -1410,7 +1403,7 @@ function ResumeEditorContent() {
                   <Reorder.Item
                     key={m.id}
                     value={m}
-                    onClick={() => setActiveTab(m.id)}
+                    onClick={() => openModule(m.id)}
                   >
                     <Card
                       className={cn(
@@ -1424,7 +1417,7 @@ function ResumeEditorContent() {
                         size={16}
                         className="text-zinc-400 cursor-grab active:cursor-grabbing"
                       />
-                      <button type="button" onClick={() => setActiveTab(m.id)} className="text-sm text-zinc-600 flex-1 text-left">
+                      <button type="button" aria-pressed={activeTab === m.id} onClick={() => openModule(m.id)} className="text-sm text-zinc-600 flex-1 text-left">
                         {m.title}
                       </button>
                       <div
@@ -1473,7 +1466,7 @@ function ResumeEditorContent() {
                   : blankResume(locale).modules.find(item => item.id === choice);
                 if (!module) return;
                 setModules(previous => previous.some(item => item.id === module.id) ? previous : [...previous, module]);
-                setActiveTab(module.id);
+                openModule(module.id);
               }}
             >
               <option value="" disabled>{local("添加模块", "Add section")}</option>
@@ -1637,11 +1630,12 @@ function ResumeEditorContent() {
 
         {/* Column 2: Editor Pane - Mobile Toggle */}
         <aside
+          id="resume-editor-panel-edit" data-editor-panel tabIndex={-1} aria-label={copy.mobileEdit}
           className={cn(
-            "w-full lg:w-[380px] bg-zinc-50/50 border-r border-zinc-200 p-6 overflow-y-auto overflow-x-hidden scrollbar-hide absolute inset-0 z-30 lg:relative lg:block lg:translate-x-0 transition-transform duration-300",
+            "w-full lg:w-[380px] bg-zinc-50/50 border-r border-zinc-200 p-6 pb-24 lg:pb-6 overflow-y-auto overflow-x-hidden scrollbar-hide absolute inset-0 z-30 lg:relative lg:block lg:translate-x-0 lg:visible transition-transform duration-300",
             activeMobileTab === "edit"
-              ? "translate-x-0"
-              : "-translate-x-full lg:translate-x-0",
+              ? "translate-x-0 visible"
+              : "-translate-x-full invisible",
           )}
         >
           <AnimatePresence mode="wait">
@@ -2046,10 +2040,10 @@ function ResumeEditorContent() {
                       }
                     />
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-zinc-500">
+                      <label htmlFor={`work-description-${item.id}`} className="text-xs font-medium text-zinc-500">
                         {local("工作成果", "Responsibilities and outcomes")}
                       </label>
-                      <textarea
+                      <textarea id={`work-description-${item.id}`}
                         placeholder={local("请详细描述您的关键成果...", "Describe your actual responsibilities and outcomes")}
                         className="w-full h-32 p-3 text-sm border border-zinc-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
                         value={item.desc}
@@ -2163,10 +2157,10 @@ function ResumeEditorContent() {
                       onChange={event => updateListItem("project", item.id, "link", event.target.value)}
                     />
                     <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-zinc-500">
+                      <label htmlFor={`project-description-${item.id}`} className="text-xs font-medium text-zinc-500">
                         {local("项目成果", "Project outcomes")}
                       </label>
-                      <textarea
+                      <textarea id={`project-description-${item.id}`}
                         placeholder={local("请描述该项目的核心技术亮点...", "Describe your actual project outcomes")}
                         className="w-full h-32 p-3 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
                         value={item.desc}
@@ -2223,10 +2217,10 @@ function ResumeEditorContent() {
                   <h2 className="text-xl font-bold tracking-tight">{local("专业技能", "Skills")}</h2>
                 </header>
                 <div className="space-y-3">
-                  <label className="text-xs font-medium text-zinc-500">
+                  <label htmlFor="resume-skills" className="text-xs font-medium text-zinc-500">
                     {local("技能清单 (逗号分隔)", "Skills (comma separated)")}
                   </label>
-                  <textarea
+                  <textarea id="resume-skills"
                     className="w-full h-48 p-4 text-sm border border-zinc-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white leading-relaxed font-mono transition-colors"
                     value={resumeData.skills.join(", ")}
                     onChange={(e) => updateSkills(e.target.value)}
@@ -2284,7 +2278,7 @@ function ResumeEditorContent() {
                             ...prev,
                             skillTagRadius: Math.max(
                               0,
-                              (prev.skillTagRadius || 6) - 2,
+                              (prev.skillTagRadius ?? 6) - 2,
                             ),
                           }))
                         }
@@ -2292,7 +2286,7 @@ function ResumeEditorContent() {
                         <Minus size={14} />
                       </Button>
                       <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">
-                        {typography.skillTagRadius || 6}
+                        {typography.skillTagRadius ?? 6}
                       </div>
                       <Button
                         size="sm"
@@ -2303,7 +2297,7 @@ function ResumeEditorContent() {
                             ...prev,
                             skillTagRadius: Math.min(
                               32,
-                              (prev.skillTagRadius || 6) + 2,
+                              (prev.skillTagRadius ?? 6) + 2,
                             ),
                           }))
                         }
@@ -2408,11 +2402,10 @@ function ResumeEditorContent() {
                   />
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-500">
+                    <label htmlFor={`section-content-${activeTab}`} className="text-xs font-medium text-zinc-500">
                       {local("模块内容", "Section content")}
                     </label>
-                    <textarea
-                      aria-label={local("模块内容", "Section content")}
+                    <textarea id={`section-content-${activeTab}`}
                       className="w-full h-96 p-4 text-sm border border-zinc-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white leading-relaxed font-mono"
                       placeholder={local("在这里输入内容...", "Enter content")}
                       value={
@@ -2436,96 +2429,10 @@ function ResumeEditorContent() {
           </AnimatePresence>
         </aside>
 
-        {/* 第 3 列：预览区 - 在移动端根据 Tab 状态切换可见性 */}
-        <section
-          data-preview-section
-          className={cn(
-            "flex-1 bg-zinc-100 flex flex-col relative overflow-hidden group absolute inset-0 z-20 lg:relative lg:flex lg:translate-x-0 transition-transform duration-300",
-            activeMobileTab === "preview"
-              ? "translate-x-0"
-              : "translate-x-full lg:translate-x-0",
-          )}
-        >
-          <p className="no-print absolute bottom-5 left-5 z-30 rounded-lg bg-white px-3 py-2 text-xs text-zinc-500">{local(`约 ${numPages} 页`, `About ${numPages} pages`)}</p>
-          {/* 右侧悬浮预览工具栏：缩放控制、自适应 */}
-          <div className="absolute right-6 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2 bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-zinc-200 shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-4 group-hover:translate-x-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setZoomScale((prev) => Math.min(1.5, prev + 0.1))}
-              className="w-10 h-10 hover:bg-zinc-100 rounded-xl"
-              title={local("放大", "Zoom in")}
-            >
-              <Plus size={18} />
-            </Button>
-            <div className="h-10 flex items-center justify-center text-[10px] font-bold text-zinc-500 border-y border-zinc-100">
-              {Math.round(zoomScale * 100)}%
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setZoomScale((prev) => Math.max(0.4, prev - 0.1))}
-              className="w-10 h-10 hover:bg-zinc-100 rounded-xl"
-              title={local("缩小", "Zoom out")}
-            >
-              <Minus size={18} />
-            </Button>
-            <div className="w-full h-px bg-zinc-100 my-1" />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={autoFit}
-              className="w-10 h-10 hover:bg-zinc-100 rounded-xl text-zinc-500"
-              title={local("自适应宽度", "Fit width")}
-            >
-              <Maximize size={18} />
-            </Button>
-          </div>
-
-          <div
-            data-preview-container
-            ref={previewContainerRef}
-            className={cn(
-              "flex-1 overflow-auto p-12 pb-32 scrollbar-hide bg-zinc-200/50 select-none transition-colors",
-              isPanning ? "cursor-grabbing bg-zinc-300/30" : "cursor-grab",
-            )}
-            onMouseDown={(e) => {
-              if (previewContainerRef.current) {
-                setIsPanning(true);
-                scrollStart.current = {
-                  scrollLeft: previewContainerRef.current.scrollLeft,
-                  scrollTop: previewContainerRef.current.scrollTop,
-                  x: e.clientX,
-                  y: e.clientY,
-                };
-              }
-            }}
-            onMouseMove={(e) => {
-              if (isPanning && previewContainerRef.current) {
-                e.preventDefault();
-                const x = e.clientX - scrollStart.current.x;
-                const y = e.clientY - scrollStart.current.y;
-                previewContainerRef.current.scrollLeft =
-                  scrollStart.current.scrollLeft - x;
-                previewContainerRef.current.scrollTop =
-                  scrollStart.current.scrollTop - y;
-              }
-            }}
-            onMouseUp={() => setIsPanning(false)}
-            onMouseLeave={() => setIsPanning(false)}
-          >
-            <div className="resume-preview-center min-w-full min-h-full flex justify-center">
-              <div className="resume-preview-sizing relative" style={{ width: `${PAPER_WIDTH * zoomScale}px`, minHeight: `${documentHeight * zoomScale}px` }}>
-                <div className="resume-preview-scale" style={{ transform: `scale(${zoomScale})`, transformOrigin: "top left", width: PAPER_WIDTH }}>
-                  <ResumeDocument ref={resumeContentRef} config={resumeConfig} pageGuides avatarAlt={local("头像", "Avatar")} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <EditorPreview ref={resumeContentRef} config={resumeConfig} active={activeMobileTab === "preview"} onPagesChange={setNumPages} />
         {/* 移动端底部切换导航栏 */}
-        <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 h-14 bg-zinc-900/90 backdrop-blur-md rounded-2xl flex items-center px-2 gap-1 border border-white/10 shadow-2xl z-[100]">
-          <button
+        <nav aria-label={local("编辑视图", "Editor views")} className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 h-14 bg-zinc-900/90 backdrop-blur-md rounded-2xl flex items-center px-2 gap-1 border border-white/10 shadow-2xl z-[100]">
+          <button type="button" aria-pressed={activeMobileTab === "manage"} aria-controls="resume-editor-panel-manage"
             onClick={() => setActiveMobileTab("manage")}
             className={cn(
               "flex flex-col items-center justify-center gap-1 w-16 h-10 rounded-xl transition-all",
@@ -2537,7 +2444,7 @@ function ResumeEditorContent() {
             <Settings2 size={16} />
             <span className="text-[10px] font-bold">{copy.mobileManage}</span>
           </button>
-          <button
+          <button type="button" aria-pressed={activeMobileTab === "edit"} aria-controls="resume-editor-panel-edit"
             onClick={() => setActiveMobileTab("edit")}
             className={cn(
               "flex flex-col items-center justify-center gap-1 w-16 h-10 rounded-xl transition-all",
@@ -2549,7 +2456,7 @@ function ResumeEditorContent() {
             <User size={16} />
             <span className="text-[10px] font-bold">{copy.mobileEdit}</span>
           </button>
-          <button
+          <button type="button" aria-pressed={activeMobileTab === "preview"} aria-controls="resume-editor-panel-preview"
             onClick={() => setActiveMobileTab("preview")}
             className={cn(
               "flex flex-col items-center justify-center gap-1 w-20 h-10 rounded-xl transition-all",
@@ -2561,7 +2468,7 @@ function ResumeEditorContent() {
             <Eye size={16} />
             <span className="text-[10px] font-bold">{copy.mobilePreview}</span>
           </button>
-        </div>
+        </nav>
       </main>
 
       {/* 数据导入弹窗 */}
