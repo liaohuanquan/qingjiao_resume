@@ -12,7 +12,6 @@ import {
   Trash2,
   Type,
   Palette,
-  Maximize,
   EyeOff,
   Briefcase,
   GraduationCap,
@@ -28,6 +27,8 @@ import {
   Sparkles,
   History,
   RotateCcw,
+  Undo2,
+  Redo2,
 } from "lucide-react";
 
 import {
@@ -52,61 +53,30 @@ import NextImage from "next/image";
 import { motion, AnimatePresence, Reorder } from "framer-motion";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import Cropper, { Area } from "react-easy-crop";
 import type { ContactItem, ResumeData, TypographyConfig, ModuleItem, ResumeConfig, ResumeSnapshot, ResumeTemplateId } from "@/app/lib/resume";
-import { fontFamilies, parseResumeConfig, visibleResumeText } from "@/app/lib/resume-schema";
+import { blankResume, parseResumeConfig, templateIds, visibleResumeText } from "@/app/lib/resume-schema";
 import { previewTextImport } from "@/app/lib/resume-import";
+import { editResumeEntry, removeResumeModule, type ResumeEntryAction, type ResumeEntrySection } from "@/app/lib/resume-edit";
 import { downloadFile, downloadRawStorage, readHistory, saveSnapshot } from "@/app/lib/resume-storage";
 import { ICON_MAP } from "@/app/lib/contact-icons";
-import { ResumeDocument } from "@/app/components/ResumeDocument";
+import { resumeModuleColumn } from "@/app/lib/resume-layout";
+import { ResumeEntryActions } from "@/app/components/ResumeEntryActions";
+import { useEntryFocus } from "@/app/hooks/useEntryFocus";
+import { TypographyPanel } from "@/app/components/TypographyPanel";
+import { DescriptionEditor } from "@/app/components/DescriptionEditor";
+import { EditorPreview } from "@/app/components/EditorPreview";
+import { ResumePreview } from "@/app/components/ResumePreview";
+import { AIReviewDialog } from "@/app/components/AIReviewDialog";
+import { AvatarCropDialog } from "@/app/components/AvatarCropDialog";
+import { useFileRead } from "@/app/hooks/useFileRead";
+import { Modal } from "@/app/components/Modal";
 import { useResumePersistence } from "@/app/hooks/useResumePersistence";
 import { useModalFocus } from "@/app/hooks/useModalFocus";
 import { useAIRequest } from "@/app/hooks/useAIRequest";
 import { aiMessages } from "@/app/lib/ai-prompts";
-import { CONTENT_HEIGHT, PAPER_HEIGHT, PAPER_MARGIN, PAPER_WIDTH } from "@/app/lib/resume-layout";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
-}
-
-// --- 辅助函数 ---
-
-const createImage = (url: string): Promise<HTMLImageElement> =>
-  new Promise((resolve, reject) => {
-    // 使用 globalThis.Image 确保调用浏览器原生的 HTMLImageElement 构造函数
-    const image = new globalThis.Image();
-    image.addEventListener("load", () => resolve(image));
-    image.addEventListener("error", (error) => reject(error));
-    image.setAttribute("crossOrigin", "anonymous");
-    image.src = url;
-  });
-
-async function getCroppedImg(
-  imageSrc: string,
-  pixelCrop: Area,
-): Promise<string | null> {
-  const image = await createImage(imageSrc);
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-
-  if (!ctx) return null;
-
-  canvas.width = pixelCrop.width;
-  canvas.height = pixelCrop.height;
-
-  ctx.drawImage(
-    image,
-    pixelCrop.x,
-    pixelCrop.y,
-    pixelCrop.width,
-    pixelCrop.height,
-    0,
-    0,
-    pixelCrop.width,
-    pixelCrop.height,
-  );
-
-  return canvas.toDataURL("image/jpeg");
 }
 
 // --- 类型定义 ---
@@ -134,16 +104,6 @@ const AI_MODE_LABELS: Record<AiOptimizeMode, string> = {
   concise: "压缩语气",
 };
 
-const RESUME_TEMPLATES: Array<{
-  id: ResumeTemplateId;
-  name: string;
-  description: string;
-}> = [
-  { id: "classic", name: "极简经典", description: "稳重单栏，适合通用岗位" },
-  { id: "split", name: "左右分栏", description: "信息密度更高，适合管理与运营" },
-  { id: "tech", name: "技术岗版", description: "突出技能和项目，适合研发岗位" },
-];
-
 const EDITOR_COPY = {
   "zh-CN": {
     editorMode: "Editor Mode",
@@ -170,18 +130,9 @@ const EDITOR_COPY = {
     lang: "EN",
     templateTitle: "简历模板",
     templates: {
-      classic: {
-        name: "极简经典",
-        description: "稳重单栏，适合通用岗位",
-      },
-      split: {
-        name: "左右分栏",
-        description: "信息密度更高，适合管理与运营",
-      },
-      tech: {
-        name: "技术岗版",
-        description: "突出技能和项目，适合研发岗位",
-      },
+      classic: "经典单栏",
+      split: "左右分栏",
+      tech: "技术模板",
     },
     moduleManager: "模块管理",
     basicInfo: "基本信息",
@@ -216,11 +167,6 @@ const EDITOR_COPY = {
     reportTitle: "分析报告",
     analyzing: "分析中...",
     reportEmpty: "点击 JD 匹配或简历评分后，分析结果会显示在这里。",
-    aiOptimizeTitle: "AI 优化结果",
-    originalText: "原文",
-    optimizedText: "优化后",
-    keepOriginal: "保留原文",
-    applyResult: "应用结果",
     historyTitle: "版本历史",
     historyDesc: "保留最近 10 个本地快照，可随时恢复。",
     saveCurrentVersion: "保存当前版本",
@@ -229,7 +175,6 @@ const EDITOR_COPY = {
     currentVersionLabel: "手动保存",
     beforeAiApplyLabel: "AI 应用前",
     versionSaved: "版本已保存",
-    backToEdit: "返回编辑",
   },
   "en-US": {
     editorMode: "Editor Mode",
@@ -257,18 +202,9 @@ const EDITOR_COPY = {
     lang: "中文",
     templateTitle: "Resume template",
     templates: {
-      classic: {
-        name: "Minimal Classic",
-        description: "Stable single-column layout for general roles",
-      },
-      split: {
-        name: "Split Layout",
-        description: "Denser layout for management and operations",
-      },
-      tech: {
-        name: "Engineering Focus",
-        description: "Highlights skills and projects for technical roles",
-      },
+      classic: "Classic",
+      split: "Split",
+      tech: "Technical",
     },
     moduleManager: "Module manager",
     basicInfo: "Basic info",
@@ -303,11 +239,6 @@ const EDITOR_COPY = {
     reportTitle: "Analysis report",
     analyzing: "Analyzing...",
     reportEmpty: "Run JD matching or resume scoring to show results here.",
-    aiOptimizeTitle: "AI optimization result",
-    originalText: "Original",
-    optimizedText: "Optimized",
-    keepOriginal: "Keep original",
-    applyResult: "Apply result",
     historyTitle: "Version history",
     historyDesc: "Keeps the latest 10 local snapshots for restore.",
     saveCurrentVersion: "Save current version",
@@ -316,7 +247,6 @@ const EDITOR_COPY = {
     currentVersionLabel: "Manual save",
     beforeAiApplyLabel: "Before AI apply",
     versionSaved: "Version saved",
-    backToEdit: "Back to edit",
   },
 } satisfies Record<AppLocale, {
   editorMode: string;
@@ -341,7 +271,7 @@ const EDITOR_COPY = {
   switchLanguage: string;
   lang: string;
   templateTitle: string;
-  templates: Record<ResumeTemplateId, { name: string; description: string }>;
+  templates: Record<ResumeTemplateId, string>;
   moduleManager: string;
   basicInfo: string;
   fixed: string;
@@ -374,11 +304,6 @@ const EDITOR_COPY = {
   reportTitle: string;
   analyzing: string;
   reportEmpty: string;
-  aiOptimizeTitle: string;
-  originalText: string;
-  optimizedText: string;
-  keepOriginal: string;
-  applyResult: string;
   historyTitle: string;
   historyDesc: string;
   saveCurrentVersion: string;
@@ -387,7 +312,6 @@ const EDITOR_COPY = {
   currentVersionLabel: string;
   beforeAiApplyLabel: string;
   versionSaved: string;
-  backToEdit: string;
 }>;
 
 // --- 基础 UI 组件 ---
@@ -732,30 +656,59 @@ function ResumeEditorContent() {
   const resumeId = searchParams.get("id") || "default-1";
 
   const [activeTab, setActiveTab] = useState("basic");
+  const [collapsedEntries, setCollapsedEntries] = useState<Record<string, boolean>>({});
+  const [managerOpen, setManagerOpen] = useState(true);
+  const entryKey = (section: "edu" | "work" | "project", id: string) => JSON.stringify([resumeId, section, id]);
+  const isEntryCollapsed = (section: "edu" | "work" | "project", id: string) => Boolean(collapsedEntries[entryKey(section, id)]);
+  const toggleEntry = (section: "edu" | "work" | "project", id: string) => {
+    const key = entryKey(section, id);
+    setCollapsedEntries(previous => ({ ...previous, [key]: !previous[key] }));
+  };
+  const restoreEntryFocus = useEntryFocus(`${resumeId}:${activeTab}`);
   const persistence = useResumePersistence(resumeId, searchParams.has("id"), locale);
   const { config: resumeConfig, setConfig } = persistence;
   const { resumeData, modules, themeColor, typography, templateId } = resumeConfig;
+  React.useEffect(() => {
+    if (!modules.some(module => module.id === activeTab)) setActiveTab("basic");
+  }, [modules, activeTab]);
+  React.useEffect(() => {
+    const handleUndo = (event: KeyboardEvent) => {
+      if (!persistence.ready || !(event.metaKey || event.ctrlKey) || event.altKey) return;
+      const target = event.target;
+      // Keep native text undo and modal shortcuts in their own controls.
+      if (target instanceof Element && target.closest("input, textarea, select, [contenteditable=true], [role=dialog]")) return;
+      const key = event.key.toLowerCase();
+      if (key === "z") { event.preventDefault(); if (event.shiftKey) persistence.redo(); else persistence.undo(); }
+      else if (key === "y" && !event.shiftKey) { event.preventDefault(); persistence.redo(); }
+    };
+    window.addEventListener("keydown", handleUndo);
+    return () => window.removeEventListener("keydown", handleUndo);
+  }, [persistence.ready, persistence.undo, persistence.redo]);
   const updateConfig = useCallback(<K extends keyof ResumeConfig,>(key: K, value: React.SetStateAction<ResumeConfig[K]>) => {
-    setConfig(previous => ({ ...previous, [key]: typeof value === "function" ? (value as (old: ResumeConfig[K]) => ResumeConfig[K])(previous[key]) : value }));
+    setConfig(previous => {
+      const next = typeof value === "function" ? (value as (old: ResumeConfig[K]) => ResumeConfig[K])(previous[key]) : value;
+      return next === previous[key] ? previous : { ...previous, [key]: next };
+    });
   }, [setConfig]);
   const setResumeData = (value: React.SetStateAction<ResumeData>) => updateConfig("resumeData", value);
   const setModules = (value: React.SetStateAction<ModuleItem[]>) => updateConfig("modules", value);
   const setThemeColor = (value: React.SetStateAction<string>) => updateConfig("themeColor", value);
   const setTemplateId = (value: React.SetStateAction<ResumeTemplateId>) => updateConfig("templateId", value);
   const setTypography = (value: React.SetStateAction<TypographyConfig>) => updateConfig("typography", value);
-  const [documentHeight, setDocumentHeight] = useState(PAPER_HEIGHT);
-  const [zoomScale, setZoomScale] = useState(0.8);
   const [numPages, setNumPages] = useState(1);
-  const previewContainerRef = React.useRef<HTMLDivElement>(null);
   const resumeContentRef = React.useRef<HTMLDivElement>(null);
 
-  // 头像裁剪状态
-  const [tempAvatar, setTempAvatar] = useState<string | null>(null);
-  const [cropError, setCropError] = useState<string | null>(null);
-  const [crop, setCrop] = useState({ x: 0, y: 0 });
-  const [zoom, setZoom] = useState(1);
-  const [aspect, setAspect] = useState(1); // 默认 1:1
-  const [croppedAreaPixels, setCroppedAreaPixels] = useState<Area | null>(null);
+  const [tempAvatar, setTempAvatar] = useState<{ id: string; image: string } | null>(null);
+  const [avatarError, setAvatarError] = useState("");
+  const avatarRead = useFileRead();
+  const handleAvatarUpload = async (file: File) => {
+    setTempAvatar(null);
+    setAvatarError("");
+    const result = await avatarRead.read(file, "dataURL");
+    if (!result?.current()) return;
+    if (!result.ok) { setAvatarError(locale === "en-US" ? "Cannot read image" : "图片读取失败"); return; }
+    setTempAvatar({ id: crypto.randomUUID(), image: result.text });
+  };
 
   const sensors = useSensors(
     useSensor(PointerSensor),
@@ -770,6 +723,7 @@ function ResumeEditorContent() {
       setResumeData((prev) => {
         const oldIndex = prev.contacts.findIndex((i) => i.id === active.id);
         const newIndex = prev.contacts.findIndex((i) => i.id === over.id);
+        if (oldIndex < 0 || newIndex < 0) return prev;
         return {
           ...prev,
           contacts: arrayMove(prev.contacts, oldIndex, newIndex),
@@ -780,34 +734,6 @@ function ResumeEditorContent() {
 
   const presetColors = ["#10b981", "#3b82f6", "#ef4444", "#f59e0b", "#18181b"];
 
-  const onCropComplete = useCallback(
-    (_croppedArea: Area, _croppedAreaPixels: Area) => {
-      setCroppedAreaPixels(_croppedAreaPixels);
-    },
-    [],
-  );
-
-  const handleApplyCrop = async () => {
-    if (tempAvatar && croppedAreaPixels) {
-      try {
-        const croppedImage = await getCroppedImg(tempAvatar, croppedAreaPixels);
-        if (!croppedImage) throw new Error("crop failed");
-        if (croppedImage) {
-          setResumeData((prev) => ({
-            ...prev,
-            avatar: croppedImage,
-            avatarAspect: aspect,
-          }));
-
-        }
-      } catch {
-        setCropError(locale === "en-US" ? "Unable to crop this image." : "图片裁剪失败");
-        return;
-      }
-    }
-    setCropError(null); setTempAvatar(null);
-  };
-
   const toggleModuleVisibility = (id: string) => {
     setModules((prev) =>
       prev.map((m) => (m.id === id ? { ...m, visible: !m.visible } : m)),
@@ -815,7 +741,7 @@ function ResumeEditorContent() {
   };
 
   const removeModule = (id: string) => {
-    setModules((prev) => prev.filter((m) => m.id !== id));
+    setConfig(previous => removeResumeModule(previous, id));
   };
 
   const updateBasicData = (
@@ -858,7 +784,7 @@ function ResumeEditorContent() {
   };
 
   const addItem = (type: "edu" | "work" | "project") => {
-    const id = Date.now().toString();
+    const id = crypto.randomUUID();
     if (type === "edu") {
       setResumeData((prev) => ({
         ...prev,
@@ -883,24 +809,11 @@ function ResumeEditorContent() {
     }
   };
 
-  // 删除列表项（教育、工作、项目）
-  const deleteItem = (type: "edu" | "work" | "project", id: string) => {
-    if (type === "edu") {
-      setResumeData((prev) => ({
-        ...prev,
-        education: prev.education.filter((i) => i.id !== id),
-      }));
-    } else if (type === "work") {
-      setResumeData((prev) => ({
-        ...prev,
-        workExperiences: prev.workExperiences.filter((i) => i.id !== id),
-      }));
-    } else {
-      setResumeData((prev) => ({
-        ...prev,
-        projects: prev.projects.filter((i) => i.id !== id),
-      }));
-    }
+  const handleEntryAction = (section: ResumeEntrySection, id: string, action: ResumeEntryAction, trigger: HTMLButtonElement) => {
+    // IDs are allocated once per command, outside the state updater.
+    const copyId = action === "copy" ? crypto.randomUUID() : undefined;
+    setResumeData(previous => editResumeEntry(previous, section, id, action, copyId));
+    restoreEntryFocus(trigger, action === "remove");
   };
 
   // 更新技能列表
@@ -910,28 +823,6 @@ function ResumeEditorContent() {
       skills: value.split(/[,，\n]/).map((s) => s.trim()),
     }));
   };
-
-  // 自动适配缩放比例，使预览区刚好填满容器宽度
-  const autoFit = useCallback(() => {
-    if (previewContainerRef.current) {
-      const containerWidth = previewContainerRef.current.clientWidth - 64;
-      const scale = Math.max(0.1, Math.min(1, containerWidth / PAPER_WIDTH));
-      setZoomScale(Number(scale.toFixed(2)));
-    }
-  }, []);
-
-  React.useEffect(() => {
-    if (!persistence.ready) return;
-    autoFit();
-    window.addEventListener("resize", autoFit);
-    const observer = new ResizeObserver(() => {
-      const height = resumeContentRef.current?.scrollHeight || PAPER_HEIGHT;
-      setDocumentHeight(Math.max(PAPER_HEIGHT, height));
-      setNumPages(Math.max(1, Math.ceil((height - PAPER_MARGIN * 2) / CONTENT_HEIGHT)));
-    });
-    if (resumeContentRef.current) observer.observe(resumeContentRef.current);
-    return () => { window.removeEventListener("resize", autoFit); observer.disconnect(); };
-  }, [persistence.ready, autoFit]);
 
   const isSaving = persistence.status === "saving" || persistence.status === "unsaved";
   const [isExporting, setIsExporting] = useState(false); // 是否正在准备打印
@@ -944,15 +835,61 @@ function ResumeEditorContent() {
   const [importError, setImportError] = useState<string | null>(null);
   const [importPreview, setImportPreview] = useState<{ config: ResumeConfig; unrecognized: string[]; source: string } | null>(null);
   const [printError, setPrintError] = useState<string | null>(null);
-  const [isPanning, setIsPanning] = useState(false); // 预览区是否正在按下鼠标拖拽平移
+  const [isReloadConfirmOpen, setIsReloadConfirmOpen] = useState(false);
+  const [reloadError, setReloadError] = useState<string | null>(null);
   // 移动端底部 Tab 激活状态：管理、编辑、预览
   const [activeMobileTab, setActiveMobileTab] = useState<
     "manage" | "edit" | "preview"
   >("edit");
-  const scrollStart = React.useRef({ scrollLeft: 0, scrollTop: 0, x: 0, y: 0 }); // 记录拖拽起始位置
-  const importReaderRef = React.useRef<FileReader | null>(null);
+  const previewFocusTarget = React.useRef<string | null>(null);
+  const previewFocusFrame = React.useRef<number | null>(null);
+  React.useEffect(() => () => { if (previewFocusFrame.current !== null) cancelAnimationFrame(previewFocusFrame.current); }, [resumeId]);
+  const openModule = (id: string) => {
+    previewFocusTarget.current = null;
+    setActiveTab(id);
+    setActiveMobileTab("edit");
+  };
+  const openModuleFromPreview = (id: string) => {
+    openModule(id);
+    previewFocusTarget.current = id;
+    if (previewFocusFrame.current !== null) cancelAnimationFrame(previewFocusFrame.current);
+    previewFocusFrame.current = requestAnimationFrame(() => {
+      previewFocusFrame.current = null;
+      if (previewFocusTarget.current !== id) return;
+      previewFocusTarget.current = null;
+      const panel = document.getElementById("resume-editor-panel-edit");
+      if (!panel || getComputedStyle(panel).visibility === "hidden") return;
+      panel.scrollTop = 0;
+      panel.focus({ preventScroll: true });
+    });
+  };
+  React.useEffect(() => {
+    const desktop = window.matchMedia("(min-width: 64rem)");
+    const moveHiddenFocus = () => {
+      if (previewFocusTarget.current) return;
+      if (desktop.matches) return;
+      const focused = document.activeElement;
+      const oldPanel = focused?.closest<HTMLElement>("[data-editor-panel]");
+      if (!oldPanel || getComputedStyle(oldPanel).visibility !== "hidden") return;
+      const panel = document.getElementById(`resume-editor-panel-${activeMobileTab}`);
+      if (!panel) return;
+      const next = Array.from(panel.querySelectorAll<HTMLElement>("input:not(:disabled), textarea:not(:disabled), select:not(:disabled), button:not(:disabled), a[href], [tabindex='0']"))
+        .find(element => element.getClientRects().length > 0 && getComputedStyle(element).visibility !== "hidden");
+      (next || panel).focus({ preventScroll: true });
+    };
+    moveHiddenFocus();
+    desktop.addEventListener("change", moveHiddenFocus);
+    return () => desktop.removeEventListener("change", moveHiddenFocus);
+  }, [activeMobileTab, persistence.ready]);
+  const { read: readImportFile, cancel: cancelImportRead, pending: importPending } = useFileRead();
+  const closeImportDialog = useCallback(() => {
+    cancelImportRead();
+    setImportPreview(null);
+    setImportError(null);
+    setIsImportDialogOpen(false);
+  }, [cancelImportRead]);
   const printCleanupRef = React.useRef<(() => void) | null>(null);
-  React.useEffect(() => () => { importReaderRef.current?.abort(); printCleanupRef.current?.(); }, []);
+  React.useEffect(() => () => { printCleanupRef.current?.(); }, []);
   const importInputRef = React.useRef<HTMLInputElement>(null); // JSON 导入隐藏 Input Ref
   const aiRequest = useAIRequest(locale);
   const [isAiAnalyzing, setIsAiAnalyzing] = useState(false);
@@ -1031,7 +968,7 @@ function ResumeEditorContent() {
   };
 
   const applyAiDraft = () => {
-    if (!aiDraft) return;
+    if (!aiDraft || !aiDraft.result.trim()) return;
 
     if (sourceSignature(aiDraft.target, aiDraft.kind) !== aiDraft.sourceSignature) { setAiError(locale === "en-US" ? "The original changed. Keep this result and request a new draft." : "原文已变化，请重新生成后应用"); return; }
     if (!saveVersionSnapshot(copy.beforeAiApplyLabel)) { setAiError(locale === "en-US" ? "Snapshot could not be saved." : "快照保存失败，未替换内容"); return; }
@@ -1139,47 +1076,55 @@ function ResumeEditorContent() {
   };
 
   const exportToJson = () => downloadFile(resumeConfig, `resume-${resumeData.name || "config"}.json`);
-  const handleImportJson = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImportJson = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    importReaderRef.current?.abort();
-    const reader = new FileReader();
-    importReaderRef.current = reader;
-    reader.onerror = () => setImportError(copy.importFailed);
-    reader.onload = () => {
-      try { setImportPreview({ config: parseResumeConfig(JSON.parse(String(reader.result))), unrecognized: [], source: file.name }); setImportError(null); }
-      catch { setImportError(copy.importFailed); }
-    };
-    reader.readAsText(file);
+    setImportPreview(null);
+    setImportError(null);
+    const result = await readImportFile(file);
+    if (!result?.current()) return;
+    if (!result.ok) { setImportError(copy.importFailed); return; }
+    try { setImportPreview({ config: parseResumeConfig(JSON.parse(result.text)), unrecognized: [], source: file.name }); }
+    catch { setImportError(copy.importFailed); }
   };
   const applyTextImport = () => {
+    cancelImportRead();
     if (importPreview) {
       try {
         const config = parseResumeConfig(importPreview.config);
         if (!saveVersionSnapshot(copy.beforeImportLabel)) { setImportError(locale === "en-US" ? "Save a snapshot before replacing content." : "快照保存失败，未替换内容"); return; }
-        setConfig(config); setImportPreview(null); setImportText(""); setImportError(null); setIsImportDialogOpen(false);
+        setConfig(config); setImportText(""); closeImportDialog();
       } catch { setImportError(copy.importFailed); }
       return;
     }
     if (!importText.trim()) { setImportError(copy.importEmptyError); return; }
     try {
       const parsed = previewTextImport(importText);
-      setImportPreview({ config: parseResumeConfig({ ...resumeConfig, resumeData: parsed.data }), unrecognized: parsed.unrecognized, source: locale === "en-US" ? "Text" : "文本" });
+      setImportPreview({ config: parseResumeConfig({ ...resumeConfig, resumeData: parsed.data, modules: blankResume(locale).modules }), unrecognized: parsed.unrecognized, source: locale === "en-US" ? "Text" : "文本" });
       setImportError(null);
-    } catch { setImportError(copy.importFailed); }
+    } catch { setImportPreview(null); setImportError(copy.importFailed); }
   };
   const closeModal = useCallback(() => {
-    if (tempAvatar) setTempAvatar(null);
-    else if (aiDraft) setAiDraft(null);
-    else if (isAiAnalysisOpen) setIsAiAnalysisOpen(false);
+    if (aiDraft) setAiDraft(null);
+    else if (isAiAnalysisOpen) { aiRequest.cancel(); setIsAiAnalysisOpen(false); }
     else if (isExportDialogOpen && !isExporting) setIsExportDialogOpen(false);
     else if (isHistoryOpen) setIsHistoryOpen(false);
-    else if (isImportDialogOpen) setIsImportDialogOpen(false);
-  }, [tempAvatar, aiDraft, isAiAnalysisOpen, isExportDialogOpen, isExporting, isHistoryOpen, isImportDialogOpen]);
-  useModalFocus(Boolean(tempAvatar || aiDraft || isAiAnalysisOpen || isExportDialogOpen || isHistoryOpen || isImportDialogOpen), closeModal, "[data-editor-modal]");
+    else if (isImportDialogOpen) closeImportDialog();
+  }, [aiDraft, isAiAnalysisOpen, isExportDialogOpen, isExporting, isHistoryOpen, isImportDialogOpen, aiRequest.cancel, closeImportDialog]);
+  useModalFocus(Boolean(isAiAnalysisOpen || isExportDialogOpen || isHistoryOpen || isImportDialogOpen), closeModal, "[data-editor-modal]");
   const leaveEditor = () => { if (persistence.flush()) router.push("/dashboard"); };
   const local = (zh: string, en: string) => locale === "en-US" ? en : zh;
+  const renderModulePosition = (module: ModuleItem | undefined) => templateId === "split" && module ?
+    <label className="flex w-full items-center justify-between gap-2 border-t border-zinc-100 pt-2 text-xs text-zinc-500"
+      onClick={event => event.stopPropagation()} onPointerDown={event => event.stopPropagation()}>
+      {local("模块位置", "Position")}
+      <select aria-label={`${module.title} ${local("位置", "position")}`} value={resumeModuleColumn(module)}
+        onChange={event => { const column = event.target.value as "main" | "sidebar"; setModules(previous => previous.map(item => item.id === module.id ? { ...item, column } : item)); }}
+        className="rounded-lg border border-zinc-200 bg-white px-2 py-1">
+        <option value="sidebar">{local("侧栏", "Sidebar")}</option><option value="main">{local("正文", "Main")}</option>
+      </select>
+    </label> : null;
   if (persistence.error || !persistence.ready) return <main className="min-h-screen flex flex-col items-center justify-center gap-4 p-8">
     <p role="status">{persistence.error === "missing" ? local("简历不存在", "Resume not found") : persistence.error ? local("数据读取失败", "Unable to read saved data") : local("加载中", "Loading")}</p>
     {persistence.error && <><button onClick={persistence.reload}>{local("重试", "Retry")}</button><button onClick={() => { try { downloadRawStorage(); } catch { /* Storage itself is unavailable. */ } }}>{local("原始备份", "Recovery data")}</button><button onClick={() => router.push("/dashboard")}>{local("返回列表", "Resume list")}</button></>}
@@ -1194,14 +1139,21 @@ function ResumeEditorContent() {
           "--theme-color": themeColor,
           "--theme-color-5": `${themeColor}0d`, // 5% opacity in hex
           "--theme-color-20": `${themeColor}33`, // 20% opacity in hex
-          "--font-family": typography.fontFamily,
-          "--line-height": typography.lineHeight,
         } as React.CSSProperties
       }
     >
       {/* Head */}
-      <header className="h-[60px] flex items-center justify-between px-6 bg-white border-b border-zinc-200 shadow-sm z-50">
+      <header className="min-h-[60px] shrink-0 flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-6 bg-white border-b border-zinc-200 shadow-sm z-50">
         <div className="flex items-center gap-3">
+          <button type="button" aria-expanded={managerOpen} aria-controls="resume-editor-panel-manage"
+            onClick={() => setManagerOpen(previous => !previous)}
+            className="hidden lg:inline-flex rounded-lg border border-zinc-200 px-3 py-1.5 text-xs text-zinc-600">
+            {managerOpen ? local("收起管理", "Hide panel") : local("展开管理", "Show panel")}
+          </button>
+          <Button variant="outline" size="sm" aria-label={local("撤销", "Undo")} title={local("撤销", "Undo")}
+            disabled={!persistence.canUndo} onClick={persistence.undo}><Undo2 size={16} /></Button>
+          <Button variant="outline" size="sm" aria-label={local("重做", "Redo")} title={local("重做", "Redo")}
+            disabled={!persistence.canRedo} onClick={persistence.redo}><Redo2 size={16} /></Button>
           <button
             onClick={leaveEditor}
             aria-label={local("返回列表", "Resume list")}
@@ -1360,17 +1312,35 @@ function ResumeEditorContent() {
       </header>
 
       {(aiError || aiRequest.pending) && <div role="status" className="no-print flex items-center gap-3 px-4 py-2 text-sm"><span>{aiError || local("处理中", "Processing")}</span>{aiRequest.pending && <button onClick={aiRequest.cancel}>{local("取消请求", "Cancel request")}</button>}<button onClick={() => { if (persistence.flush()) router.push("/dashboard/ai"); }}>{local("AI 设置", "AI settings")}</button></div>}
-      {persistence.status === "failed" && <div role="alert" className="no-print flex items-center gap-3 bg-red-50 px-4 py-2 text-sm text-red-700"><span>{local("保存失败，内容仍在当前页面", "Save failed. Keep this page open.")}</span><button onClick={persistence.flush}>{local("重试", "Retry")}</button><button onClick={exportToJson}>{local("下载备份", "Download backup")}</button><button onClick={() => { try { downloadRawStorage(); } catch { setVersionNotice(local("备份读取失败", "Cannot read recovery data")); } }}>{local("原始备份", "Recovery data")}</button></div>}
+      {persistence.status === "failed" && <div role="alert" className="no-print flex flex-wrap items-center gap-3 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <span>{persistence.conflict === "changed" ? local("其他页面已修改", "Changed in another page") : persistence.conflict === "deleted" ? local("简历已在其他页面删除", "Deleted in another page") : local("保存失败，内容仍在当前页面", "Save failed. Keep this page open.")}</span>
+        {!persistence.conflict && <button onClick={persistence.flush}>{local("重试", "Retry")}</button>}
+        {persistence.conflict === "changed" && <button onClick={() => { setReloadError(null); setIsReloadConfirmOpen(true); }}>{local("读取最新", "Load latest")}</button>}
+        <button onClick={() => { const id = persistence.saveCopy(); if (id) router.push(`/editor?id=${id}`); }}>{local("另存副本", "Save a copy")}</button>
+        <button onClick={exportToJson}>{local("下载备份", "Download backup")}</button>
+        <button onClick={() => { try { downloadRawStorage(); } catch { setVersionNotice(local("备份读取失败", "Cannot read recovery data")); } }}>{local("原始备份", "Recovery data")}</button>
+      </div>}
+      {isReloadConfirmOpen && <Modal title={local("读取最新", "Load latest")} close={() => setIsReloadConfirmOpen(false)} closeLabel={copy.close}>
+        <p className="mb-5 text-sm">{local("将替换当前编辑内容", "This replaces your current edits.")}</p>
+        {reloadError && <p role="alert" className="mb-4 text-sm text-red-600">{reloadError}</p>}
+        <div className="flex flex-wrap justify-end gap-3">
+          <button className="rounded-xl border px-4 py-2 text-sm" onClick={exportToJson}>{local("下载备份", "Download backup")}</button>
+          <button className="rounded-xl border px-4 py-2 text-sm" onClick={() => setIsReloadConfirmOpen(false)}>{copy.cancel}</button>
+          <button className="rounded-xl bg-zinc-900 px-4 py-2 text-sm text-white" onClick={() => { if (persistence.reload()) { setIsReloadConfirmOpen(false); setAiDraft(null); } else setReloadError(local("读取失败，当前内容已保留", "Load failed. Current edits were retained.")); }}>{local("确认替换", "Replace edits")}</button>
+        </div>
+      </Modal>}
       {versionNotice && !isHistoryOpen && <div role="status" className="no-print px-4 py-2 text-sm">{versionNotice}</div>}
       {/* Main Content */}
       <main className="resume-editor-main flex-1 flex flex-col lg:flex-row overflow-hidden relative">
         {/* Column 1: Module Manager - Mobile Toggle */}
         <aside
+          id="resume-editor-panel-manage" data-editor-panel tabIndex={-1} aria-label={copy.mobileManage}
+          data-collapsed={!managerOpen}
           className={cn(
-            "w-full lg:w-[280px] bg-white border-r border-zinc-100 p-4 overflow-y-auto flex-col gap-6 scrollbar-hide absolute inset-0 z-40 lg:relative lg:flex lg:translate-x-0 transition-transform duration-300",
+            "w-full lg:w-[280px] bg-white border-r border-zinc-100 p-4 pb-24 lg:pb-4 overflow-y-auto flex flex-col gap-6 scrollbar-hide absolute inset-0 z-40 lg:relative lg:translate-x-0 lg:visible transition-transform duration-300",
             activeMobileTab === "manage"
-              ? "translate-x-0 flex"
-              : "-translate-x-full lg:translate-x-0",
+              ? "translate-x-0 visible"
+              : "-translate-x-full invisible",
           )}
         >
           <section>
@@ -1378,22 +1348,22 @@ function ResumeEditorContent() {
               <Layout size={14} /> {copy.templateTitle}
             </h3>
             <div className="space-y-2">
-              {RESUME_TEMPLATES.map((template) => (
+              {templateIds.map((id) => (
                 <button
-                  key={template.id}
-                  onClick={() => setTemplateId(template.id)}
+                  key={id}
+                  onClick={() => setTemplateId(id)}
                   className={cn(
                     "w-full rounded-xl border p-3 text-left transition-all",
-                    templateId === template.id
+                    templateId === id
                       ? "border-zinc-900 bg-white shadow-sm"
                       : "border-zinc-200 bg-white/70 hover:border-zinc-300",
                   )}
                 >
                   <div className="flex items-center justify-between gap-3">
                     <span className="text-sm font-bold text-zinc-800">
-                      {copy.templates[template.id].name}
+                      {copy.templates[id]}
                     </span>
-                    {templateId === template.id && (
+                    {templateId === id && (
                       <Check size={14} className="text-emerald-600" />
                     )}
                   </div>
@@ -1409,9 +1379,8 @@ function ResumeEditorContent() {
             </h3>
             <div className="space-y-2 mb-2">
               <Card
-                onClick={() => setActiveTab("basic")}
                 className={cn(
-                  "flex items-center gap-2 cursor-pointer transition-all",
+                  "flex flex-wrap items-center gap-2 transition-all",
                   activeTab === "basic" &&
                     "border-zinc-900 ring-1 ring-zinc-900/5",
                 )}
@@ -1419,12 +1388,13 @@ function ResumeEditorContent() {
                 <div className="w-4 h-4 rounded-sm border border-zinc-200 flex items-center justify-center bg-zinc-50 ml-1">
                   <div className="w-1.5 h-1.5 rounded-full bg-zinc-300" />
                 </div>
-                <span className="text-sm text-zinc-600 flex-1 ml-1">
+                <button type="button" aria-pressed={activeTab === "basic"} onClick={() => openModule("basic")} className="text-sm text-zinc-600 flex-1 ml-1 text-left">
                   {copy.basicInfo}
-                </span>
+                </button>
                 <Badge className="bg-zinc-100 text-zinc-400 font-normal ml-auto">
                   {copy.fixed}
                 </Badge>
+                {renderModulePosition(modules.find(module => module.id === "basic"))}
               </Card>
             </div>
 
@@ -1442,11 +1412,11 @@ function ResumeEditorContent() {
                   <Reorder.Item
                     key={m.id}
                     value={m}
-                    onClick={() => setActiveTab(m.id)}
+                    onClick={() => openModule(m.id)}
                   >
                     <Card
                       className={cn(
-                        "flex items-center gap-2 cursor-pointer transition-all",
+                        "flex flex-wrap items-center gap-2 cursor-pointer transition-all",
                         activeTab === m.id &&
                           "border-zinc-900 ring-1 ring-zinc-900/5",
                         !m.visible && "opacity-50",
@@ -1456,13 +1426,19 @@ function ResumeEditorContent() {
                         size={16}
                         className="text-zinc-400 cursor-grab active:cursor-grabbing"
                       />
-                      <button type="button" onClick={() => setActiveTab(m.id)} className="text-sm text-zinc-600 flex-1 text-left">
+                      <button type="button" aria-pressed={activeTab === m.id} onClick={() => openModule(m.id)} className="text-sm text-zinc-600 flex-1 text-left">
                         {m.title}
                       </button>
                       <div
                         className="flex gap-1"
                         onClick={(e) => e.stopPropagation()}
                       >
+                        <button type="button" aria-label={`${m.title}：${m.pageBreakBefore ? local("取消换页", "Remove page break") : local("另起一页", "Start new page")}`}
+                          aria-pressed={Boolean(m.pageBreakBefore)} title={m.pageBreakBefore ? local("取消换页", "Remove page break") : local("另起一页", "Start new page")}
+                          onClick={() => setModules(previous => previous.map(module => module.id === m.id ? { ...module, pageBreakBefore: !module.pageBreakBefore } : module))}
+                          className={cn("rounded px-1.5 text-xs hover:bg-zinc-100", m.pageBreakBefore ? "bg-emerald-50 text-emerald-700" : "text-zinc-500")}>
+                          {m.pageBreakBefore ? local("取消换页", "Remove break") : local("另起一页", "New page")}
+                        </button>
                         <button aria-label={local("上移", "Move up")} disabled={modules.filter(module => module.id !== "basic")[0]?.id === m.id} onClick={() => setModules(previous => {
                           const items = previous.filter(module => module.id !== "basic");
                           const index = items.findIndex(module => module.id === m.id);
@@ -1488,31 +1464,32 @@ function ResumeEditorContent() {
                           <Trash2 size={14} />
                         </button>
                       </div>
+                      {renderModulePosition(m)}
                     </Card>
                   </Reorder.Item>
                 ))}
             </Reorder.Group>
 
-            <Button
-              variant="outline"
-              className="w-full mt-4 border-dashed border-zinc-300 bg-white hover:bg-zinc-50 flex items-center gap-2"
-              onClick={() => {
-                const id = `custom-${Date.now()}`;
-                setModules((prev) => [
-                  ...prev,
-                  {
-                    id,
-                    title: local("自定义板块", "Custom section"),
-                    visible: true,
-                    type: "custom",
-                    content: "",
-                  },
-                ]);
-                setActiveTab(id);
+            <select
+              aria-label={local("添加模块", "Add section")}
+              className="w-full mt-4 p-2 text-sm rounded-lg border border-dashed border-zinc-300 bg-white"
+              value=""
+              onChange={event => {
+                const choice = event.target.value;
+                if (!choice) return;
+                const module = choice === "custom"
+                  ? { id: `custom-${crypto.randomUUID()}`, title: local("自定义模块", "Custom section"), visible: true, type: "custom" as const, content: "" }
+                  : blankResume(locale).modules.find(item => item.id === choice);
+                if (!module) return;
+                setModules(previous => previous.some(item => item.id === module.id) ? previous : [...previous, module]);
+                openModule(module.id);
               }}
             >
-              <Plus size={14} /> {local("新增模块", "Add section")}
-            </Button>
+              <option value="" disabled>{local("添加模块", "Add section")}</option>
+              {blankResume(locale).modules.filter(module => module.id !== "basic" && !modules.some(item => item.id === module.id)).map(module =>
+                <option key={module.id} value={module.id}>{module.title}</option>)}
+              <option value="custom">{local("自定义模块", "Custom section")}</option>
+            </select>
           </section>
 
           <section>
@@ -1554,126 +1531,17 @@ function ResumeEditorContent() {
             </div>
           </section>
 
-          <section className="space-y-4">
-            <h3 className="text-sm font-semibold text-zinc-900 flex items-center gap-2">
-              <Type size={14} /> {local("排版", "Typography")}
-            </h3>
-            <div className="space-y-4">
-              <div className="space-y-1.5">
-                <label
-                  className="text-xs font-medium text-zinc-500"
-                  htmlFor="font-fam"
-                >
-                  {local("字体", "Font")}
-                </label>
-                <select
-                  id="font-fam"
-                  className="w-full h-9 px-3 rounded-lg border border-zinc-300 bg-white text-sm focus:outline-none focus:ring-1 focus:ring-zinc-400 transition-all font-medium"
-                  aria-label={local("字体", "Font")}
-                  value={typography.fontFamily}
-                  onChange={(e) =>
-                    setTypography((prev) => ({
-                      ...prev,
-                      fontFamily: e.target.value,
-                    }))
-                  }
-                >
-                  <option value={fontFamilies.sans}>{local("黑体", "Sans serif")}</option>
-                  <option value={fontFamilies.serif}>{local("宋体", "Serif")}</option>
-                  <option value={fontFamilies.mono}>{local("等宽", "Monospace")}</option>
-                </select>
-              </div>
-              <div className="space-y-1.5">
-                <div className="flex justify-between items-center">
-                  <label
-                    className="text-xs font-medium text-zinc-500"
-                  >
-                    {local("行距", "Line height")}
-                  </label>
-                </div>
-                <div className="flex items-center gap-3">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-10 h-10 p-0"
-                    onClick={() =>
-                      setTypography((prev) => ({
-                        ...prev,
-                        lineHeight: parseFloat(
-                          Math.max(1, prev.lineHeight - 0.05).toFixed(2),
-                        ),
-                      }))
-                    }
-                  >
-                    <Minus size={14} />
-                  </Button>
-                  <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">
-                    {typography.lineHeight.toFixed(2)}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-10 h-10 p-0"
-                    onClick={() =>
-                      setTypography((prev) => ({
-                        ...prev,
-                        lineHeight: parseFloat(
-                          Math.min(2.5, prev.lineHeight + 0.05).toFixed(2),
-                        ),
-                      }))
-                    }
-                  >
-                    <Plus size={14} />
-                  </Button>
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-xs font-medium text-zinc-500">
-                  {local("主字号 (px)", "Font size (px)")}
-                </label>
-                <div className="flex items-center gap-3">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-10 h-10 p-0"
-                    onClick={() =>
-                      setTypography((prev) => ({
-                        ...prev,
-                        fontSize: Math.max(10, prev.fontSize - 0.5),
-                      }))
-                    }
-                  >
-                    <Minus size={14} />
-                  </Button>
-                  <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">
-                    {typography.fontSize.toFixed(1)}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="w-10 h-10 p-0"
-                    onClick={() =>
-                      setTypography((prev) => ({
-                        ...prev,
-                        fontSize: Math.min(24, prev.fontSize + 0.5),
-                      }))
-                    }
-                  >
-                    <Plus size={14} />
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </section>
+          <TypographyPanel value={typography} onChange={setTypography} />
         </aside>
 
         {/* Column 2: Editor Pane - Mobile Toggle */}
         <aside
+          id="resume-editor-panel-edit" data-editor-panel tabIndex={-1} aria-label={copy.mobileEdit}
           className={cn(
-            "w-full lg:w-[380px] bg-zinc-50/50 border-r border-zinc-200 p-6 overflow-y-auto overflow-x-hidden scrollbar-hide absolute inset-0 z-30 lg:relative lg:block lg:translate-x-0 transition-transform duration-300",
+            "w-full lg:w-[380px] bg-zinc-50/50 border-r border-zinc-200 p-6 pb-24 lg:pb-6 overflow-y-auto overflow-x-hidden scrollbar-hide absolute inset-0 z-30 lg:relative lg:block lg:translate-x-0 lg:visible transition-transform duration-300",
             activeMobileTab === "edit"
-              ? "translate-x-0"
-              : "-translate-x-full lg:translate-x-0",
+              ? "translate-x-0 visible"
+              : "-translate-x-full invisible",
           )}
         >
           <AnimatePresence mode="wait">
@@ -1693,49 +1561,49 @@ function ResumeEditorContent() {
                 </header>
 
                 <section className="space-y-6">
+                  {avatarError && <p role="alert" className="text-sm text-red-600">{avatarError}</p>}
+                  {avatarRead.pending && <div role="status" className="flex gap-3 text-sm"><span>{local("读取中", "Reading")}</span><button type="button" onClick={avatarRead.cancel}>{copy.cancel}</button></div>}
                   <div className="flex items-start gap-6">
-                    <div className="relative group">
-                      <div
-                        className="w-24 bg-white border-2 border-dashed border-zinc-200 flex items-center justify-center overflow-hidden transition-colors group-hover:border-zinc-300 relative"
-                        style={{
-                          height: `${96 / (resumeData.avatarAspect || 1)}px`,
-                          borderRadius: `${resumeData.avatarBorderRadius}px`,
-                        }}
-                      >
-                        {resumeData.avatar ? (
-                          <NextImage
-                            src={resumeData.avatar}
-                            alt="Avatar"
-                            fill
-                            className="object-cover"
-                            unoptimized
-                          />
-                        ) : (
-                          <User size={32} className="text-zinc-300" />
-                        )}
-                      </div>
-                      <label
-                        className="absolute -bottom-2 -right-2 w-8 h-8 bg-zinc-900 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white hover:scale-110 transition-transform cursor-pointer"
-                        title={local("上传头像", "Upload avatar")}
-                      >
-                        <Palette size={14} />
-                        <input
-                          type="file"
-                          className="sr-only"
-                          aria-label={local("头像上传", "Upload avatar")}
-                          accept="image/*"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onerror = () => setVersionNotice(locale === "en-US" ? "Cannot read image." : "图片读取失败");
-                              reader.onload = () => { setCropError(null); setTempAvatar(reader.result as string); };
-                              e.target.value = "";
-                              reader.readAsDataURL(file);
-                            }
+                    <div>
+                      <div className="relative group">
+                        <div
+                          className="w-24 bg-white border-2 border-dashed border-zinc-200 flex items-center justify-center overflow-hidden transition-colors group-hover:border-zinc-300 relative"
+                          style={{
+                            height: `${96 / (resumeData.avatarAspect || 1)}px`,
+                            borderRadius: `${resumeData.avatarBorderRadius}px`,
                           }}
-                        />
-                      </label>
+                        >
+                          {resumeData.avatar ? (
+                            <NextImage
+                              src={resumeData.avatar}
+                              alt={local("头像", "Avatar")}
+                              fill
+                              className="object-cover"
+                              unoptimized
+                            />
+                          ) : (
+                            <User size={32} className="text-zinc-300" />
+                          )}
+                        </div>
+                        <label
+                          className="absolute -bottom-2 -right-2 w-8 h-8 bg-zinc-900 text-white rounded-full flex items-center justify-center shadow-lg border-2 border-white hover:scale-110 transition-transform cursor-pointer focus-within:ring-2 focus-within:ring-emerald-500"
+                          title={local("上传头像", "Upload avatar")}
+                        >
+                          <Palette size={14} />
+                          <input
+                            type="file"
+                            className="sr-only"
+                            aria-label={local("头像上传", "Upload avatar")}
+                            accept="image/*"
+                            onChange={event => {
+                              const file = event.target.files?.[0];
+                              event.target.value = "";
+                              if (file) void handleAvatarUpload(file);
+                            }}
+                          />
+                        </label>
+                      </div>
+                      {resumeData.avatar && <button type="button" onClick={() => { avatarRead.cancel(); setTempAvatar(null); setAvatarError(""); setResumeData(previous => ({ ...previous, avatar: "" })); }} className="mt-3 text-xs text-red-600">{local("删除头像", "Remove avatar")}</button>}
                     </div>
                     <div className="flex-1 space-y-5">
                       <div className="flex items-center gap-3">
@@ -1883,7 +1751,7 @@ function ResumeEditorContent() {
 
                     <Button
                       onClick={() => {
-                        const id = `contact-${Date.now()}`;
+                        const id = `contact-${crypto.randomUUID()}`;
                         setResumeData((prev) => ({
                           ...prev,
                           contacts: [
@@ -1963,6 +1831,7 @@ function ResumeEditorContent() {
             {activeTab === "edu" && (
               <motion.div
                 key="edu"
+                data-entry-list="edu"
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 10 }}
@@ -1974,47 +1843,47 @@ function ResumeEditorContent() {
                   </div>
                   <h2 className="text-xl font-bold tracking-tight">{local("教育背景", "Education")}</h2>
                 </header>
-                {resumeData.education.map((item) => (
+                {resumeData.education.map((item, index) => (
                   <Card
                     key={item.id}
-                    className="relative group p-4 border-dashed border-zinc-200 space-y-3"
+                    className="p-4 border-dashed border-zinc-200 space-y-3"
                   >
-                    <button
-                      onClick={() => deleteItem("edu", item.id)}
-                      className="absolute top-2 right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity border border-red-100 shadow-sm z-10"
-                      title={local("移除", "Remove")}
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                    <Input
-                      label={local("学校名称", "School")}
-                      placeholder={local("例如：五邑大学", "University")}
-                      value={item.school}
-                      onChange={(e) =>
-                        updateListItem("edu", item.id, "school", e.target.value)
-                      }
-                    />
-                    <Input
-                      label={local("专业科目", "Major")}
-                      placeholder={local("例如：通信工程", "Major")}
-                      value={item.major}
-                      onChange={(e) =>
-                        updateListItem("edu", item.id, "major", e.target.value)
-                      }
-                    />
-                    <Input
-                      label={local("就读时间", "Dates")}
-                      placeholder={local("例如：2022 - 2026", "2022 - 2026")}
-                      value={item.date}
-                      onChange={(e) =>
-                        updateListItem("edu", item.id, "date", e.target.value)
-                      }
-                    />
+                    <ResumeEntryActions id={item.id} label={`${item.school.trim() || local("教育", "Education")} · ${index + 1}`}
+                      index={index} count={resumeData.education.length} collapsed={isEntryCollapsed("edu", item.id)}
+                      bodyId={`resume-edu-${index}-fields`} onToggle={() => toggleEntry("edu", item.id)}
+                      onAction={(action, trigger) => handleEntryAction("edu", item.id, action, trigger)} />
+                    <div id={`resume-edu-${index}-fields`} hidden={isEntryCollapsed("edu", item.id)} className="space-y-3">
+                      <Input
+                        label={local("学校名称", "School")}
+                        placeholder={local("例如：五邑大学", "University")}
+                        value={item.school}
+                        onChange={(e) =>
+                          updateListItem("edu", item.id, "school", e.target.value)
+                        }
+                      />
+                      <Input
+                        label={local("专业科目", "Major")}
+                        placeholder={local("例如：通信工程", "Major")}
+                        value={item.major}
+                        onChange={(e) =>
+                          updateListItem("edu", item.id, "major", e.target.value)
+                        }
+                      />
+                      <Input
+                        label={local("就读时间", "Dates")}
+                        placeholder={local("例如：2022 - 2026", "2022 - 2026")}
+                        value={item.date}
+                        onChange={(e) =>
+                          updateListItem("edu", item.id, "date", e.target.value)
+                        }
+                      />
+                    </div>
                   </Card>
                 ))}
                 <Button
                   variant="outline"
                   className="w-full border-dashed"
+                  data-add-entry
                   onClick={() => addItem("edu")}
                 >
                   {local("+ 新增教育", "Add education")}
@@ -2025,6 +1894,7 @@ function ResumeEditorContent() {
             {activeTab === "work" && (
               <motion.div
                 key="work"
+                data-entry-list="work"
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 10 }}
@@ -2036,86 +1906,72 @@ function ResumeEditorContent() {
                   </div>
                   <h2 className="text-xl font-bold tracking-tight">{local("工作经历", "Work experience")}</h2>
                 </header>
-                {resumeData.workExperiences.map((item) => (
+                {resumeData.workExperiences.map((item, index) => (
                   <Card
                     key={item.id}
-                    className="relative group p-4 border-dashed border-zinc-200 space-y-3"
+                    className="p-4 border-dashed border-zinc-200 space-y-3"
                   >
-                    <button
-                      onClick={() => deleteItem("work", item.id)}
-                      className="absolute top-2 right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity border border-red-100 shadow-sm z-10"
-                      title={local("移除", "Remove")}
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                    <Input
-                      label={local("公司名称", "Company")}
-                      placeholder={local("例如：青椒实验室", "Company")}
-                      value={item.company}
-                      onChange={(e) =>
-                        updateListItem(
-                          "work",
-                          item.id,
-                          "company",
-                          e.target.value,
-                        )
-                      }
-                    />
-                    <Input
-                      label={local("职位", "Role")}
-                      placeholder={local("例如：高级前端开发", "Role")}
-                      value={item.role}
-                      onChange={(e) =>
-                        updateListItem("work", item.id, "role", e.target.value)
-                      }
-                    />
-                    <Input
-                      label={local("在职期间", "Dates")}
-                      placeholder={local("例如：2020 - 至今", "2020 - Present")}
-                      value={item.date}
-                      onChange={(e) =>
-                        updateListItem("work", item.id, "date", e.target.value)
-                      }
-                    />
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-zinc-500">
-                        {local("工作成果", "Responsibilities and outcomes")}
-                      </label>
-                      <textarea
-                        placeholder={local("请详细描述您的关键成果...", "Describe your actual responsibilities and outcomes")}
-                        className="w-full h-32 p-3 text-sm border border-zinc-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
-                        value={item.desc}
+                    <ResumeEntryActions id={item.id} label={`${item.company.trim() || local("工作", "Work")} · ${index + 1}`}
+                      index={index} count={resumeData.workExperiences.length} collapsed={isEntryCollapsed("work", item.id)}
+                      bodyId={`resume-work-${index}-fields`} onToggle={() => toggleEntry("work", item.id)}
+                      onAction={(action, trigger) => handleEntryAction("work", item.id, action, trigger)} />
+                    <div id={`resume-work-${index}-fields`} hidden={isEntryCollapsed("work", item.id)} className="space-y-3">
+                      <Input
+                        label={local("公司名称", "Company")}
+                        placeholder={local("例如：青椒实验室", "Company")}
+                        value={item.company}
                         onChange={(e) =>
                           updateListItem(
                             "work",
                             item.id,
-                            "desc",
+                            "company",
                             e.target.value,
                           )
                         }
                       />
-                      {renderAiActions({
-                        text: item.desc,
-                        target: { type: "work", id: item.id },
-                        context: local("工作成果", "Work outcomes"),
-                      })}
-                      {renderGenerateButton({
-                        target: { type: "work", id: item.id },
-                        context: local("工作经历", "Work experience"),
-                        payload: {
-                          type: "work",
-                          company: item.company,
-                          role: item.role,
-                          date: item.date,
-                          skills: resumeData.skills,
-                        },
-                      })}
+                      <Input
+                        label={local("职位", "Role")}
+                        placeholder={local("例如：高级前端开发", "Role")}
+                        value={item.role}
+                        onChange={(e) =>
+                          updateListItem("work", item.id, "role", e.target.value)
+                        }
+                      />
+                      <Input
+                        label={local("在职期间", "Dates")}
+                        placeholder={local("例如：2020 - 至今", "2020 - Present")}
+                        value={item.date}
+                        onChange={(e) =>
+                          updateListItem("work", item.id, "date", e.target.value)
+                        }
+                      />
+                      <div className="space-y-1.5">
+                        <DescriptionEditor id={`work-description-${item.id}`} label={local("工作成果", "Responsibilities and outcomes")}
+                          value={item.desc} onChange={value => updateListItem("work", item.id, "desc", value)} />
+                        {renderAiActions({
+                          text: item.desc,
+                          target: { type: "work", id: item.id },
+                          context: local("工作成果", "Work outcomes"),
+                        })}
+                        {renderGenerateButton({
+                          target: { type: "work", id: item.id },
+                          context: local("工作经历", "Work experience"),
+                          payload: {
+                            type: "work",
+                            company: item.company,
+                            role: item.role,
+                            date: item.date,
+                            skills: resumeData.skills,
+                          },
+                        })}
+                      </div>
                     </div>
                   </Card>
                 ))}
                 <Button
                   variant="outline"
                   className="w-full border-dashed"
+                  data-add-entry
                   onClick={() => addItem("work")}
                 >
                   {local("+ 新增经历", "Add experience")}
@@ -2126,6 +1982,7 @@ function ResumeEditorContent() {
             {activeTab === "project" && (
               <motion.div
                 key="project"
+                data-entry-list="project"
                 initial={{ opacity: 0, x: -10 }}
                 animate={{ opacity: 1, x: 0 }}
                 exit={{ opacity: 0, x: 10 }}
@@ -2137,96 +1994,88 @@ function ResumeEditorContent() {
                   </div>
                   <h2 className="text-xl font-bold tracking-tight">{local("项目经验", "Projects")}</h2>
                 </header>
-                {resumeData.projects.map((item) => (
+                {resumeData.projects.map((item, index) => (
                   <Card
                     key={item.id}
-                    className="relative group p-4 border-dashed border-zinc-200 space-y-3"
+                    className="p-4 border-dashed border-zinc-200 space-y-3"
                   >
-                    <button
-                      onClick={() => deleteItem("project", item.id)}
-                      className="absolute top-2 right-2 w-6 h-6 bg-red-50 text-red-500 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 transition-opacity border border-red-100 shadow-sm z-10"
-                      title={local("移除项目", "Remove project")}
-                    >
-                      <Trash2 size={12} />
-                    </button>
-                    <Input
-                      label={local("项目名称", "Project name")}
-                      placeholder={local("例如：青椒简历编辑器", "Project name")}
-                      value={item.name}
-                      onChange={(e) =>
-                        updateListItem(
-                          "project",
-                          item.id,
-                          "name",
-                          e.target.value,
-                        )
-                      }
-                    />
-                    <Input
-                      label={local("职责", "Role")}
-                      placeholder={local("例如：核心开发", "Role")}
-                      value={item.role}
-                      onChange={(e) =>
-                        updateListItem(
-                          "project",
-                          item.id,
-                          "role",
-                          e.target.value,
-                        )
-                      }
-                    />
-                    <Input
-                      label={local("项目时间", "Dates")}
-                      placeholder={local("例如：2023.01 - 至今", "2023.01 - Present")}
-                      value={item.date}
-                      onChange={(e) =>
-                        updateListItem(
-                          "project",
-                          item.id,
-                          "date",
-                          e.target.value,
-                        )
-                      }
-                    />
-                    <div className="space-y-1.5">
-                      <label className="text-xs font-medium text-zinc-500">
-                        {local("项目成果", "Project outcomes")}
-                      </label>
-                      <textarea
-                        placeholder={local("请描述该项目的核心技术亮点...", "Describe your actual project outcomes")}
-                        className="w-full h-32 p-3 text-sm border border-zinc-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white"
-                        value={item.desc}
+                    <ResumeEntryActions id={item.id} label={`${item.name.trim() || local("项目", "Project")} · ${index + 1}`}
+                      index={index} count={resumeData.projects.length} collapsed={isEntryCollapsed("project", item.id)}
+                      bodyId={`resume-project-${index}-fields`} onToggle={() => toggleEntry("project", item.id)}
+                      onAction={(action, trigger) => handleEntryAction("project", item.id, action, trigger)} />
+                    <div id={`resume-project-${index}-fields`} hidden={isEntryCollapsed("project", item.id)} className="space-y-3">
+                      <Input
+                        label={local("项目名称", "Project name")}
+                        placeholder={local("例如：青椒简历编辑器", "Project name")}
+                        value={item.name}
                         onChange={(e) =>
                           updateListItem(
                             "project",
                             item.id,
-                            "desc",
+                            "name",
                             e.target.value,
                           )
                         }
                       />
-                      {renderAiActions({
-                        text: item.desc,
-                        target: { type: "project", id: item.id },
-                        context: local("项目成果", "Project outcomes"),
-                      })}
-                      {renderGenerateButton({
-                        target: { type: "project", id: item.id },
-                        context: local("项目经验", "Projects"),
-                        payload: {
-                          type: "project",
-                          projectName: item.name,
-                          role: item.role,
-                          date: item.date,
-                          skills: resumeData.skills,
-                        },
-                      })}
+                      <Input
+                        label={local("职责", "Role")}
+                        placeholder={local("例如：核心开发", "Role")}
+                        value={item.role}
+                        onChange={(e) =>
+                          updateListItem(
+                            "project",
+                            item.id,
+                            "role",
+                            e.target.value,
+                          )
+                        }
+                      />
+                      <Input
+                        label={local("项目时间", "Dates")}
+                        placeholder={local("例如：2023.01 - 至今", "2023.01 - Present")}
+                        value={item.date}
+                        onChange={(e) =>
+                          updateListItem(
+                            "project",
+                            item.id,
+                            "date",
+                            e.target.value,
+                          )
+                        }
+                      />
+                      <Input
+                        label={local("项目链接", "Project link")}
+                        type="url"
+                        value={item.link || ""}
+                        onChange={event => updateListItem("project", item.id, "link", event.target.value)}
+                      />
+                      <div className="space-y-1.5">
+                        <DescriptionEditor id={`project-description-${item.id}`} label={local("项目成果", "Project outcomes")}
+                          value={item.desc} onChange={value => updateListItem("project", item.id, "desc", value)} />
+                        {renderAiActions({
+                          text: item.desc,
+                          target: { type: "project", id: item.id },
+                          context: local("项目成果", "Project outcomes"),
+                        })}
+                        {renderGenerateButton({
+                          target: { type: "project", id: item.id },
+                          context: local("项目经验", "Projects"),
+                          payload: {
+                            type: "project",
+                            projectName: item.name,
+                            role: item.role,
+                            date: item.date,
+                            skills: resumeData.skills,
+                          },
+                        })}
+                      </div>
                     </div>
                   </Card>
                 ))}
                 <Button
                   variant="outline"
                   className="w-full border-dashed"
+                  data-add-entry
                   onClick={() => addItem("project")}
                 >
                   {local("+ 新增项目", "Add project")}
@@ -2249,10 +2098,10 @@ function ResumeEditorContent() {
                   <h2 className="text-xl font-bold tracking-tight">{local("专业技能", "Skills")}</h2>
                 </header>
                 <div className="space-y-3">
-                  <label className="text-xs font-medium text-zinc-500">
+                  <label htmlFor="resume-skills" className="text-xs font-medium text-zinc-500">
                     {local("技能清单 (逗号分隔)", "Skills (comma separated)")}
                   </label>
-                  <textarea
+                  <textarea id="resume-skills"
                     className="w-full h-48 p-4 text-sm border border-zinc-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white leading-relaxed font-mono transition-colors"
                     value={resumeData.skills.join(", ")}
                     onChange={(e) => updateSkills(e.target.value)}
@@ -2310,7 +2159,7 @@ function ResumeEditorContent() {
                             ...prev,
                             skillTagRadius: Math.max(
                               0,
-                              (prev.skillTagRadius || 6) - 2,
+                              (prev.skillTagRadius ?? 6) - 2,
                             ),
                           }))
                         }
@@ -2318,7 +2167,7 @@ function ResumeEditorContent() {
                         <Minus size={14} />
                       </Button>
                       <div className="flex-1 h-10 bg-zinc-50 border border-zinc-100 rounded-lg flex items-center justify-center font-mono text-sm">
-                        {typography.skillTagRadius || 6}
+                        {typography.skillTagRadius ?? 6}
                       </div>
                       <Button
                         size="sm"
@@ -2329,7 +2178,7 @@ function ResumeEditorContent() {
                             ...prev,
                             skillTagRadius: Math.min(
                               32,
-                              (prev.skillTagRadius || 6) + 2,
+                              (prev.skillTagRadius ?? 6) + 2,
                             ),
                           }))
                         }
@@ -2434,27 +2283,9 @@ function ResumeEditorContent() {
                   />
 
                   <div className="space-y-1.5">
-                    <label className="text-xs font-medium text-zinc-500">
-                      {local("模块内容", "Section content")}
-                    </label>
-                    <textarea
-                      aria-label={local("模块内容", "Section content")}
-                      className="w-full h-96 p-4 text-sm border border-zinc-300 rounded-xl focus:outline-none focus:ring-1 focus:ring-zinc-400 bg-white leading-relaxed font-mono"
-                      placeholder={local("在这里输入内容...", "Enter content")}
-                      value={
-                        modules.find((m) => m.id === activeTab)?.content || ""
-                      }
-                      onChange={(e) => {
-                        const newContent = e.target.value;
-                        setModules((prev) =>
-                          prev.map((mod) =>
-                            mod.id === activeTab
-                              ? { ...mod, content: newContent }
-                              : mod,
-                          ),
-                        );
-                      }}
-                    />
+                    <DescriptionEditor id={`section-content-${activeTab}`} label={local("模块内容", "Section content")} rows={12}
+                      value={modules.find(module => module.id === activeTab)?.content || ""}
+                      onChange={content => setModules(previous => previous.map(module => module.id === activeTab ? { ...module, content } : module))} />
                   </div>
                 </div>
               </motion.div>
@@ -2462,96 +2293,10 @@ function ResumeEditorContent() {
           </AnimatePresence>
         </aside>
 
-        {/* 第 3 列：预览区 - 在移动端根据 Tab 状态切换可见性 */}
-        <section
-          data-preview-section
-          className={cn(
-            "flex-1 bg-zinc-100 flex flex-col relative overflow-hidden group absolute inset-0 z-20 lg:relative lg:flex lg:translate-x-0 transition-transform duration-300",
-            activeMobileTab === "preview"
-              ? "translate-x-0"
-              : "translate-x-full lg:translate-x-0",
-          )}
-        >
-          <p className="no-print absolute bottom-5 left-5 z-30 rounded-lg bg-white px-3 py-2 text-xs text-zinc-500">{local(`约 ${numPages} 页`, `About ${numPages} pages`)}</p>
-          {/* 右侧悬浮预览工具栏：缩放控制、自适应 */}
-          <div className="absolute right-6 top-1/2 -translate-y-1/2 z-30 flex flex-col gap-2 bg-white/90 backdrop-blur-md p-1.5 rounded-2xl border border-zinc-200 shadow-xl opacity-0 group-hover:opacity-100 transition-all duration-300 translate-x-4 group-hover:translate-x-0">
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setZoomScale((prev) => Math.min(1.5, prev + 0.1))}
-              className="w-10 h-10 hover:bg-zinc-100 rounded-xl"
-              title={local("放大", "Zoom in")}
-            >
-              <Plus size={18} />
-            </Button>
-            <div className="h-10 flex items-center justify-center text-[10px] font-bold text-zinc-500 border-y border-zinc-100">
-              {Math.round(zoomScale * 100)}%
-            </div>
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={() => setZoomScale((prev) => Math.max(0.4, prev - 0.1))}
-              className="w-10 h-10 hover:bg-zinc-100 rounded-xl"
-              title={local("缩小", "Zoom out")}
-            >
-              <Minus size={18} />
-            </Button>
-            <div className="w-full h-px bg-zinc-100 my-1" />
-            <Button
-              variant="ghost"
-              size="icon"
-              onClick={autoFit}
-              className="w-10 h-10 hover:bg-zinc-100 rounded-xl text-zinc-500"
-              title={local("自适应宽度", "Fit width")}
-            >
-              <Maximize size={18} />
-            </Button>
-          </div>
-
-          <div
-            data-preview-container
-            ref={previewContainerRef}
-            className={cn(
-              "flex-1 overflow-auto p-12 pb-32 scrollbar-hide bg-zinc-200/50 select-none transition-colors",
-              isPanning ? "cursor-grabbing bg-zinc-300/30" : "cursor-grab",
-            )}
-            onMouseDown={(e) => {
-              if (previewContainerRef.current) {
-                setIsPanning(true);
-                scrollStart.current = {
-                  scrollLeft: previewContainerRef.current.scrollLeft,
-                  scrollTop: previewContainerRef.current.scrollTop,
-                  x: e.clientX,
-                  y: e.clientY,
-                };
-              }
-            }}
-            onMouseMove={(e) => {
-              if (isPanning && previewContainerRef.current) {
-                e.preventDefault();
-                const x = e.clientX - scrollStart.current.x;
-                const y = e.clientY - scrollStart.current.y;
-                previewContainerRef.current.scrollLeft =
-                  scrollStart.current.scrollLeft - x;
-                previewContainerRef.current.scrollTop =
-                  scrollStart.current.scrollTop - y;
-              }
-            }}
-            onMouseUp={() => setIsPanning(false)}
-            onMouseLeave={() => setIsPanning(false)}
-          >
-            <div className="resume-preview-center min-w-full min-h-full flex justify-center">
-              <div className="resume-preview-sizing relative" style={{ width: `${PAPER_WIDTH * zoomScale}px`, minHeight: `${documentHeight * zoomScale}px` }}>
-                <div className="resume-preview-scale" style={{ transform: `scale(${zoomScale})`, transformOrigin: "top left", width: PAPER_WIDTH }}>
-                  <ResumeDocument ref={resumeContentRef} config={resumeConfig} pageGuides avatarAlt={local("头像", "Avatar")} />
-                </div>
-              </div>
-            </div>
-          </div>
-        </section>
+        <EditorPreview ref={resumeContentRef} config={resumeConfig} active={activeMobileTab === "preview"} onPagesChange={setNumPages} onEditModule={openModuleFromPreview} />
         {/* 移动端底部切换导航栏 */}
-        <div className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 h-14 bg-zinc-900/90 backdrop-blur-md rounded-2xl flex items-center px-2 gap-1 border border-white/10 shadow-2xl z-[100]">
-          <button
+        <nav aria-label={local("编辑视图", "Editor views")} className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 h-14 bg-zinc-900/90 backdrop-blur-md rounded-2xl flex items-center px-2 gap-1 border border-white/10 shadow-2xl z-[100]">
+          <button type="button" aria-pressed={activeMobileTab === "manage"} aria-controls="resume-editor-panel-manage"
             onClick={() => setActiveMobileTab("manage")}
             className={cn(
               "flex flex-col items-center justify-center gap-1 w-16 h-10 rounded-xl transition-all",
@@ -2563,7 +2308,7 @@ function ResumeEditorContent() {
             <Settings2 size={16} />
             <span className="text-[10px] font-bold">{copy.mobileManage}</span>
           </button>
-          <button
+          <button type="button" aria-pressed={activeMobileTab === "edit"} aria-controls="resume-editor-panel-edit"
             onClick={() => setActiveMobileTab("edit")}
             className={cn(
               "flex flex-col items-center justify-center gap-1 w-16 h-10 rounded-xl transition-all",
@@ -2575,7 +2320,7 @@ function ResumeEditorContent() {
             <User size={16} />
             <span className="text-[10px] font-bold">{copy.mobileEdit}</span>
           </button>
-          <button
+          <button type="button" aria-pressed={activeMobileTab === "preview"} aria-controls="resume-editor-panel-preview"
             onClick={() => setActiveMobileTab("preview")}
             className={cn(
               "flex flex-col items-center justify-center gap-1 w-20 h-10 rounded-xl transition-all",
@@ -2587,7 +2332,7 @@ function ResumeEditorContent() {
             <Eye size={16} />
             <span className="text-[10px] font-bold">{copy.mobilePreview}</span>
           </button>
-        </div>
+        </nav>
       </main>
 
       {/* 数据导入弹窗 */}
@@ -2615,7 +2360,7 @@ function ResumeEditorContent() {
                   </p>
                 </div>
                 <button
-                  onClick={() => setIsImportDialogOpen(false)}
+                  onClick={closeImportDialog}
                   className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
                   title={copy.close}
                 >
@@ -2624,6 +2369,7 @@ function ResumeEditorContent() {
               </div>
 
               <div className="flex-1 space-y-5 overflow-y-auto p-6">
+                {importPending && <p role="status" className="text-sm">{local("读取中", "Reading")}</p>}
                 <Button
                   variant="outline"
                   className="h-11 w-full gap-2"
@@ -2650,6 +2396,7 @@ function ResumeEditorContent() {
                     placeholder={copy.importTextPlaceholder}
                     value={importText}
                     onChange={(event) => {
+                      cancelImportRead();
                       setImportText(event.target.value);
                       setImportPreview(null);
                       setImportError(null);
@@ -2657,7 +2404,7 @@ function ResumeEditorContent() {
                   />
                 </div>
 
-                {importPreview && <div className="space-y-3"><p className="text-sm font-bold">{local("导入预览", "Import preview")}: {importPreview.source}</p><div className="max-h-72 overflow-auto rounded-xl border"><div style={{ width: PAPER_WIDTH, zoom: 0.65 }}><ResumeDocument config={importPreview.config} /></div></div>{importPreview.unrecognized.length > 0 && <div><p>{local("未识别内容", "Unrecognized content")}</p><pre className="whitespace-pre-wrap text-sm">{importPreview.unrecognized.join("\n")}</pre></div>}<button onClick={() => setImportPreview(null)}>{local("重新解析", "Parse again")}</button></div>}
+                {importPreview && <div className="space-y-3"><p className="text-sm font-bold">{local("导入预览", "Import preview")}: {importPreview.source}</p><div className="max-h-72 overflow-auto rounded-xl border"><ResumePreview config={importPreview.config} /></div>{importPreview.unrecognized.length > 0 && <div><p>{local("未识别内容", "Unrecognized content")}</p><pre className="whitespace-pre-wrap text-sm">{importPreview.unrecognized.join("\n")}</pre></div>}<button onClick={() => { cancelImportRead(); setImportPreview(null); setImportError(null); }}>{local("重新解析", "Parse again")}</button></div>}
                 {importError && (
                   <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-medium text-red-600">
                     {importError}
@@ -2669,11 +2416,11 @@ function ResumeEditorContent() {
                 <Button
                   variant="secondary"
                   className="h-11"
-                  onClick={() => setIsImportDialogOpen(false)}
+                  onClick={closeImportDialog}
                 >
                   {copy.cancel}
                 </Button>
-                <Button className="h-11 gap-2" onClick={applyTextImport}>
+                <Button className="h-11 gap-2" disabled={importPending} onClick={applyTextImport}>
                   <Rocket size={16} />
                   {importPreview ? local("确认替换", "Replace content") : local("解析文本", "Parse text")}
                 </Button>
@@ -2876,7 +2623,7 @@ function ResumeEditorContent() {
               initial={{ opacity: 0, scale: 0.96, y: 16 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.96, y: 16 }}
-              className="w-full max-w-5xl overflow-hidden rounded-2xl bg-white shadow-2xl"
+              className="max-h-[90dvh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
             >
               <div className="flex items-center justify-between border-b border-zinc-100 p-6">
                 <div className="flex items-center gap-4">
@@ -2893,7 +2640,7 @@ function ResumeEditorContent() {
                   </div>
                 </div>
                 <button
-                  onClick={() => setIsAiAnalysisOpen(false)}
+                  onClick={() => { aiRequest.cancel(); setIsAiAnalysisOpen(false); }}
                   className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
                   title={copy.close}
                 >
@@ -2934,6 +2681,7 @@ function ResumeEditorContent() {
                       <Award size={15} /> {copy.resumeScore}
                     </Button>
                   </div>
+                  {aiRequest.pending && <Button type="button" variant="outline" className="w-full" onClick={aiRequest.cancel}>{local("取消请求", "Cancel request")}</Button>}
                   {aiError && (
                     <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-medium text-red-600">
                       {aiError}
@@ -2963,198 +2711,24 @@ function ResumeEditorContent() {
         )}
       </AnimatePresence>
 
-      {/* AI Optimize Modal */}
+      {/* AI suggestion review */}
       <AnimatePresence>
-        {aiDraft && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            data-editor-modal role="dialog" aria-modal="true" aria-label={copy.aiOptimizeTitle} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4"
-          >
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96, y: 16 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.96, y: 16 }}
-              className="w-full max-w-4xl overflow-hidden rounded-2xl bg-white shadow-2xl"
-            >
-              <div className="flex items-center justify-between border-b border-zinc-100 p-6">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                    <Sparkles size={22} />
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-bold text-zinc-900">
-                      {copy.aiOptimizeTitle}
-                    </h3>
-                    <p className="text-xs font-medium text-zinc-400">
-                      {aiDraft.context}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setAiDraft(null)}
-                  className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-400 transition-colors hover:bg-zinc-50 hover:text-zinc-900"
-                  title={copy.close}
-                >
-                  <X size={18} />
-                </button>
-              </div>
-
-              <div className="grid gap-4 p-6 md:grid-cols-2">
-                <div className="space-y-2">
-                  <div className="text-xs font-bold uppercase tracking-widest text-zinc-400">
-                    {copy.originalText}
-                  </div>
-                  <div className="h-72 overflow-auto whitespace-pre-wrap rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm leading-relaxed text-zinc-500">
-                    {aiDraft.sourceText}
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="text-xs font-bold uppercase tracking-widest text-emerald-600">
-                    {copy.optimizedText}
-                  </div>
-                  <div className="h-72 overflow-auto whitespace-pre-wrap rounded-xl border border-emerald-100 bg-emerald-50/40 p-4 text-sm leading-relaxed text-zinc-800">
-                    {aiDraft.result}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex flex-col-reverse gap-3 border-t border-zinc-100 bg-zinc-50/60 p-6 sm:flex-row sm:justify-end">
-                <Button
-                  variant="outline"
-                  className="h-11"
-                  onClick={() => setAiDraft(null)}
-                >
-                  {copy.keepOriginal}
-                </Button>
-                {sourceSignature(aiDraft.target, aiDraft.kind) !== aiDraft.sourceSignature && <p role="status" className="text-sm text-amber-700">{local("原文已变化，请重新生成", "The original changed. Generate a new draft.")}</p>}
-                {aiError && <p role="alert" className="text-sm text-red-600">{aiError}</p>}
-                <Button className="h-11 gap-2" disabled={sourceSignature(aiDraft.target, aiDraft.kind) !== aiDraft.sourceSignature} onClick={applyAiDraft}>
-                  <Check size={16} /> {copy.applyResult}
-                </Button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
+        {aiDraft && <AIReviewDialog
+          original={aiDraft.sourceText}
+          suggestion={aiDraft.result}
+          context={aiDraft.context}
+          stale={sourceSignature(aiDraft.target, aiDraft.kind) !== aiDraft.sourceSignature}
+          error={aiError}
+          onChange={result => setAiDraft(current => current ? { ...current, result } : null)}
+          onApply={applyAiDraft}
+          onClose={() => setAiDraft(null)}
+        />}
       </AnimatePresence>
 
-      {/* Avatar Crop Modal */}
       <AnimatePresence>
-        {tempAvatar && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            data-editor-modal role="dialog" aria-modal="true" aria-label={local("头像裁剪", "Crop avatar")} className="fixed inset-0 z-[100] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4"
-          >
-            <div className="bg-white w-full max-w-2xl rounded-2xl overflow-hidden shadow-2xl flex flex-col animate-in slide-in-from-bottom-8">
-              <div className="p-6 border-b border-zinc-100 flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-zinc-50 rounded-xl flex items-center justify-center text-zinc-600">
-                    <Palette size={24} />
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold text-zinc-900">
-                      {local("头像裁剪", "Crop avatar")}
-                    </h3>
-                    <p className="text-sm text-zinc-500">
-                      {local("调整裁剪范围", "Adjust crop area")}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setTempAvatar(null)}
-                  className="w-10 h-10 flex items-center justify-center hover:bg-zinc-50 rounded-full text-zinc-400 transition-colors"
-                  title={copy.close}
-                >
-                  <X size={20} />
-                </button>
-              </div>
-
-              {cropError && <p role="alert" className="px-6 text-sm text-red-600">{cropError}</p>}
-              <div className="h-[400px] relative bg-zinc-900">
-                <Cropper
-                  image={tempAvatar || ""}
-                  crop={crop}
-                  zoom={zoom}
-                  aspect={aspect}
-                  onCropChange={setCrop}
-                  onZoomChange={setZoom}
-                  onCropComplete={onCropComplete}
-                />
-              </div>
-
-              <div className="p-6 bg-white border-t border-zinc-100 flex flex-col gap-6">
-                {/* 比例选择 */}
-                <div className="space-y-3">
-                  <label className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
-                    {local("宽高比", "Aspect ratio")}
-                  </label>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      { label: local("1:1 正方形", "1:1 Square"), value: 1 },
-                      { label: local("3:4 竖向", "3:4 Portrait"), value: 3 / 4 },
-                      { label: local("4:3 横向", "4:3 Landscape"), value: 4 / 3 },
-                    ].map((r) => (
-                      <button
-                        key={r.value}
-                        onClick={() => setAspect(r.value)}
-                        className={cn(
-                          "py-2 px-3 rounded-lg border text-sm font-medium transition-all",
-                          aspect === r.value
-                            ? "bg-zinc-900 text-white border-zinc-900 shadow-lg"
-                            : "bg-white text-zinc-600 border-zinc-200 hover:border-zinc-300",
-                        )}
-                      >
-                        {r.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center justify-between text-xs font-bold text-zinc-400 uppercase tracking-widest">
-                    <span>{local("缩放", "Zoom")}</span>
-                    <span>{Math.round(zoom * 100)}%</span>
-                  </div>
-                  <div className="flex items-center gap-4">
-                    <Minus size={16} className="text-zinc-400" />
-                    <input
-                      type="range"
-                      value={zoom}
-                      min={1}
-                      max={3}
-                      step={0.1}
-                      aria-label={local("缩放", "Zoom")}
-                      className="flex-1 h-1.5 bg-zinc-100 rounded-lg appearance-none accent-zinc-900 cursor-pointer"
-                      onChange={(e) => setZoom(Number(e.target.value))}
-                      title={local("调节大小", "Adjust zoom")}
-                    />
-                    <Plus size={16} className="text-zinc-400" />
-                  </div>
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1 h-12"
-                    onClick={() => setTempAvatar(null)}
-                  >
-                    {copy.backToEdit}
-                  </Button>
-                  <Button
-                    variant="primary"
-                    className="flex-2 h-12 gap-2 shadow-lg shadow-zinc-900/10"
-                    onClick={handleApplyCrop}
-                  >
-                    <Check size={18} /> {local("确认并应用", "Apply")}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-        )}
+        {tempAvatar && <AvatarCropDialog key={tempAvatar.id} image={tempAvatar.image}
+          onClose={() => setTempAvatar(null)}
+          onApply={(avatar, avatarAspect) => setResumeData(previous => ({ ...previous, avatar, avatarAspect }))} />}
       </AnimatePresence>
     </div>
   );

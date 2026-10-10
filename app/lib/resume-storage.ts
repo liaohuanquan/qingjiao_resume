@@ -3,6 +3,18 @@ import { blankResume, color, parseResumeConfig, record } from "./resume-schema";
 
 const dataKey = (id: string) => `resume_data_${id}`;
 const historyKey = (id: string) => `resume_history_${id}`;
+
+export class ResumeConflictError extends Error {
+  constructor(public reason: "changed" | "deleted") {
+    super(`resume ${reason}`);
+    this.name = "ResumeConflictError";
+  }
+}
+
+export function assertResumeUnchanged(id: string, expected: string | null) {
+  if (!listResumes().some(item => item.id === id)) throw new ResumeConflictError("deleted");
+  if (savedResumeText(id) !== expected) throw new ResumeConflictError("changed");
+}
 export function downloadFile(value: unknown, filename: string, raw = false) {
   const url = URL.createObjectURL(new Blob([raw ? String(value) : JSON.stringify(value, null, 2)], { type: "application/json" }));
   const link = document.createElement("a");
@@ -52,6 +64,19 @@ function legacyConfig(): ResumeConfig | null {
   return parseResumeConfig(config);
 }
 
+// Discover the older default document without writing or replacing its source keys.
+function unlistedLegacyResume(list: ResumeMetadata[], locale: string) {
+  if (list.some(item => item.id === "default-1")) return null;
+  const raw = localStorage.getItem(dataKey("default-1"));
+  const config = raw === null ? legacyConfig() : parseResumeConfig(JSON.parse(raw));
+  if (!config) return null;
+  const metadata: ResumeMetadata = {
+    id: "default-1", title: locale === "en-US" ? "Untitled resume" : "未命名简历",
+    lastModified: new Date().toISOString(), theme: config.themeColor, templateId: config.templateId,
+  };
+  return { metadata, config };
+}
+
 export function readResume(id: string): ResumeConfig {
   const raw = localStorage.getItem(dataKey(id));
   if (raw !== null) return parseResumeConfig(JSON.parse(raw));
@@ -70,9 +95,12 @@ export function savedResumeText(id: string): string | null {
 
 export function listResumesWithLegacy(locale: string): ResumeMetadata[] {
   const list = listResumes();
-  if (list.length || (localStorage.getItem("resume_v2_data") === null && localStorage.getItem(dataKey("default-1")) === null)) return list;
-  openResume("default-1", false, locale === "en-US" ? "Untitled resume" : "未命名简历", locale);
-  return listResumes();
+  const legacy = unlistedLegacyResume(list, locale);
+  if (!legacy) return list;
+  const next = [legacy.metadata, ...list];
+  // Register only after validation; the editor persists the migrated body on save.
+  writeChanges(new Map([["resume_list", JSON.stringify(next)]]));
+  return next;
 }
 
 export function createResume(title: string, config = blankResume(), id: string = crypto.randomUUID()): ResumeMetadata {
@@ -105,12 +133,14 @@ export function openResume(id: string, explicitId: boolean, title: string, local
   return config;
 }
 
-export function saveResume(id: string, config: ResumeConfig) {
+export function saveResume(id: string, config: ResumeConfig, expected: string | null) {
+  assertResumeUnchanged(id, expected);
   const list = listResumes();
-  if (!list.some(item => item.id === id)) throw new Error("resume not found");
   const valid = parseResumeConfig(config);
+  const encoded = JSON.stringify(valid);
   const updated = list.map(item => item.id === id ? { ...item, theme: valid.themeColor, templateId: valid.templateId, lastModified: new Date().toISOString() } : item);
-  writeChanges(new Map([[dataKey(id), JSON.stringify(valid)], ["resume_list", JSON.stringify(updated)]]));
+  writeChanges(new Map([[dataKey(id), encoded], ["resume_list", JSON.stringify(updated)]]));
+  return encoded;
 }
 export function renameResume(id: string, title: string) {
   const list = listResumes();
@@ -122,8 +152,8 @@ export function deleteResume(id: string) {
   if (id === "default-1") ["resume_v2_data", "resume_v2_modules", "resume_v2_theme", "resume_v2_typography", "resume_avatar", "resume_avatar_aspect"].forEach(key => changes.set(key, null));
   writeChanges(changes);
 }
-export function duplicateResume(id: string, title: string): ResumeMetadata {
-  const config = readResume(id);
+export function duplicateResume(id: string, title: string, draft?: ResumeConfig): ResumeMetadata {
+  const config = draft ? parseResumeConfig(draft) : readResume(id);
   const history = readHistory(id).map(snapshot => ({ ...snapshot, id: crypto.randomUUID() }));
   const newId = crypto.randomUUID();
   const metadata = { id: newId, title, lastModified: new Date().toISOString(), theme: config.themeColor, templateId: config.templateId };
@@ -154,17 +184,27 @@ export function saveSnapshot(id: string, label: string, config: ResumeConfig) {
 }
 
 export interface ResumeBackup { version: 1; resumes: { metadata: ResumeMetadata; config: ResumeConfig; history: ResumeSnapshot[] }[] }
-export function exportBackup(): ResumeBackup {
-  return { version: 1, resumes: listResumes().map(metadata => ({ metadata, config: readResume(metadata.id), history: readHistory(metadata.id) })) };
+export function exportBackup(locale = "zh-CN"): ResumeBackup {
+  const list = listResumes();
+  const resumes = list.map(metadata => ({ metadata, config: readResume(metadata.id), history: readHistory(metadata.id) }));
+  const legacy = unlistedLegacyResume(list, locale);
+  if (legacy) resumes.unshift({ ...legacy, history: readHistory(legacy.metadata.id) });
+  // Backup remains available even if there is no space to register or migrate a body.
+  return { version: 1, resumes };
 }
-export function restoreBackup(value: unknown): number {
+export function parseResumeBackup(value: unknown): ResumeBackup {
   const backup = record(value);
   if (backup.version !== 1 || !Array.isArray(backup.resumes)) throw new Error("invalid backup");
   // Validate the entire file before writing any entry.
-  const entries = backup.resumes.map(value => {
+  const resumes = backup.resumes.map(value => {
     const entry = record(value);
-    return { metadata: parseMetadata(entry.metadata), config: parseResumeConfig(entry.config), history: parseHistory(entry.history) };
+    return { metadata: parseMetadata(entry.metadata), config: parseResumeConfig(entry.config), history: parseHistory(entry.history).slice(0, 10) };
   });
+  return { version: 1, resumes };
+}
+export function restoreBackup(value: unknown): number {
+  const { resumes: entries } = parseResumeBackup(value);
+  if (!entries.length) return 0;
   const changes = new Map<string, string | null>();
   const restored = entries.map(entry => {
     const id = crypto.randomUUID();

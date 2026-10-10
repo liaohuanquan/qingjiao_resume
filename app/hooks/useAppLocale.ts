@@ -15,7 +15,8 @@ function normalizeLocale(value: string | null): AppLocale {
 
 function subscribeLocale(onStoreChange: () => void) {
   const handleStorage = (event: StorageEvent) => {
-    if (event.key === APP_LOCALE_KEY) {
+    if (event.key === APP_LOCALE_KEY || event.key === null) {
+      if (event.key === null || event.newValue === null) { sessionLocale = "zh-CN"; temporaryLocale = null; }
       onStoreChange();
     }
   };

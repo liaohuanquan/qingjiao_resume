@@ -64,6 +64,11 @@ export interface TypographyConfig {
   fontFamily: string;
   lineHeight: number;
   fontSize: number;
+  nameFontSize?: number;
+  headingFontSize?: number;
+  paragraphSpacing?: number;
+  entrySpacing?: number;
+  sectionSpacing?: number;
   skillStyle?: "dot" | "tag";
   skillTagRadius?: number;
   skillTagColor?: string;
@@ -83,6 +88,8 @@ export interface ModuleItem {
   visible: boolean;
   type?: "standard" | "custom";
   content?: string;
+  column?: "main" | "sidebar";
+  pageBreakBefore?: boolean;
 }
 
 export interface ResumeMetadata {

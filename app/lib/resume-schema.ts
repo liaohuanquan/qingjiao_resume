@@ -1,11 +1,7 @@
 import type { ResumeConfig, ResumeData, ResumeTemplateId } from "./resume";
+import { fontFamilies, typographyDefaults } from "./resume-typography";
 
 export const templateIds: ResumeTemplateId[] = ["classic", "split", "tech"];
-export const fontFamilies = {
-  sans: "Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif",
-  serif: "'Songti SC', SimSun, serif",
-  mono: "'SFMono-Regular', Consolas, 'PingFang SC', monospace",
-};
 
 export function blankResume(locale = "zh-CN"): ResumeConfig {
   const titles = locale === "en-US"
@@ -15,7 +11,7 @@ export function blankResume(locale = "zh-CN"): ResumeConfig {
     resumeData: { name: "", nameVisible: true, title: "", titleVisible: true, contacts: [], education: [], workExperiences: [], projects: [], skills: [], avatarAspect: 1, avatarBorderRadius: 12 },
     modules: ["basic", "edu", "work", "project", "skill"].map((id, i) => ({ id, title: titles[i], visible: true })),
     themeColor: "#10b981", templateId: "classic",
-    typography: { fontFamily: fontFamilies.sans, fontSize: 14.5, lineHeight: 1.6, skillStyle: "dot", skillTagRadius: 6, skillTagColor: "#71717a", skillTagUseTheme: true },
+    typography: { ...typographyDefaults, skillStyle: "dot", skillTagRadius: 6, skillTagColor: "#71717a", skillTagUseTheme: true },
   };
 }
 
@@ -93,7 +89,9 @@ export function parseResumeConfig(value: unknown): ResumeConfig {
     if (["basic", "edu", "work", "project", "skill"].includes(id) && item.type === "custom") throw new Error("invalid module type");
     if (!["basic", "edu", "work", "project", "skill"].includes(id) && item.type !== "custom") throw new Error("invalid module");
     if (item.type !== undefined && item.type !== "standard" && item.type !== "custom") throw new Error("invalid module type");
-    return { id, title: string(item.title), visible: boolean(item.visible), type: item.type as "standard" | "custom" | undefined, content: string(item.content) };
+    if (item.column !== undefined && item.column !== "main" && item.column !== "sidebar") throw new Error("invalid module column");
+    if (item.pageBreakBefore !== undefined && typeof item.pageBreakBefore !== "boolean") throw new Error("invalid page break");
+    return { id, title: string(item.title), visible: boolean(item.visible), type: item.type as "standard" | "custom" | undefined, content: string(item.content), column: item.column as "main" | "sidebar" | undefined, pageBreakBefore: item.pageBreakBefore as boolean | undefined };
   }));
   const typo = config.typography === undefined ? {} : record(config.typography);
   const oldFont = string(typo.fontFamily, fontFamilies.sans);
@@ -108,7 +106,12 @@ export function parseResumeConfig(value: unknown): ResumeConfig {
   if (!templateIds.includes(templateId as ResumeTemplateId)) throw new Error("invalid template");
   return {
     resumeData: normalizeResumeData(config.resumeData), modules, themeColor: color(config.themeColor), templateId: templateId as ResumeTemplateId,
-    typography: { fontFamily, fontSize: number(typo.fontSize, 14.5, true), lineHeight: number(typo.lineHeight, 1.6, true), skillStyle: (typo.skillStyle || "dot") as "dot" | "tag", skillTagRadius: number(typo.skillTagRadius, 6), skillTagColor: color(typo.skillTagColor, "#71717a"), skillTagUseTheme: boolean(typo.skillTagUseTheme), sectionStyles },
+    typography: {
+      fontFamily, fontSize: number(typo.fontSize, typographyDefaults.fontSize, true), lineHeight: number(typo.lineHeight, typographyDefaults.lineHeight, true),
+      nameFontSize: number(typo.nameFontSize, typographyDefaults.nameFontSize, true), headingFontSize: number(typo.headingFontSize, typographyDefaults.headingFontSize, true),
+      paragraphSpacing: number(typo.paragraphSpacing, typographyDefaults.paragraphSpacing), entrySpacing: number(typo.entrySpacing, typographyDefaults.entrySpacing), sectionSpacing: number(typo.sectionSpacing, typographyDefaults.sectionSpacing),
+      skillStyle: (typo.skillStyle || "dot") as "dot" | "tag", skillTagRadius: number(typo.skillTagRadius, 6), skillTagColor: color(typo.skillTagColor, "#71717a"), skillTagUseTheme: boolean(typo.skillTagUseTheme), sectionStyles,
+    },
   };
 }
 
@@ -128,6 +131,6 @@ export function visibleResumeText(config: ResumeConfig): string {
 export function sampleResume(locale = "zh-CN"): ResumeConfig {
   const config = blankResume(locale);
   const english = locale === "en-US";
-  config.resumeData = { ...config.resumeData, name: english ? "Alex Chen" : "张三", title: english ? "Frontend Engineer" : "前端工程师", contacts: [{ id: "sample-email", type: "email", iconName: "email", label: english ? "Email" : "邮箱", value: "demo@example.com", isVisible: true, isCustom: false }], education: [{ id: "sample-edu", school: english ? "Example University" : "示例大学", major: english ? "Computer Science" : "计算机科学", date: "2020 – 2024" }], workExperiences: [{ id: "sample-work", company: english ? "Example Company" : "示例公司", role: english ? "Frontend Engineer" : "前端工程师", date: "2024 – 2026", desc: english ? "Built and maintained web applications.\nImproved page loading and accessibility." : "负责业务页面开发与维护。\n优化页面加载和键盘操作。" }], projects: [{ id: "sample-project", name: english ? "Resume editor" : "简历编辑器", role: english ? "Developer" : "开发", date: "2025", desc: english ? "Implemented editing, local storage, and printing." : "实现编辑、本地保存与打印。" }], skills: ["TypeScript", "React", "CSS"] };
+  config.resumeData = { ...config.resumeData, name: english ? "Alex Chen" : "张三", title: english ? "Frontend Engineer" : "前端工程师", contacts: [{ id: "sample-email", type: "email", iconName: "email", label: english ? "Email" : "邮箱", value: "demo@example.com", isVisible: true, isCustom: false }], education: [{ id: "sample-edu", school: english ? "Example University" : "示例大学", major: english ? "Computer Science" : "计算机科学", date: "2020 – 2024" }], workExperiences: [{ id: "sample-work", company: english ? "Example Company" : "示例公司", role: english ? "Frontend Engineer" : "前端工程师", date: "2024 – 2026", desc: english ? "- **Web development**: Built and maintained applications.\n- **User experience**: Improved loading and accessibility." : "- **业务开发**：负责页面开发与维护。\n- **体验优化**：改善页面加载和键盘操作。" }], projects: [{ id: "sample-project", name: english ? "Resume editor" : "简历编辑器", role: english ? "Developer" : "开发", date: "2025", desc: english ? "Implemented editing, local storage, and printing." : "实现编辑、本地保存与打印。" }], skills: ["TypeScript", "React", "CSS", "Node.js", "Git", "CI/CD"] };
   return config;
 }
