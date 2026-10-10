@@ -1433,6 +1433,12 @@ function ResumeEditorContent() {
                         className="flex gap-1"
                         onClick={(e) => e.stopPropagation()}
                       >
+                        <button type="button" aria-label={`${m.title}：${m.pageBreakBefore ? local("取消换页", "Remove page break") : local("另起一页", "Start new page")}`}
+                          aria-pressed={Boolean(m.pageBreakBefore)} title={m.pageBreakBefore ? local("取消换页", "Remove page break") : local("另起一页", "Start new page")}
+                          onClick={() => setModules(previous => previous.map(module => module.id === m.id ? { ...module, pageBreakBefore: !module.pageBreakBefore } : module))}
+                          className={cn("rounded px-1.5 text-xs hover:bg-zinc-100", m.pageBreakBefore ? "bg-emerald-50 text-emerald-700" : "text-zinc-500")}>
+                          {m.pageBreakBefore ? local("取消换页", "Remove break") : local("另起一页", "New page")}
+                        </button>
                         <button aria-label={local("上移", "Move up")} disabled={modules.filter(module => module.id !== "basic")[0]?.id === m.id} onClick={() => setModules(previous => {
                           const items = previous.filter(module => module.id !== "basic");
                           const index = items.findIndex(module => module.id === m.id);

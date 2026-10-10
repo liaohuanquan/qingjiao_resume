@@ -89,6 +89,7 @@ export interface ModuleItem {
   type?: "standard" | "custom";
   content?: string;
   column?: "main" | "sidebar";
+  pageBreakBefore?: boolean;
 }
 
 export interface ResumeMetadata {

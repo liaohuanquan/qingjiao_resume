@@ -48,7 +48,7 @@ function isLongEntry(text: string) {
   return text.split(/\r?\n/).length > 8 || text.length > 800;
 }
 
-export const ResumeDocument = React.forwardRef<HTMLDivElement, { config: ResumeConfig; pageGuides?: boolean; avatarAlt?: string; interactiveLinks?: boolean; onEditModule?: (id: string) => void; editLabel?: string }>(function ResumeDocument({ config, pageGuides = false, avatarAlt = "头像", interactiveLinks = true, onEditModule, editLabel = "编辑" }, ref) {
+export const ResumeDocument = React.forwardRef<HTMLDivElement, { config: ResumeConfig; pageGuides?: boolean; avatarAlt?: string; interactiveLinks?: boolean; onEditModule?: (id: string) => void; editLabel?: string; pageBreakLabel?: string }>(function ResumeDocument({ config, pageGuides = false, avatarAlt = "头像", interactiveLinks = true, onEditModule, editLabel = "编辑", pageBreakLabel = "换页" }, ref) {
   const { resumeData: data, typography, themeColor, templateId, modules } = config;
   const editAction = (module: ModuleItem) => onEditModule ? <button type="button" className="resume-edit-module no-print"
     aria-label={module.title ? `${editLabel} ${module.title}` : editLabel} onClick={() => onEditModule(module.id)}>{editLabel}</button> : null;
@@ -92,7 +92,12 @@ export const ResumeDocument = React.forwardRef<HTMLDivElement, { config: ResumeC
   const sidebar = visible.filter(entry => resumeModuleColumn(entry.module) === "sidebar");
   const main = visible.filter(entry => resumeModuleColumn(entry.module) === "main");
   const columns = templateId === "split" && sidebar.length > 0 && main.length > 0;
-  return <div ref={ref} className={`resume-document resume-${templateId} ${pageGuides ? "resume-page-guides" : ""}`} style={{
+  const groups: (typeof visible)[] = [[]];
+  visible.forEach(entry => {
+    if (entry.module.pageBreakBefore && groups[groups.length - 1].length) groups.push([]);
+    groups[groups.length - 1].push(entry);
+  });
+  return <div ref={ref} className={`resume-document resume-${templateId} ${pageGuides && groups.length === 1 ? "resume-page-guides" : ""}`} style={{
     "--theme-color": themeColor,
     "--name-size": `${typography.nameFontSize ?? typographyDefaults.nameFontSize}px`,
     "--heading-size": `${typography.headingFontSize ?? typographyDefaults.headingFontSize}px`,
@@ -101,9 +106,14 @@ export const ResumeDocument = React.forwardRef<HTMLDivElement, { config: ResumeC
     "--section-gap": `${typography.sectionSpacing ?? typographyDefaults.sectionSpacing}px`,
     fontFamily: typography.fontFamily, fontSize: typography.fontSize, lineHeight: typography.lineHeight,
   } as React.CSSProperties}>
-    {columns ? <div className="resume-split-layout">
-      <div className="resume-sidebar">{sidebar.map(entry => entry.node)}</div>
-      <div className="resume-main">{main.map(entry => entry.node)}</div>
-    </div> : <div className="resume-sections">{visible.map(entry => entry.node)}</div>}
+    {groups.map((group, index) => <div className="resume-page-group" key={group[0]?.module.id || "empty"}>
+      {index > 0 && pageGuides && <div className="resume-manual-break no-print"><span>{pageBreakLabel}</span></div>}
+      {columns ? <div className="resume-split-layout">
+        <div className={`resume-sidebar ${group.some(entry => resumeModuleColumn(entry.module) === "sidebar") ? "" : "resume-sidebar-empty"}`}>
+          {group.filter(entry => resumeModuleColumn(entry.module) === "sidebar").map(entry => entry.node)}
+        </div>
+        <div className="resume-main">{group.filter(entry => resumeModuleColumn(entry.module) === "main").map(entry => entry.node)}</div>
+      </div> : <div className="resume-sections">{group.map(entry => entry.node)}</div>}
+    </div>)}
   </div>;
 });

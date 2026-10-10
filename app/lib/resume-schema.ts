@@ -90,7 +90,8 @@ export function parseResumeConfig(value: unknown): ResumeConfig {
     if (!["basic", "edu", "work", "project", "skill"].includes(id) && item.type !== "custom") throw new Error("invalid module");
     if (item.type !== undefined && item.type !== "standard" && item.type !== "custom") throw new Error("invalid module type");
     if (item.column !== undefined && item.column !== "main" && item.column !== "sidebar") throw new Error("invalid module column");
-    return { id, title: string(item.title), visible: boolean(item.visible), type: item.type as "standard" | "custom" | undefined, content: string(item.content), column: item.column as "main" | "sidebar" | undefined };
+    if (item.pageBreakBefore !== undefined && typeof item.pageBreakBefore !== "boolean") throw new Error("invalid page break");
+    return { id, title: string(item.title), visible: boolean(item.visible), type: item.type as "standard" | "custom" | undefined, content: string(item.content), column: item.column as "main" | "sidebar" | undefined, pageBreakBefore: item.pageBreakBefore as boolean | undefined };
   }));
   const typo = config.typography === undefined ? {} : record(config.typography);
   const oldFont = string(typo.fontFamily, fontFamilies.sans);

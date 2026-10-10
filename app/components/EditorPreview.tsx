@@ -17,7 +17,7 @@ export const EditorPreview = forwardRef<HTMLDivElement, { config: ResumeConfig; 
   const paper = useRef<HTMLDivElement>(null);
   const drag = useRef<{ pointerId: number; x: number; y: number; left: number; top: number } | null>(null);
   const [panning, setPanning] = useState(false);
-  const [metrics, setMetrics] = useState({ height: PAPER_HEIGHT, fitScale: 0.8, pages: 1 });
+  const [metrics, setMetrics] = useState({ height: PAPER_HEIGHT, fitScale: 0.8, pages: 1, manualBreaks: 0 });
   const [zoom, setZoom] = useState({ fit: true, scale: 0.8 });
   const scale = zoom.fit ? metrics.fitScale : zoom.scale;
   // The parent waits for fonts and images on this same sheet before native printing.
@@ -32,9 +32,12 @@ export const EditorPreview = forwardRef<HTMLDivElement, { config: ResumeConfig; 
       const width = root.clientWidth - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0);
       const height = Math.max(PAPER_HEIGHT, sheet.scrollHeight);
       const fitScale = Math.max(MIN_SCALE, Math.min(1, width / PAPER_WIDTH));
-      // scrollHeight rounds up to whole pixels; allow that rounding at a page boundary.
-      const pages = Math.max(1, Math.ceil((height - PAPER_MARGIN * 2 - 1) / CONTENT_HEIGHT));
-      setMetrics(previous => previous.height === height && previous.fitScale === fitScale && previous.pages === pages ? previous : { height, fitScale, pages });
+      const groups = sheet.querySelectorAll<HTMLElement>(".resume-page-group");
+      const manualBreaks = Math.max(0, groups.length - 1);
+      // Each forced break starts a new page; printed pagination may differ from this screen estimate.
+      const pages = manualBreaks ? Array.from(groups).reduce((total, group) => total + Math.max(1, Math.ceil((group.scrollHeight - 1) / CONTENT_HEIGHT)), 0)
+        : Math.max(1, Math.ceil((height - PAPER_MARGIN * 2 - 1) / CONTENT_HEIGHT));
+      setMetrics(previous => previous.height === height && previous.fitScale === fitScale && previous.pages === pages && previous.manualBreaks === manualBreaks ? previous : { height, fitScale, pages, manualBreaks });
     };
     measure();
     // Measure the unscaled sheet; screen zoom never determines print pagination.
@@ -42,7 +45,7 @@ export const EditorPreview = forwardRef<HTMLDivElement, { config: ResumeConfig; 
     observer.observe(root);
     observer.observe(sheet);
     return () => observer.disconnect();
-  }, []);
+  }, [config]);
   useEffect(() => onPagesChange(metrics.pages), [metrics.pages, onPagesChange]);
   useEffect(() => { if (!active) { drag.current = null; setPanning(false); } }, [active]);
 
@@ -63,7 +66,7 @@ export const EditorPreview = forwardRef<HTMLDivElement, { config: ResumeConfig; 
     setPanning(false);
   };
   return <section id="resume-editor-panel-preview" data-editor-panel data-preview-section tabIndex={-1} aria-label={t("简历预览", "Resume preview")} className={`flex-1 min-w-0 bg-zinc-100 flex flex-col overflow-hidden group absolute inset-0 z-20 lg:relative lg:flex lg:translate-x-0 lg:visible transition-transform duration-300 ${active ? "translate-x-0 visible" : "translate-x-full invisible"}`}>
-    <p className="no-print absolute bottom-5 left-5 z-30 rounded-lg bg-white px-3 py-2 text-xs text-zinc-500">{t(`约 ${metrics.pages} 页`, `About ${metrics.pages} pages`)}</p>
+    <p className="no-print absolute bottom-5 left-5 z-30 rounded-lg bg-white px-3 py-2 text-xs text-zinc-500">{t(`约 ${metrics.pages} 页${metrics.manualBreaks ? ` · 换页 ${metrics.manualBreaks} 处` : ""}`, `About ${metrics.pages} pages${metrics.manualBreaks ? ` · ${metrics.manualBreaks} page breaks` : ""}`)}</p>
     <div role="group" aria-label={t("预览缩放", "Preview zoom")} className="no-print absolute right-4 top-1/2 z-30 flex -translate-y-1/2 flex-col gap-2 rounded-2xl border border-zinc-200 bg-white/90 p-1.5 shadow-xl backdrop-blur-md opacity-100 lg:opacity-0 lg:group-hover:opacity-100 lg:group-focus-within:opacity-100 transition-opacity">
       <button type="button" aria-label={t("放大", "Zoom in")} title={t("放大", "Zoom in")} disabled={scale >= MAX_SCALE} onClick={() => changeZoom(0.1)} className="flex h-10 w-10 items-center justify-center rounded-xl text-zinc-500 hover:bg-zinc-100 disabled:opacity-30"><Plus size={18} /></button>
       <span className="flex h-10 items-center justify-center border-y border-zinc-100 text-xs text-zinc-500">{Math.round(scale * 100)}%</span>
@@ -81,7 +84,7 @@ export const EditorPreview = forwardRef<HTMLDivElement, { config: ResumeConfig; 
       <div className="resume-preview-center flex min-h-full min-w-full justify-start">
         <div className="resume-preview-sizing relative mx-auto shrink-0 overflow-hidden shadow-xl" style={{ width: PAPER_WIDTH * scale, height: metrics.height * scale }}>
           <div className="resume-preview-scale absolute left-0 top-0 cursor-text" style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: PAPER_WIDTH }}>
-            <ResumeDocument ref={paper} config={config} pageGuides avatarAlt={t("头像", "Avatar")} onEditModule={onEditModule} editLabel={t("编辑", "Edit")} />
+            <ResumeDocument ref={paper} config={config} pageGuides avatarAlt={t("头像", "Avatar")} onEditModule={onEditModule} editLabel={t("编辑", "Edit")} pageBreakLabel={t("换页", "Page break")} />
           </div>
         </div>
       </div>

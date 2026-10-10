@@ -30,6 +30,8 @@ Adjust body, name, and heading sizes separately, along with line height and para
 
 Classic uses one column. Split defaults basic information, education, and skills to a sidebar; each section can move between sidebar and main. Each column preserves relative section order. A single populated column uses the full width. Other templates still use the original section order, without altering content. Technical uses project accent lines and grouped skills instead of bordered cards. Single-column headers place the avatar on the right while retaining its crop ratio.
 
+Use “New page” on a section to start it on another printed page; use “Remove break” to undo it. Hidden or empty sections do not create blank pages. This setting is kept in resumes, history, and backups.
+
 Compact, Standard, and Roomy density presets change line height and paragraph, entry, and section spacing. Applying a preset clears individual section spacing while retaining section font sizes, global fonts, sizes, and skill appearance. The selected density is derived from actual values; unmatched settings show Custom. These values use the existing typography storage and backup format.
 
 Education, work, and project entries have visible Move up, Move down, Copy, and Delete controls. Copies appear directly after the source with a new ID, preserving dates, description formatting, and links. Changes participate in session undo and automatic saving. Boundary moves are disabled; keyboard focus returns to an enabled control after moving, or an adjacent entry or Add button after deletion. Density, entry operations, focus, and printing have not been run or visually verified.
@@ -44,7 +46,7 @@ Text imports retain description formatting. Preview, thumbnails, and printing sh
 
 Choose “Print resume”, then “Save as PDF” in the system print dialog. Use portrait A4. Disable browser headers and footers, and enable background graphics to retain template colors.
 
-The document is printed as text. Page counts in the editor are estimates; the print dialog determines final pagination and filename. Cancelling does not report a successful save.
+The document is printed as text. The editor marks manual breaks and estimates page counts; it hides continuous page guides when breaks are set. The print dialog determines final pagination and filename. Cancelling does not report a successful save.
 
 ## AI Settings
 

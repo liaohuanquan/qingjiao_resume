@@ -86,6 +86,7 @@ button:disabled { cursor: not-allowed; }
 .resume-split-layout { display: grid; grid-template-columns: minmax(0, 30%) minmax(0, 1fr); gap: 24px; align-items: start; }
 .resume-sidebar, .resume-main { min-width: 0; break-inside: auto; }
 .resume-sidebar { padding: 16px; background: #f4f7f6; border-top: 3px solid var(--theme-color); }
+.resume-sidebar-empty { padding: 0; background: none; border: 0; }
 .resume-sidebar .resume-header { flex-direction: column; gap: 14px; padding-bottom: 12px; border-bottom: 1px solid #d4d4d8; }
 .resume-sidebar .resume-avatar { order: 0; }
 .resume-sidebar .resume-contacts { flex-direction: column; gap: 6px; }
@@ -99,6 +100,8 @@ button:disabled { cursor: not-allowed; }
 .resume-tech [data-module="project"] .resume-entry { border-left: 2px solid var(--theme-color); padding-left: 12px; }
 .resume-tech .resume-skills:not(.resume-tags) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 16px; }
 .resume-page-guides { background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(297mm - 1px), #e4e4e7 calc(297mm - 1px), #e4e4e7 297mm); }
+.resume-manual-break { display: flex; align-items: center; gap: 8px; margin: 14px 0; color: #71717a; font-size: 11px; line-height: 1; white-space: nowrap; }
+.resume-manual-break::after { content: ''; width: 100%; border-top: 1px dashed #a1a1aa; }
 [data-theme="light"] { --background: #fff; --foreground: #171717; }
 [data-theme="dark"] { --background: #09090b; --foreground: #f4f4f5; }
 [data-theme="dark"] body { background: #09090b; color: #f4f4f5; }
@@ -119,5 +122,6 @@ button:disabled { cursor: not-allowed; }
   .resume-document { width: 180mm !important; min-height: 0 !important; padding: 0 !important; box-shadow: none !important; background: #fff !important; color: #27272a !important; print-color-adjust: exact; -webkit-print-color-adjust: exact; }
   .resume-document img { max-width: 100%; }
   .resume-document a { color: inherit; }
+  .resume-page-group + .resume-page-group { break-before: page; page-break-before: always; }
   .resume-section:last-child, .resume-entry:last-child { margin-bottom: 0; }
 }
