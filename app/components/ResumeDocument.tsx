@@ -14,13 +14,14 @@ function ProjectLink({ value, interactive }: { value: string; interactive: boole
   return <p className="resume-project-link">{!href ? value : interactive ? <a href={href}>{value}</a> : <span className="resume-link">{value}</span>}</p>;
 }
 
-function ResumeHeader({ data, avatarAlt }: { data: ResumeData; avatarAlt: string }) {
+function ResumeHeader({ data, avatarAlt, editAction }: { data: ResumeData; avatarAlt: string; editAction?: React.ReactNode }) {
   const contacts = data.contacts.filter(item => item.isVisible && item.value.trim());
   if (!data.avatar && !(data.nameVisible && data.name.trim()) && !(data.titleVisible && data.title.trim()) && !contacts.length) return null;
   const aspect = data.avatarAspect || 1;
   const width = Math.min(92, 112 * aspect);
   const height = width / aspect;
   return <header className="resume-header" data-module="basic">
+    {editAction}
     {data.avatar && <Image className="resume-avatar" src={data.avatar} unoptimized loading="eager" alt={avatarAlt}
       width={Math.max(1, Math.round(width))} height={Math.max(1, Math.round(height))}
       style={{ width, height, borderRadius: data.avatarBorderRadius, objectFit: "cover" }} />}
@@ -47,8 +48,10 @@ function isLongEntry(text: string) {
   return text.split(/\r?\n/).length > 8 || text.length > 800;
 }
 
-export const ResumeDocument = React.forwardRef<HTMLDivElement, { config: ResumeConfig; pageGuides?: boolean; avatarAlt?: string; interactiveLinks?: boolean }>(function ResumeDocument({ config, pageGuides = false, avatarAlt = "头像", interactiveLinks = true }, ref) {
+export const ResumeDocument = React.forwardRef<HTMLDivElement, { config: ResumeConfig; pageGuides?: boolean; avatarAlt?: string; interactiveLinks?: boolean; onEditModule?: (id: string) => void; editLabel?: string }>(function ResumeDocument({ config, pageGuides = false, avatarAlt = "头像", interactiveLinks = true, onEditModule, editLabel = "编辑" }, ref) {
   const { resumeData: data, typography, themeColor, templateId, modules } = config;
+  const editAction = (module: ModuleItem) => onEditModule ? <button type="button" className="resume-edit-module no-print"
+    aria-label={module.title ? `${editLabel} ${module.title}` : editLabel} onClick={() => onEditModule(module.id)}>{editLabel}</button> : null;
   function content(module: ModuleItem) {
     if (module.type === "custom") return module.content?.trim() ? <ResumeDescription text={module.content} interactive={interactiveLinks} /> : null;
     if (module.id === "edu") return data.education.filter(item => item.school || item.major || item.date).map(item =>
@@ -75,13 +78,14 @@ export const ResumeDocument = React.forwardRef<HTMLDivElement, { config: ResumeC
   const visible = modules.filter(module => module.visible).flatMap(module => {
     if (module.id === "basic") {
       const hasHeader = Boolean(data.avatar || (data.nameVisible && data.name.trim()) || (data.titleVisible && data.title.trim()) || data.contacts.some(item => item.isVisible && item.value.trim()));
-      return hasHeader ? [{ module, node: <ResumeHeader key={module.id} data={data} avatarAlt={avatarAlt} /> }] : [];
+      return hasHeader ? [{ module, node: <ResumeHeader key={module.id} data={data} avatarAlt={avatarAlt} editAction={editAction(module)} /> }] : [];
     }
     if (module.id === "skill" && !data.skills.some(skill => skill.trim())) return [];
     const children = content(module);
     if (!children || (Array.isArray(children) && !children.length)) return [];
     const style = typography.sectionStyles?.[module.id];
     return [{ module, node: <section key={module.id} className="resume-section" data-module={module.id} style={{ fontSize: style?.fontSize, marginBottom: style?.spacing }}>
+      {editAction(module)}
       {module.title && <h2>{module.title}</h2>}<div className="resume-section-body">{children}</div>
     </section> }];
   });

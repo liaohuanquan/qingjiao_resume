@@ -10,7 +10,7 @@ import { ResumeDocument } from "./ResumeDocument";
 const MIN_SCALE = 0.1;
 const MAX_SCALE = 1.5;
 
-export const EditorPreview = forwardRef<HTMLDivElement, { config: ResumeConfig; active: boolean; onPagesChange: (pages: number) => void }>(function EditorPreview({ config, active, onPagesChange }, ref) {
+export const EditorPreview = forwardRef<HTMLDivElement, { config: ResumeConfig; active: boolean; onPagesChange: (pages: number) => void; onEditModule: (id: string) => void }>(function EditorPreview({ config, active, onPagesChange, onEditModule }, ref) {
   const { locale } = useAppLocale();
   const t = (zh: string, en: string) => locale === "en-US" ? en : zh;
   const container = useRef<HTMLDivElement>(null);
@@ -81,7 +81,7 @@ export const EditorPreview = forwardRef<HTMLDivElement, { config: ResumeConfig; 
       <div className="resume-preview-center flex min-h-full min-w-full justify-start">
         <div className="resume-preview-sizing relative mx-auto shrink-0 overflow-hidden shadow-xl" style={{ width: PAPER_WIDTH * scale, height: metrics.height * scale }}>
           <div className="resume-preview-scale absolute left-0 top-0 cursor-text" style={{ transform: `scale(${scale})`, transformOrigin: "top left", width: PAPER_WIDTH }}>
-            <ResumeDocument ref={paper} config={config} pageGuides avatarAlt={t("头像", "Avatar")} />
+            <ResumeDocument ref={paper} config={config} pageGuides avatarAlt={t("头像", "Avatar")} onEditModule={onEditModule} editLabel={t("编辑", "Edit")} />
           </div>
         </div>
       </div>

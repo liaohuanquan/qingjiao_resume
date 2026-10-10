@@ -656,6 +656,14 @@ function ResumeEditorContent() {
   const resumeId = searchParams.get("id") || "default-1";
 
   const [activeTab, setActiveTab] = useState("basic");
+  const [collapsedEntries, setCollapsedEntries] = useState<Record<string, boolean>>({});
+  const [managerOpen, setManagerOpen] = useState(true);
+  const entryKey = (section: "edu" | "work" | "project", id: string) => JSON.stringify([resumeId, section, id]);
+  const isEntryCollapsed = (section: "edu" | "work" | "project", id: string) => Boolean(collapsedEntries[entryKey(section, id)]);
+  const toggleEntry = (section: "edu" | "work" | "project", id: string) => {
+    const key = entryKey(section, id);
+    setCollapsedEntries(previous => ({ ...previous, [key]: !previous[key] }));
+  };
   const restoreEntryFocus = useEntryFocus(`${resumeId}:${activeTab}`);
   const persistence = useResumePersistence(resumeId, searchParams.has("id"), locale);
   const { config: resumeConfig, setConfig } = persistence;
@@ -833,13 +841,32 @@ function ResumeEditorContent() {
   const [activeMobileTab, setActiveMobileTab] = useState<
     "manage" | "edit" | "preview"
   >("edit");
+  const previewFocusTarget = React.useRef<string | null>(null);
+  const previewFocusFrame = React.useRef<number | null>(null);
+  React.useEffect(() => () => { if (previewFocusFrame.current !== null) cancelAnimationFrame(previewFocusFrame.current); }, [resumeId]);
   const openModule = (id: string) => {
+    previewFocusTarget.current = null;
     setActiveTab(id);
     setActiveMobileTab("edit");
+  };
+  const openModuleFromPreview = (id: string) => {
+    openModule(id);
+    previewFocusTarget.current = id;
+    if (previewFocusFrame.current !== null) cancelAnimationFrame(previewFocusFrame.current);
+    previewFocusFrame.current = requestAnimationFrame(() => {
+      previewFocusFrame.current = null;
+      if (previewFocusTarget.current !== id) return;
+      previewFocusTarget.current = null;
+      const panel = document.getElementById("resume-editor-panel-edit");
+      if (!panel || getComputedStyle(panel).visibility === "hidden") return;
+      panel.scrollTop = 0;
+      panel.focus({ preventScroll: true });
+    });
   };
   React.useEffect(() => {
     const desktop = window.matchMedia("(min-width: 64rem)");
     const moveHiddenFocus = () => {
+      if (previewFocusTarget.current) return;
       if (desktop.matches) return;
       const focused = document.activeElement;
       const oldPanel = focused?.closest<HTMLElement>("[data-editor-panel]");
@@ -1118,6 +1145,11 @@ function ResumeEditorContent() {
       {/* Head */}
       <header className="min-h-[60px] shrink-0 flex flex-wrap items-center justify-between gap-2 px-3 py-2 sm:px-6 bg-white border-b border-zinc-200 shadow-sm z-50">
         <div className="flex items-center gap-3">
+          <button type="button" aria-expanded={managerOpen} aria-controls="resume-editor-panel-manage"
+            onClick={() => setManagerOpen(previous => !previous)}
+            className="hidden lg:inline-flex rounded-lg border border-zinc-200 px-3 py-1.5 text-xs text-zinc-600">
+            {managerOpen ? local("收起管理", "Hide panel") : local("展开管理", "Show panel")}
+          </button>
           <Button variant="outline" size="sm" aria-label={local("撤销", "Undo")} title={local("撤销", "Undo")}
             disabled={!persistence.canUndo} onClick={persistence.undo}><Undo2 size={16} /></Button>
           <Button variant="outline" size="sm" aria-label={local("重做", "Redo")} title={local("重做", "Redo")}
@@ -1303,6 +1335,7 @@ function ResumeEditorContent() {
         {/* Column 1: Module Manager - Mobile Toggle */}
         <aside
           id="resume-editor-panel-manage" data-editor-panel tabIndex={-1} aria-label={copy.mobileManage}
+          data-collapsed={!managerOpen}
           className={cn(
             "w-full lg:w-[280px] bg-white border-r border-zinc-100 p-4 pb-24 lg:pb-4 overflow-y-auto flex flex-col gap-6 scrollbar-hide absolute inset-0 z-40 lg:relative lg:translate-x-0 lg:visible transition-transform duration-300",
             activeMobileTab === "manage"
@@ -1810,32 +1843,35 @@ function ResumeEditorContent() {
                     className="p-4 border-dashed border-zinc-200 space-y-3"
                   >
                     <ResumeEntryActions id={item.id} label={`${item.school.trim() || local("教育", "Education")} · ${index + 1}`}
-                      index={index} count={resumeData.education.length}
+                      index={index} count={resumeData.education.length} collapsed={isEntryCollapsed("edu", item.id)}
+                      bodyId={`resume-edu-${index}-fields`} onToggle={() => toggleEntry("edu", item.id)}
                       onAction={(action, trigger) => handleEntryAction("edu", item.id, action, trigger)} />
-                    <Input
-                      label={local("学校名称", "School")}
-                      placeholder={local("例如：五邑大学", "University")}
-                      value={item.school}
-                      onChange={(e) =>
-                        updateListItem("edu", item.id, "school", e.target.value)
-                      }
-                    />
-                    <Input
-                      label={local("专业科目", "Major")}
-                      placeholder={local("例如：通信工程", "Major")}
-                      value={item.major}
-                      onChange={(e) =>
-                        updateListItem("edu", item.id, "major", e.target.value)
-                      }
-                    />
-                    <Input
-                      label={local("就读时间", "Dates")}
-                      placeholder={local("例如：2022 - 2026", "2022 - 2026")}
-                      value={item.date}
-                      onChange={(e) =>
-                        updateListItem("edu", item.id, "date", e.target.value)
-                      }
-                    />
+                    <div id={`resume-edu-${index}-fields`} hidden={isEntryCollapsed("edu", item.id)} className="space-y-3">
+                      <Input
+                        label={local("学校名称", "School")}
+                        placeholder={local("例如：五邑大学", "University")}
+                        value={item.school}
+                        onChange={(e) =>
+                          updateListItem("edu", item.id, "school", e.target.value)
+                        }
+                      />
+                      <Input
+                        label={local("专业科目", "Major")}
+                        placeholder={local("例如：通信工程", "Major")}
+                        value={item.major}
+                        onChange={(e) =>
+                          updateListItem("edu", item.id, "major", e.target.value)
+                        }
+                      />
+                      <Input
+                        label={local("就读时间", "Dates")}
+                        placeholder={local("例如：2022 - 2026", "2022 - 2026")}
+                        value={item.date}
+                        onChange={(e) =>
+                          updateListItem("edu", item.id, "date", e.target.value)
+                        }
+                      />
+                    </div>
                   </Card>
                 ))}
                 <Button
@@ -1870,56 +1906,59 @@ function ResumeEditorContent() {
                     className="p-4 border-dashed border-zinc-200 space-y-3"
                   >
                     <ResumeEntryActions id={item.id} label={`${item.company.trim() || local("工作", "Work")} · ${index + 1}`}
-                      index={index} count={resumeData.workExperiences.length}
+                      index={index} count={resumeData.workExperiences.length} collapsed={isEntryCollapsed("work", item.id)}
+                      bodyId={`resume-work-${index}-fields`} onToggle={() => toggleEntry("work", item.id)}
                       onAction={(action, trigger) => handleEntryAction("work", item.id, action, trigger)} />
-                    <Input
-                      label={local("公司名称", "Company")}
-                      placeholder={local("例如：青椒实验室", "Company")}
-                      value={item.company}
-                      onChange={(e) =>
-                        updateListItem(
-                          "work",
-                          item.id,
-                          "company",
-                          e.target.value,
-                        )
-                      }
-                    />
-                    <Input
-                      label={local("职位", "Role")}
-                      placeholder={local("例如：高级前端开发", "Role")}
-                      value={item.role}
-                      onChange={(e) =>
-                        updateListItem("work", item.id, "role", e.target.value)
-                      }
-                    />
-                    <Input
-                      label={local("在职期间", "Dates")}
-                      placeholder={local("例如：2020 - 至今", "2020 - Present")}
-                      value={item.date}
-                      onChange={(e) =>
-                        updateListItem("work", item.id, "date", e.target.value)
-                      }
-                    />
-                    <div className="space-y-1.5">
-                      <DescriptionEditor id={`work-description-${item.id}`} label={local("工作成果", "Responsibilities and outcomes")}
-                        value={item.desc} onChange={value => updateListItem("work", item.id, "desc", value)} />
-                      {renderAiActions({
-                        text: item.desc,
-                        target: { type: "work", id: item.id },
-                        context: local("工作成果", "Work outcomes"),
-                      })}
-                      {renderGenerateButton({
-                        target: { type: "work", id: item.id },
-                        context: local("工作经历", "Work experience"),
-                        payload: {
-                          type: "work",
-                          company: item.company,
-                          role: item.role,
-                          date: item.date,
-                          skills: resumeData.skills,
-                        },
-                      })}
+                    <div id={`resume-work-${index}-fields`} hidden={isEntryCollapsed("work", item.id)} className="space-y-3">
+                      <Input
+                        label={local("公司名称", "Company")}
+                        placeholder={local("例如：青椒实验室", "Company")}
+                        value={item.company}
+                        onChange={(e) =>
+                          updateListItem(
+                            "work",
+                            item.id,
+                            "company",
+                            e.target.value,
+                          )
+                        }
+                      />
+                      <Input
+                        label={local("职位", "Role")}
+                        placeholder={local("例如：高级前端开发", "Role")}
+                        value={item.role}
+                        onChange={(e) =>
+                          updateListItem("work", item.id, "role", e.target.value)
+                        }
+                      />
+                      <Input
+                        label={local("在职期间", "Dates")}
+                        placeholder={local("例如：2020 - 至今", "2020 - Present")}
+                        value={item.date}
+                        onChange={(e) =>
+                          updateListItem("work", item.id, "date", e.target.value)
+                        }
+                      />
+                      <div className="space-y-1.5">
+                        <DescriptionEditor id={`work-description-${item.id}`} label={local("工作成果", "Responsibilities and outcomes")}
+                          value={item.desc} onChange={value => updateListItem("work", item.id, "desc", value)} />
+                        {renderAiActions({
+                          text: item.desc,
+                          target: { type: "work", id: item.id },
+                          context: local("工作成果", "Work outcomes"),
+                        })}
+                        {renderGenerateButton({
+                          target: { type: "work", id: item.id },
+                          context: local("工作经历", "Work experience"),
+                          payload: {
+                            type: "work",
+                            company: item.company,
+                            role: item.role,
+                            date: item.date,
+                            skills: resumeData.skills,
+                          },
+                        })}
+                      </div>
                     </div>
                   </Card>
                 ))}
@@ -1955,72 +1994,75 @@ function ResumeEditorContent() {
                     className="p-4 border-dashed border-zinc-200 space-y-3"
                   >
                     <ResumeEntryActions id={item.id} label={`${item.name.trim() || local("项目", "Project")} · ${index + 1}`}
-                      index={index} count={resumeData.projects.length}
+                      index={index} count={resumeData.projects.length} collapsed={isEntryCollapsed("project", item.id)}
+                      bodyId={`resume-project-${index}-fields`} onToggle={() => toggleEntry("project", item.id)}
                       onAction={(action, trigger) => handleEntryAction("project", item.id, action, trigger)} />
-                    <Input
-                      label={local("项目名称", "Project name")}
-                      placeholder={local("例如：青椒简历编辑器", "Project name")}
-                      value={item.name}
-                      onChange={(e) =>
-                        updateListItem(
-                          "project",
-                          item.id,
-                          "name",
-                          e.target.value,
-                        )
-                      }
-                    />
-                    <Input
-                      label={local("职责", "Role")}
-                      placeholder={local("例如：核心开发", "Role")}
-                      value={item.role}
-                      onChange={(e) =>
-                        updateListItem(
-                          "project",
-                          item.id,
-                          "role",
-                          e.target.value,
-                        )
-                      }
-                    />
-                    <Input
-                      label={local("项目时间", "Dates")}
-                      placeholder={local("例如：2023.01 - 至今", "2023.01 - Present")}
-                      value={item.date}
-                      onChange={(e) =>
-                        updateListItem(
-                          "project",
-                          item.id,
-                          "date",
-                          e.target.value,
-                        )
-                      }
-                    />
-                    <Input
-                      label={local("项目链接", "Project link")}
-                      type="url"
-                      value={item.link || ""}
-                      onChange={event => updateListItem("project", item.id, "link", event.target.value)}
-                    />
-                    <div className="space-y-1.5">
-                      <DescriptionEditor id={`project-description-${item.id}`} label={local("项目成果", "Project outcomes")}
-                        value={item.desc} onChange={value => updateListItem("project", item.id, "desc", value)} />
-                      {renderAiActions({
-                        text: item.desc,
-                        target: { type: "project", id: item.id },
-                        context: local("项目成果", "Project outcomes"),
-                      })}
-                      {renderGenerateButton({
-                        target: { type: "project", id: item.id },
-                        context: local("项目经验", "Projects"),
-                        payload: {
-                          type: "project",
-                          projectName: item.name,
-                          role: item.role,
-                          date: item.date,
-                          skills: resumeData.skills,
-                        },
-                      })}
+                    <div id={`resume-project-${index}-fields`} hidden={isEntryCollapsed("project", item.id)} className="space-y-3">
+                      <Input
+                        label={local("项目名称", "Project name")}
+                        placeholder={local("例如：青椒简历编辑器", "Project name")}
+                        value={item.name}
+                        onChange={(e) =>
+                          updateListItem(
+                            "project",
+                            item.id,
+                            "name",
+                            e.target.value,
+                          )
+                        }
+                      />
+                      <Input
+                        label={local("职责", "Role")}
+                        placeholder={local("例如：核心开发", "Role")}
+                        value={item.role}
+                        onChange={(e) =>
+                          updateListItem(
+                            "project",
+                            item.id,
+                            "role",
+                            e.target.value,
+                          )
+                        }
+                      />
+                      <Input
+                        label={local("项目时间", "Dates")}
+                        placeholder={local("例如：2023.01 - 至今", "2023.01 - Present")}
+                        value={item.date}
+                        onChange={(e) =>
+                          updateListItem(
+                            "project",
+                            item.id,
+                            "date",
+                            e.target.value,
+                          )
+                        }
+                      />
+                      <Input
+                        label={local("项目链接", "Project link")}
+                        type="url"
+                        value={item.link || ""}
+                        onChange={event => updateListItem("project", item.id, "link", event.target.value)}
+                      />
+                      <div className="space-y-1.5">
+                        <DescriptionEditor id={`project-description-${item.id}`} label={local("项目成果", "Project outcomes")}
+                          value={item.desc} onChange={value => updateListItem("project", item.id, "desc", value)} />
+                        {renderAiActions({
+                          text: item.desc,
+                          target: { type: "project", id: item.id },
+                          context: local("项目成果", "Project outcomes"),
+                        })}
+                        {renderGenerateButton({
+                          target: { type: "project", id: item.id },
+                          context: local("项目经验", "Projects"),
+                          payload: {
+                            type: "project",
+                            projectName: item.name,
+                            role: item.role,
+                            date: item.date,
+                            skills: resumeData.skills,
+                          },
+                        })}
+                      </div>
                     </div>
                   </Card>
                 ))}
@@ -2245,7 +2287,7 @@ function ResumeEditorContent() {
           </AnimatePresence>
         </aside>
 
-        <EditorPreview ref={resumeContentRef} config={resumeConfig} active={activeMobileTab === "preview"} onPagesChange={setNumPages} />
+        <EditorPreview ref={resumeContentRef} config={resumeConfig} active={activeMobileTab === "preview"} onPagesChange={setNumPages} onEditModule={openModuleFromPreview} />
         {/* 移动端底部切换导航栏 */}
         <nav aria-label={local("编辑视图", "Editor views")} className="lg:hidden fixed bottom-6 left-1/2 -translate-x-1/2 h-14 bg-zinc-900/90 backdrop-blur-md rounded-2xl flex items-center px-2 gap-1 border border-white/10 shadow-2xl z-[100]">
           <button type="button" aria-pressed={activeMobileTab === "manage"} aria-controls="resume-editor-panel-manage"

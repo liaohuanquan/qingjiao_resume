@@ -37,7 +37,7 @@ button:disabled { cursor: not-allowed; }
   background: #fff; color: #27272a; box-shadow: 0 12px 30px #18181b20;
   overflow-wrap: anywhere; text-align: left; user-select: text;
 }
-.resume-header { display: flex; align-items: flex-start; gap: 20px; margin-bottom: var(--section-gap); padding-bottom: 14px; border-bottom: 2px solid var(--theme-color); break-inside: avoid; }
+.resume-header { position: relative; display: flex; align-items: flex-start; gap: 20px; margin-bottom: var(--section-gap); padding-bottom: 14px; border-bottom: 2px solid var(--theme-color); break-inside: avoid; }
 .resume-avatar { flex-shrink: 0; order: 2; }
 .resume-heading { min-width: 0; flex: 1; }
 .resume-heading h1 { color: #18181b; font-size: var(--name-size); font-weight: 750; line-height: 1.2; margin-bottom: 6px; letter-spacing: -.02em; }
@@ -46,7 +46,17 @@ button:disabled { cursor: not-allowed; }
 .resume-contacts > span { display: inline-flex; align-items: flex-start; gap: 5px; min-width: 0; max-width: 100%; }
 .resume-contacts > span > span { min-width: 0; overflow-wrap: anywhere; }
 .resume-contacts svg { flex-shrink: 0; margin-top: .2em; color: #71717a; }
-.resume-section { margin-bottom: var(--section-gap); min-width: 0; }
+.resume-section { position: relative; margin-bottom: var(--section-gap); min-width: 0; }
+.resume-edit-module { position: absolute; top: -20px; right: 0; z-index: 1; padding: 2px 7px; border-radius: 6px; background: #18181b; color: #fff; font-size: 11px; line-height: 1.4; opacity: 0; pointer-events: none; }
+.resume-header:hover > .resume-edit-module, .resume-header:focus-within > .resume-edit-module,
+.resume-section:hover > .resume-edit-module, .resume-section:focus-within > .resume-edit-module { opacity: 1; pointer-events: auto; }
+.resume-edit-module:focus-visible { opacity: 1; pointer-events: auto; outline: 2px solid var(--theme-color); }
+@media (max-width: 63.999rem) {
+  .resume-edit-module { opacity: 1; pointer-events: auto; }
+}
+@media (min-width: 64rem) {
+  #resume-editor-panel-manage[data-collapsed="true"] { display: none; }
+}
 .resume-section:last-child, .resume-entry:last-child { margin-bottom: 0; }
 .resume-section-body { min-width: 0; }
 .resume-section h2 { color: #18181b; border-bottom: 1px solid #d4d4d8; padding-bottom: 5px; margin-bottom: 9px; font-size: var(--heading-size); font-weight: 700; line-height: 1.35; break-after: avoid; }
